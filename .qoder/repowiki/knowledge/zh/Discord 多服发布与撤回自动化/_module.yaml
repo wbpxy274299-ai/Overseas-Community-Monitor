@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: ""
+title: Discord 多服发布与撤回自动化
+scope:
+    - dc-publish-scanner.py
+    - discord_recall.py
+source_files: []
+depends_on: []
+related_to: []

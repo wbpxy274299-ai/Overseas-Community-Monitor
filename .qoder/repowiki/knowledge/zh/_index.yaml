@@ -1,0 +1,16 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: Q0DeR-MaG1C-BrAnCh-Fo2-NoN-GiT-Or-No-C0MmIt
+exported_at: "2026-06-04T10:04:59Z"
+modules:
+    "":
+        dir_name: Discord 多服发布与撤回自动化
+        title: Discord 多服发布与撤回自动化
+        scope:
+            - dc-publish-scanner.py
+            - discord_recall.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
