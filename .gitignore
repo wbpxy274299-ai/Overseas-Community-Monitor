@@ -1,0 +1,24 @@
+# ===== 敏感文件（绝不上传） =====
+.env
+*.db
+
+# ===== 依赖目录 =====
+node_modules/
+.venv/
+
+# ===== 日志 =====
+logs/
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ===== IDE =====
+.idea/
+.vscode/
+
+# ===== Python =====
+__pycache__/
+*.pyc

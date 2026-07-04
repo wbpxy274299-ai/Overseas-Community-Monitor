@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>🔐 M2G 权限管理</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/pages/admin.css">
+  <script src="/static/js/common.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <h1>🔐 权限管理</h1>
+      <p>管理用户角色和权限（仅管理员可见）</p>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">🚀 DC发布</a>
+      <a href="/sentiment" class="nav-link">📊 舆情监控</a>
+      <a href="/reports" class="nav-link">📋 周报管理</a>
+      <a href="/sentiment-history" class="nav-link">📚 历史数据</a>
+      <a href="/admin" class="nav-link active">🔐 权限管理</a>
+      <button class="btn btn-sm" onclick="DarkMode.toggle()" title="切换暗黑模式">🌙</button>
+    </nav>
+  </header>
+
+  <div class="container">
+    <!-- 警告提示 -->
+    <div class="alert alert-warning">
+      <strong>⚠️ 注意：</strong>
+      此页面仅对管理员开放。请谨慎分配管理员权限，确保只有信任的用户才能获得完整功能访问权。
+    </div>
+
+    <!-- 用户列表 -->
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>用户名</th>
+            <th>当前角色</th>
+            <th>注册时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="userTableBody">
+          <tr><td colspan="4" class="loading">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/static/js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>M2G 舆情周报系统</title>
+  <!-- Favicon: 使用 emoji 作为图标 -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header h1 {
+      color: #333;
+      font-size: 28px;
+    }
+    
+    .header p {
+      color: #666;
+      margin-top: 8px;
+    }
+    
+    .back-btn {
+      display: inline-block;
+      padding: 10px 20px;
+      background: #f0f0f0;
+      color: #333;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: all 0.3s;
+    }
+    
+    .back-btn:hover {
+      background: #e0e0e0;
+    }
+    
+    .action-bar {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+    
+    .report-section {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      display: none;
+    }
+    
+    .report-section.active {
+      display: block;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    
+    .error-message {
+      text-align: center;
+      padding: 40px;
+      color: #ef4444;
+    }
+    
+    .summary-box {
+      background: #f0f9ff;
+      border-left: 4px solid #3b82f6;
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 4px;
+    }
+    
+    .summary-box h3 {
+      color: #1e40af;
+      margin-bottom: 10px;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .stat-card {
+      background: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .stat-card h4 {
+      color: #374151;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .stat-card .value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #1f2937;
+    }
+    
+    .stat-card .sub {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+    
+    .content-area {
+      line-height: 1.8;
+      color: #374151;
+    }
+    
+    .content-area h1 {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 24px 0 16px 0;
+      color: #1f2937;
+    }
+    
+    .content-area h2 {
+      font-size: 20px;
+      font-weight: bold;
+      margin: 20px 0 12px 0;
+      color: #374151;
+    }
+    
+    .content-area h3 {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 16px 0 10px 0;
+      color: #4b5563;
+    }
+    
+    .content-area p {
+      margin: 12px 0;
+    }
+    
+    .content-area ul {
+      margin: 12px 0;
+      padding-left: 24px;
+    }
+    
+    .content-area li {
+      margin: 8px 0;
+    }
+    
+    .content-area table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    
+    .content-area td {
+      padding: 8px 12px;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .download-bar {
+      margin-top: 30px;
+      text-align: center;
+      padding-top: 20px;
+      border-top: 2px solid #e5e7eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>📋 M2G 舆情周报系统</h1>
+        <p>自动生成上周舆情分析报告，支持数据概览、热门话题、风险评估</p>
+      </div>
+      <a href="/sentiment" class="back-btn">← 返回舆情监控</a>
+    </div>
+    
+    <div class="action-bar">
+      <button class="btn btn-primary" onclick="generateReport()">
+        🔄 生成最新周报
+      </button>
+      <button class="btn btn-secondary" onclick="checkData()">
+        🔍 检查数据状态
+      </button>
+      <span id="statusText" style="color: #666; margin-left: auto;"></span>
+    </div>
+    
+    <div class="report-section" id="reportSection">
+      <div id="reportContent">
+        <div class="loading">正在生成报告...</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const API_BASE = '/api/weekly-report';
+    
+    /**
+     * 生成周报
+     */
+    async function generateReport() {
+      const reportSection = document.getElementById('reportSection');
+      const reportContent = document.getElementById('reportContent');
+      const statusText = document.getElementById('statusText');
+      
+      // 显示加载状态
+      reportSection.classList.add('active');
+      reportContent.innerHTML = '<div class="loading"> 正在查询上周数据并生成报告...</div>';
+      statusText.textContent = '生成中...';
+      
+      try {
+        console.log('📋 请求生成周报...');
+        
+        const response = await fetch(`${API_BASE}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (!result.ok) {
+          throw new Error(result.error || '生成失败');
+        }
+        
+        console.log('✅ 周报生成成功！');
+        statusText.textContent = '✅ 生成成功';
+        
+        // 渲染报告
+        renderReport(result.data);
+        
+      } catch (error) {
+        console.error(' 周报生成失败:', error);
+        statusText.textContent = '❌ 生成失败';
+        reportContent.innerHTML = `
+          <div class="error-message">
+            <div style="font-size: 48px; margin-bottom: 16px;">❌</div>
+            <h3>周报生成失败</h3>
+            <p>${escapeHtml(error.message)}</p>
+            <button onclick="generateReport()" class="btn btn-primary" style="margin-top: 16px;">
+              🔄 重试
+            </button>
+          </div>
+        `;
+      }
+    }
+    
+    /**
+     * 检查数据状态
+     */
+    async function checkData() {
+      const statusText = document.getElementById('statusText');
+      statusText.textContent = '检查中...';
+      
+      try {
+        const response = await fetch(`${API_BASE}/check-data`);
+        const result = await response.json();
+        
+        if (result.ok) {
+          const data = result.data;
+          alert(`📊 数据状态\n\n时间范围: ${data.dateRange.start.substring(0, 10)} ~ ${data.dateRange.end.substring(0, 10)}\n总记录数: ${data.total}\nTwitter: ${data.twitter} 条\nDiscord: ${data.discord} 条`);
+          statusText.textContent = `✅ 共 ${data.total} 条数据`;
+        } else {
+          alert('❌ 检查失败');
+          statusText.textContent = '❌ 检查失败';
+        }
+      } catch (error) {
+        console.error('❌ 检查数据失败:', error);
+        alert('❌ 检查失败: ' + error.message);
+        statusText.textContent = '❌ 检查失败';
+      }
+    }
+    
+    /**
+     * 渲染报告内容
+     */
+    function renderReport(data) {
+      const reportContent = document.getElementById('reportContent');
+      
+      const html = `
+        <div class="summary-box">
+          <h3>📊 报告摘要</h3>
+          <p>${escapeHtml(data.summary)}</p>
+        </div>
+        
+        <div class="stats-grid">
+          <div class="stat-card">
+            <h4>📅 报告周期</h4>
+            <div class="value">${data.stats.dateRange.start.substring(0, 10)} ~ ${data.stats.dateRange.end.substring(0, 10)}</div>
+            <div class="sub">上周一至上周日</div>
+          </div>
+          
+          <div class="stat-card">
+            <h4>📈 总讨论量</h4>
+            <div class="value">${data.stats.totalRecords}</div>
+            <div class="sub">条玩家反馈</div>
+          </div>
+          
+          <div class="stat-card">
+            <h4>⚠️ 风险等级</h4>
+            <div class="value">${data.stats.riskLevel}</div>
+            <div class="sub">基于负面情绪比例</div>
+          </div>
+          
+          <div class="stat-card">
+            <h4>🐦 Twitter</h4>
+            <div class="value">${data.stats.platforms.twitter.total}</div>
+            <div class="sub">条推文</div>
+          </div>
+          
+          <div class="stat-card">
+            <h4>💬 Discord 繁中</h4>
+            <div class="value">${data.stats.platforms.discord_tc.total}</div>
+            <div class="sub">条消息</div>
+          </div>
+          
+          <div class="stat-card">
+            <h4>🎮 Discord 日服</h4>
+            <div class="value">${data.stats.platforms.discord_jp.total}</div>
+            <div class="sub">条消息</div>
+          </div>
+        </div>
+        
+        <div class="content-area">
+          ${renderMarkdown(data.report)}
+        </div>
+        
+        <div class="download-bar">
+          <button onclick="downloadReport(\`${escapeForJs(data.report)}\`)" class="btn btn-primary">
+            💾 下载 Markdown 报告
+          </button>
+        </div>
+      `;
+      
+      reportContent.innerHTML = html;
+    }
+    
+    /**
+     * 简单渲染 Markdown
+     */
+    function renderMarkdown(markdown) {
+      let html = markdown
+        // 标题
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        // 粗体
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        // 列表项
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        // 表格行
+        .replace(/^\|(.+)\|$/gm, (match, content) => {
+          const cells = content.split('|').map(cell => cell.trim());
+          if (cells.every(cell => /^-+$/.test(cell))) return '';
+          return '<tr>' + cells.map(cell => `<td>${cell}</td>`).join('') + '</tr>';
+        })
+        // 换行
+        .replace(/\n\n/g, '</p><p>')
+        // 段落
+        .replace(/^(?!<[hlu]|<tr|<li)(.+)$/gm, '<p>$1</p>');
+      
+      // 包裹表格和列表
+      html = html.replace(/(<tr>.+?<\/tr>)/gs, '<table>$1</table>');
+      html = html.replace(/(<li.+?<\/li>)/gs, '<ul>$1</ul>');
+      
+      return html;
+    }
+    
+    /**
+     * 下载报告
+     */
+    function downloadReport(content) {
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `舆情周报_${new Date().toISOString().slice(0, 10)}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    /**
+     * HTML 转义
+     */
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    /**
+     * 为 JavaScript 字符串转义
+     */
+    function escapeForJs(text) {
+      return text.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    }
+  </script>
+</body>
+</html>

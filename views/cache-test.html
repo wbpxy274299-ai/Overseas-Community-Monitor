@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cache Test</title>
+</head>
+<body>
+  <h1>🧪 缓存测试页面</h1>
+  <p>如果看到这个页面，说明服务器正常工作</p>
+  <p>当前时间: <span id="time"></span></p>
+  
+  <script>
+    document.getElementById('time').textContent = new Date().toLocaleString();
+    
+    // 测试API
+    fetch('http://localhost:5000/api/sentiment/hot-topics')
+      .then(res => res.json())
+      .then(data => {
+        console.log('✅ API响应:', data);
+        if (data.ok && data.data) {
+          alert('AI话题API工作正常！\n\nTwitter话题: ' + (data.data.twitter_topics?.length || 0) + '个\nDiscord话题: ' + (data.data.discord_topics?.length || 0) + '个');
+        } else {
+          alert('API返回异常: ' + JSON.stringify(data));
+        }
+      })
+      .catch(err => {
+        alert('API调用失败: ' + err.message);
+      });
+  </script>
+</body>
+</html>

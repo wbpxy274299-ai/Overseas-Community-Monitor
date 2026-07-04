@@ -1,0 +1,85 @@
+/**
+ * 舆情历史数据 — 页面专用样式
+ */
+
+/* 筛选器 */
+.filters-bar {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--space-lg);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.filter-group label {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* 数据表格 */
+.data-table-container {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-card);
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.data-table th {
+  background: var(--color-gradient);
+  color: white;
+  padding: 14px;
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+.data-table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.data-table tr:hover { background: #f7fafc; }
+[data-theme="dark"] .data-table tr:hover { background: #374151; }
+
+.content-cell { max-width: 400px; word-wrap: break-word; }
+
+.platform-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+.platform-twitter { background: #e0f2fe; color: #0369a1; }
+.platform-discord { background: #ddd6fe; color: #6b21a8; }
+
+.media-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  background: #fef3c7;
+  color: #92400e;
+  margin-left: 8px;
+}
+
+.url-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: var(--font-size-xs);
+}
+.url-link:hover { text-decoration: underline; }

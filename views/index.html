@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>🚀 DC 发布管理系统</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+<link rel="stylesheet" href="/static/css/base.css">
+<link rel="stylesheet" href="/static/css/components.css">
+<link rel="stylesheet" href="/static/css/pages/home.css">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ===== 登录/注册界面 ===== -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>DC 发布管理系统</h1>
+    <p class="login-hint">请登录后操作，所有操作将记录操作人身份</p>
+    
+    <div id="loginForm">
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="loginName" placeholder="输入你的用户名">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="loginPassword" placeholder="输入密码">
+      </div>
+      <button class="btn btn-primary btn-login" id="loginBtn">登录</button>
+      <div id="loginMsg"></div>
+      <p class="toggle-link">还没有账号？<a id="showRegLink">注册新账号</a></p>
+    </div>
+    
+    <div id="registerForm" style="display:none;">
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="regName" placeholder="取个名字吧（1-20字符）">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="regPassword" placeholder="设置密码（至少4位）">
+      </div>
+      <div class="form-group">
+        <label>确认密码</label>
+        <input type="password" id="regConfirm" placeholder="再输一次密码">
+      </div>
+      <button class="btn btn-primary btn-login" id="regBtn">注册</button>
+      <div id="regMsg"></div>
+      <p class="toggle-link">已有账号？<a id="showLoginLink">去登录</a></p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 主界面 ===== -->
+<div id="mainApp" style="display:none;">
+  <div class="identity-bar">
+    <h1>DC 发布管理系统</h1>
+    <div class="identity-info">
+      <button class="btn btn-small" id="themeToggle" title="切换暗黑模式">🌙</button>
+      <a href="/sentiment" class="btn btn-small admin-only" title="打开舆情监控面板">📊 舆情监控</a>
+      <a href="/reports" class="btn btn-small admin-only" title="打开周报管理">📋 周报管理</a>
+      <a href="/admin" class="btn btn-small admin-only" title="打开权限管理">🔐 权限管理</a>
+      <span class="identity-label">操作人:</span>
+      <span class="identity-name" id="currentOperator">—</span>
+      <button class="btn btn-small btn-logout" id="logoutBtn">退出登录</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="submit">提交发送</button>
+    <button class="tab-btn" data-tab="list">任务列表</button>
+  </div>
+
+  <!-- Tab1: 提交发送 -->
+  <div id="tab-submit" class="tab-panel active">
+    <form id="sendForm">
+      <div class="form-group">
+        <label>发送模式 *</label>
+        <select id="sendMode">
+          <option value="now">立即发送</option>
+          <option value="schedule">定时发送</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>发送地区 *</label>
+        <select id="serverRegion" required>
+          <option value="">-- 请选择地区 --</option>
+          <option value="JP">日服</option>
+          <option value="TC">繁中服</option>
+          <option value="SEA">东南亚服</option>
+          <option value="KR">韩服</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>频道 *</label>
+        <select id="channel" required disabled>
+          <option value="">-- 请先选择地区 --</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>发送人（根据频道自动填充）</label>
+        <input type="text" id="sender" readonly placeholder="选择频道后自动填充" class="readonly-field">
+      </div>
+      <div class="form-group">
+        <label>消息内容 *</label>
+        <textarea id="content" placeholder="输入要发送的文字内容..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>上传图片（可多选）</label>
+        <input type="file" id="imageFiles" multiple accept="image/*">
+        <div id="imagePreview" class="image-preview"></div>
+      </div>
+      <div class="form-group" id="sendTimeGroup" style="display:none;">
+        <label>定时发送时间 *</label>
+        <input type="datetime-local" id="sendTime">
+      </div>
+      <button type="submit" class="btn btn-primary" id="submitBtn">立即发送</button>
+    </form>
+    <div id="sendMsg"></div>
+  </div>
+
+  <!-- Tab2: 任务列表 -->
+  <div id="tab-list" class="tab-panel">
+    <div class="filter-bar">
+      <select id="filterStatus">
+        <option value="">全部状态</option>
+        <option value="received">📝已接收</option>
+        <option value="scheduled">📅已定时</option>
+        <option value="sent">✅已发送</option>
+        <option value="failed">❌失败</option>
+        <option value="cancelled">🚫已取消</option>
+        <option value="recalled">🗑️已撤回</option>
+      </select>
+      <select id="filterChannel">
+        <option value="">全部频道</option>
+      </select>
+      <input type="text" id="searchInput" placeholder="🔍 搜索内容/频道/操作人..." style="min-width:180px;">
+      <button class="btn btn-small btn-primary" id="refreshBtn">刷新</button>
+      <button class="btn btn-small btn-success" id="exportBtn">导出报告</button>
+      <span id="taskCount" class="task-count"></span>
+      <span id="batchActions" style="display:none;margin-left:auto;">
+        <button class="btn btn-small btn-danger" id="batchCancelBtn">批量取消</button>
+        <button class="btn btn-small btn-warning" id="batchRecallBtn">批量撤回</button>
+        <button class="btn btn-small btn-success" id="batchRetryBtn">批量重试</button>
+      </span>
+    </div>
+    <table class="task-table">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll" title="全选"></th>
+          <th>ID</th><th>频道</th><th>内容</th><th>类型</th><th>状态</th>
+          <th>定时时间</th><th>实际发送时间</th><th>发送人</th><th>操作人</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="taskListBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 任务详情弹窗 -->
+<div id="taskDetailModal" class="modal-overlay modal-backdrop">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="detailTitle">任务详情</h3>
+      <button class="modal-close" id="closeDetailBtn">&times;</button>
+    </div>
+    <div id="detailBody"></div>
+  </div>
+</div>
+
+<!-- Discord 真实效果弹窗 -->
+<div id="dcPreviewModal" class="modal-overlay modal-backdrop-dark">
+  <div class="dc-preview-container">
+    <button class="modal-close-light" id="closePreviewBtn" style="position:absolute;top:-40px;right:0;">&times;</button>
+    <div class="dc-preview-header">
+      <span class="dc-preview-hash">#</span>
+      <span id="dcPreviewChannel">频道名称</span>
+      <span class="dc-preview-badge">实时拉取</span>
+    </div>
+    <div id="dcPreviewBody" class="dc-preview-body">
+      <div class="dc-loading">加载中...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 二次确认弹窗 -->
+<div id="confirmModal" class="modal-overlay modal-backdrop">
+  <div class="modal-content" style="max-width: 400px;">
+    <div class="modal-header">
+      <h3 id="confirmTitle">确认操作</h3>
+      <button class="modal-close" id="closeConfirmBtn">&times;</button>
+    </div>
+    <div id="confirmBody" style="padding: 20px; text-align: center;">
+      <p id="confirmMessage"></p>
+      <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+        <button class="btn btn-danger" id="confirmYesBtn">确认</button>
+        <button class="btn" id="confirmNoBtn">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 图片查看弹窗 -->
+<div id="imageViewerModal" class="modal-overlay modal-backdrop-dark">
+  <div class="image-viewer">
+    <button class="modal-close-light" id="closeViewerBtn">&times;</button>
+    <img id="imageViewerImg" src="">
+  </div>
+</div>
+
+<script src="/static/js/home.js"></script>
+</body>
+</html>

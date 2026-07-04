@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google SSO 登录</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .login-container {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .google-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: #fff;
+      color: #757575;
+      border: 1px solid #ddd;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      width: 100%;
+    }
+    
+    .google-btn:hover {
+      background: #f8f9fa;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+      transform: translateY(-1px);
+    }
+    
+    .google-btn:active {
+      transform: translateY(0);
+    }
+    
+    .google-icon {
+      width: 24px;
+      height: 24px;
+    }
+    
+    .user-info {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      display: none;
+    }
+    
+    .user-info.show {
+      display: block;
+    }
+    
+    .user-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      margin-bottom: 15px;
+      border: 3px solid #667eea;
+    }
+    
+    .user-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 5px;
+    }
+    
+    .user-email {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+    
+    .user-role {
+      display: inline-block;
+      padding: 4px 12px;
+      background: #667eea;
+      color: white;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .logout-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    }
+    
+    .logout-btn:hover {
+      background: #c82333;
+    }
+    
+    .error-message {
+      color: #dc3545;
+      margin-top: 15px;
+      padding: 10px;
+      background: #f8d7da;
+      border-radius: 6px;
+      display: none;
+    }
+    
+    .loading {
+      display: none;
+      margin-top: 20px;
+    }
+    
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h1>🔐 系统登录</h1>
+    <p class="subtitle">使用 Google 账号快速登录</p>
+    
+    <button class="google-btn" id="googleLoginBtn" onclick="handleGoogleLogin()">
+      <svg class="google-icon" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M23.745 12.27c0-.79-.07-1.54-.19-2.27h-11.3v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.28-2.09 3.56-5.17 3.56-8.82z"/>
+        <path fill="#34A853" d="M12.255 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.07.72-2.43 1.14-4.07 1.14-3.13 0-5.78-2.11-6.73-4.96h-3.98v3.09C3.515 21.3 7.565 24 12.255 24z"/>
+        <path fill="#FBBC05" d="M5.525 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.64h-3.98a11.9 11.9 0 000 10.72l3.98-3.09z"/>
+        <path fill="#EA4335" d="M12.255 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C18.205 1.19 15.495 0 12.255 0c-4.69 0-8.74 2.7-10.71 6.64l3.98 3.09c.95-2.85 3.6-4.98 6.73-4.98z"/>
+      </svg>
+      使用 Google 账号登录
+    </button>
+    
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p style="margin-top: 10px; color: #666;">正在验证...</p>
+    </div>
+    
+    <div class="error-message" id="errorMessage"></div>
+    
+    <div class="user-info" id="userInfo">
+      <img class="user-avatar" id="userAvatar" src="" alt="用户头像">
+      <div class="user-name" id="userName"></div>
+      <div class="user-email" id="userEmail"></div>
+      <span class="user-role" id="userRole"></span>
+      <br>
+      <button class="logout-btn" onclick="handleLogout()">退出登录</button>
+    </div>
+  </div>
+  
+  <script>
+    // 检查是否已登录
+    window.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        verifyToken(token);
+      }
+    });
+    
+    /**
+     * 处理 Google 登录
+     */
+    async function handleGoogleLogin() {
+      showLoading(true);
+      hideError();
+      
+      try {
+        // 1. 获取 Google OAuth URL
+        const response = await fetch('/api/auth/google/login');
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || '获取授权链接失败');
+        }
+        
+        // 2. 重定向到 Google 授权页面
+        window.location.href = data.authUrl;
+        
+      } catch (error) {
+        showError(error.message);
+        showLoading(false);
+      }
+    }
+    
+    /**
+     * 处理 OAuth 回调（从 URL 参数中提取 code）
+     */
+    async function handleOAuthCallback() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      
+      if (!code) return;
+      
+      showLoading(true);
+      
+      try {
+        // 3. 发送 code 到后端换取 Token
+        const response = await fetch(`/api/auth/google/callback?code=${code}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || '认证失败');
+        }
+        
+        // 4. 保存 Token 和用户信息
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('user_info', JSON.stringify(data.user));
+        
+        // 5. 清除 URL 中的 code 参数
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        // 6. 显示用户信息
+        displayUserInfo(data.user);
+        showLoading(false);
+        
+      } catch (error) {
+        showError(error.message);
+        showLoading(false);
+      }
+    }
+    
+    /**
+     * 验证 Token 有效性
+     */
+    async function verifyToken(token) {
+      try {
+        const response = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ token })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.valid) {
+          displayUserInfo(data.user);
+        } else {
+          // Token 无效，清除本地存储
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user_info');
+        }
+      } catch (error) {
+        console.error('Token 验证失败:', error);
+      }
+    }
+    
+    /**
+     * 退出登录
+     */
+    async function handleLogout() {
+      const token = localStorage.getItem('auth_token');
+      
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ token })
+        });
+      } catch (error) {
+        console.error('登出请求失败:', error);
+      } finally {
+        // 清除本地存储
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_info');
+        
+        // 隐藏用户信息
+        document.getElementById('userInfo').classList.remove('show');
+        document.getElementById('googleLoginBtn').style.display = 'inline-flex';
+      }
+    }
+    
+    /**
+     * 显示用户信息
+     */
+    function displayUserInfo(user) {
+      document.getElementById('userAvatar').src = user.picture || '';
+      document.getElementById('userName').textContent = user.username;
+      document.getElementById('userEmail').textContent = user.email;
+      document.getElementById('userRole').textContent = user.role === 'admin' ? '管理员' : '普通用户';
+      
+      document.getElementById('userInfo').classList.add('show');
+      document.getElementById('googleLoginBtn').style.display = 'none';
+    }
+    
+    /**
+     * 显示加载状态
+     */
+    function showLoading(show) {
+      document.getElementById('loading').style.display = show ? 'block' : 'none';
+      if (show) {
+        document.getElementById('googleLoginBtn').style.display = 'none';
+      }
+    }
+    
+    /**
+     * 显示错误信息
+     */
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+    }
+    
+    /**
+     * 隐藏错误信息
+     */
+    function hideError() {
+      document.getElementById('errorMessage').style.display = 'none';
+    }
+    
+    // 页面加载时检查是否有 OAuth 回调
+    if (window.location.search.includes('code=')) {
+      handleOAuthCallback();
+    }
+  </script>
+</body>
+</html>

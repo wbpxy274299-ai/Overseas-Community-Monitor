@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>📋 M2G 舆情周报管理</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/pages/reports.css">
+  <script src="/static/js/common.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <h1>📋 舆情周报管理</h1>
+      <p>查看和管理历史舆情报告，支持手动生成新报告</p>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">🚀 DC发布</a>
+      <a href="/sentiment" class="nav-link">📊 舆情监控</a>
+      <a href="/reports" class="nav-link active">📋 周报管理</a>
+      <a href="/sentiment-history" class="nav-link admin-only">📚 历史数据</a>
+      <a href="/admin" class="nav-link admin-only">🔐 权限管理</a>
+      <button class="btn btn-sm" onclick="DarkMode.toggle()" title="切换暗黑模式">🌙</button>
+    </nav>
+  </header>
+
+  <div class="container">
+    <!-- 操作栏 -->
+    <div class="action-bar">
+      <div>
+        <button class="btn btn-primary" id="generateReportBtn" onclick="generateReport()">🔄 生成新周报</button>
+        <button class="btn btn-secondary" onclick="checkData()">🔍 检查数据状态</button>
+        <button class="btn btn-secondary" onclick="loadReports()">🔃 刷新列表</button>
+      </div>
+      <div style="font-size: 14px; color: var(--text-secondary);">
+        共 <span id="reportCount">0</span> 份报告
+      </div>
+    </div>
+
+    <!-- 报告列表 -->
+    <div class="report-list" id="reportList">
+      <div class="loading">加载中...</div>
+    </div>
+  </div>
+
+  <!-- 报告详情弹窗 -->
+  <div class="modal-overlay" id="reportModal">
+    <div class="modal-content report-detail-modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">报告详情</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="markdown-content" id="modalContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/reports.js"></script>
+</body>
+</html>

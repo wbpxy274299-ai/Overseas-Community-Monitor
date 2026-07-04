@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>📚 舆情历史数据 - M2G 用户运营后台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/pages/history.css">
+  <script src="/static/js/common.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <h1>📚 舆情历史数据</h1>
+      <p>所有采集到的玩家发言记录，用于周报分析</p>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">🚀 DC发布</a>
+      <a href="/sentiment" class="nav-link">📊 舆情监控</a>
+      <a href="/reports" class="nav-link admin-only">📋 周报管理</a>
+      <a href="/sentiment-history" class="nav-link active">📚 历史数据</a>
+      <a href="/admin" class="nav-link admin-only">🔐 权限管理</a>
+      <button class="btn btn-sm" onclick="DarkMode.toggle()" title="切换暗黑模式">🌙</button>
+    </nav>
+  </header>
+
+  <div class="container">
+    <!-- 筛选器 -->
+    <div class="filters">
+      <div class="filter-group">
+        <label>平台</label>
+        <select id="platformFilter">
+          <option value="twitter">Twitter</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>开始日期</label>
+        <input type="date" id="startDate">
+      </div>
+      <div class="filter-group">
+        <label>结束日期</label>
+        <input type="date" id="endDate">
+      </div>
+      <div class="filter-group">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" onclick="loadData()">🔍 查询</button>
+      </div>
+    </div>
+
+    <!-- 数据表格 -->
+    <div class="data-table-container">
+      <div id="loadingState" class="loading">加载中...</div>
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+        <p>暂无数据</p>
+      </div>
+      <table class="data-table" id="dataTable" style="display: none;">
+        <thead>
+          <tr>
+            <th style="width: 100px;">平台</th>
+            <th style="width: 150px;">作者</th>
+            <th style="width: 180px;">发布时间</th>
+            <th>内容</th>
+            <th style="width: 80px;">媒体</th>
+            <th style="width: 100px;">链接</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <!-- 分页 -->
+      <div class="pagination" id="pagination" style="display: none;">
+        <button onclick="changePage(-1)" id="prevBtn">上一页</button>
+        <span class="pagination-info" id="pageInfo">第 1 页 / 共 1 页</span>
+        <button onclick="changePage(1)" id="nextBtn">下一页</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/history.js"></script>
+</body>
+</html>
