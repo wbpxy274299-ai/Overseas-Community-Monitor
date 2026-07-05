@@ -3,7 +3,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { oauth2Client, getGoogleUserInfo, createSession, clearUserCache } = require('../middleware/auth');
+const { getOAuth2Client, getGoogleUserInfo, createSession, clearUserCache } = require('../middleware/auth');
 const log = require('../logger');
 
 /**
@@ -16,6 +16,7 @@ router.get('/google/login', (req, res) => {
     'https://www.googleapis.com/auth/userinfo.profile'
   ];
   
+  const oauth2Client = getOAuth2Client();
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,

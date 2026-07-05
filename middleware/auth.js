@@ -18,11 +18,29 @@ const authCache = new NodeCache({
 });
 
 // ===== Google OAuth 客户端 =====
-const oauth2Client = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback'
-);
+let oauth2Client = null;
+
+/**
+ * 获取或创建 OAuth2 客户端（懒加载）
+ */
+function getOAuth2Client() {
+  if (!oauth2Client) {
+    console.log('[DEBUG] GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
+    console.log('[DEBUG] GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '已设置' : '未设置');
+    console.log('[DEBUG] GOOGLE_CALLBACK_URL:', process.env.GOOGLE_CALLBACK_URL);
+    
+    oauth2Client = new OAuth2Client(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback'
+    );
+    
+    console.log('[DEBUG] OAuth2Client 初始化完成');
+    console.log('[DEBUG] clientId:', oauth2Client.clientId_);
+    console.log('[DEBUG] redirectUri:', oauth2Client.redirectUri_);
+  }
+  return oauth2Client;
+}
 
 /**
  * 从 Google Token 获取用户信息
@@ -281,7 +299,7 @@ function forceLogout(googleId) {
 }
 
 module.exports = {
-  oauth2Client,
+  getOAuth2Client,
   getGoogleUserInfo,
   createSession,
   clearUserCache,
