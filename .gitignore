@@ -22,3 +22,9 @@ Thumbs.db
 # ===== Python =====
 __pycache__/
 *.pyc
+
+# ===== 运行时状态（每次重启都会变，不需要跟踪）=====
+.scheduler_state.json
+
+# ===== 截图（临时文件）=====
+screenshot_*.png
