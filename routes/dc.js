@@ -11,6 +11,10 @@ const log = require('../logger');
 const { upload } = require('../middleware/upload');
 const { validateInput } = require('../middleware/validate');
 const { escapeHtml } = require('../middleware/utils');
+const { requireAuth } = require('../middleware/auth');
+
+// DC 发布相关 API 都需要登录（限定 /api 路径，不影响其他路由）
+router.use('/api', requireAuth);
 
 // ===== 频道 / 发送人 =====
 

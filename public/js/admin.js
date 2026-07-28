@@ -1,33 +1,30 @@
 /**
  * 权限管理 — 页面逻辑
+ * 使用 JWT Cookie 认证，服务端校验角色
  */
 const API_BASE = '/api/admin';
 
-// 获取当前用户
+// 获取当前用户（从 common.js 的 localStorage 读取，由 home.js 登录后写入）
 function getCurrentUser() {
-  const name = localStorage.getItem('dc_operator');
-  const role = localStorage.getItem('dc_user_role');
-  if (!name) return null;
-  return { name, role: role || 'user' };
+  return JSON.parse(localStorage.getItem('user') || 'null');
 }
 
 // 加载用户列表
 async function loadUsers() {
   const user = getCurrentUser();
   if (!user) {
-    Toast.error('❌ 请先登录');
-    setTimeout(() => { window.location.href = '/'; }, 2000);
-    return;
-  }
-  if (user.role !== 'admin') {
-    Toast.error('❌ 权限不足，需要管理员权限');
-    setTimeout(() => { window.location.href = '/'; }, 2000);
+    window.location.href = '/login';
     return;
   }
   try {
     const response = await fetch(`${API_BASE}/users`, {
-      headers: { 'x-operator': encodeURIComponent(user.name) }
+      credentials: 'same-origin'
     });
+    if (response.status === 401 || response.status === 403) {
+      Toast.error('❌ 权限不足或会话已过期');
+      setTimeout(() => { window.location.href = '/login'; }, 2000);
+      return;
+    }
     const data = await response.json();
     if (data.ok) {
       renderUserTable(data.data);
@@ -70,15 +67,12 @@ function renderUserTable(users) {
 // 修改用户角色
 async function changeRole(username, newRole) {
   if (!confirm(`确定要将 ${username} ${newRole === 'admin' ? '提升为管理员' : '降级为普通用户'}吗？`)) return;
-  const user = getCurrentUser();
   try {
     const response = await fetch(`${API_BASE}/users/${username}/role`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-operator': encodeURIComponent(user.name)
-      },
-      body: JSON.stringify({ role: newRole })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: newRole }),
+      credentials: 'same-origin'
     });
     const data = await response.json();
     if (data.ok) {
@@ -97,8 +91,7 @@ async function changeRole(username, newRole) {
 window.addEventListener('DOMContentLoaded', () => {
   const user = getCurrentUser();
   if (!user) {
-    Toast.error('❌ 请先登录');
-    setTimeout(() => { window.location.href = '/'; }, 2000);
+    window.location.href = '/login';
     return;
   }
   console.log('🔐 权限管理页面 - 当前用户:', user.name, '角色:', user.role);

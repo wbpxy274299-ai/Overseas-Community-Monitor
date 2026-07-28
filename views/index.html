@@ -14,45 +14,16 @@
 </head>
 <body>
 
-<!-- ===== 登录/注册界面 ===== -->
+<!-- ===== 登录检测中 ===== -->
 <div id="loginScreen">
-  <div class="login-card">
+  <div class="login-card" style="text-align:center;">
     <h1>DC 发布管理系统</h1>
-    <p class="login-hint">请登录后操作，所有操作将记录操作人身份</p>
-    
-    <div id="loginForm">
-      <div class="form-group">
-        <label>用户名</label>
-        <input type="text" id="loginName" placeholder="输入你的用户名">
-      </div>
-      <div class="form-group">
-        <label>密码</label>
-        <input type="password" id="loginPassword" placeholder="输入密码">
-      </div>
-      <button class="btn btn-primary btn-login" id="loginBtn">登录</button>
-      <div id="loginMsg"></div>
-      <p class="toggle-link">还没有账号？<a id="showRegLink">注册新账号</a></p>
-    </div>
-    
-    <div id="registerForm" style="display:none;">
-      <div class="form-group">
-        <label>用户名</label>
-        <input type="text" id="regName" placeholder="取个名字吧（1-20字符）">
-      </div>
-      <div class="form-group">
-        <label>密码</label>
-        <input type="password" id="regPassword" placeholder="设置密码（至少4位）">
-      </div>
-      <div class="form-group">
-        <label>确认密码</label>
-        <input type="password" id="regConfirm" placeholder="再输一次密码">
-      </div>
-      <button class="btn btn-primary btn-login" id="regBtn">注册</button>
-      <div id="regMsg"></div>
-      <p class="toggle-link">已有账号？<a id="showLoginLink">去登录</a></p>
-    </div>
+    <p style="margin: 20px 0; color: #666;">正在检测登录状态...</p>
+    <div class="spinner" style="border:3px solid #f3f3f3;border-top:3px solid #667eea;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto;"></div>
+    <p style="margin-top: 15px;"><a href="/login">点击这里登录</a></p>
   </div>
 </div>
+<style>@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>
 
 <!-- ===== 主界面 ===== -->
 <div id="mainApp" style="display:none;">

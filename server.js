@@ -38,6 +38,7 @@ const PORT = 5000;
 // ===== 全局中间件 =====
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(require('cookie-parser')());
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/static', express.static(path.join(__dirname, 'public')));
 app.use('/api/', globalLimiter);

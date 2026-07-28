@@ -73,88 +73,37 @@ $('confirmModal').addEventListener('click', (e) => {
   }
 });
 
-// ===== 登录系统 =====
-async function handleLogin() {
-  const name = $('loginName').value.trim();
-  const password = $('loginPassword').value;
-  const btn = $('loginBtn');
-
-  if (!name) return showMsg('loginMsg', '请输入用户名');
-  if (!password) return showMsg('loginMsg', '请输入密码');
-
-  btn.disabled = true;
-  btn.textContent = '登录中...';
-  $('loginMsg').innerHTML = '';
-
+// ===== 登录系统（Google OAuth SSO）=====
+// 通过服务端 JWT Cookie 验证登录状态
+async function checkLoginStatus() {
   try {
-    const { ok, data } = await api('/api/login', {
-      method: 'POST',
-      body: JSON.stringify({ name, password }),
-    });
-    if (ok) {
-      state.currentOperator = name;
-      state.currentUserRole = data.role || 'user'; // 保存用户角色
-      console.log('✅ 登录成功:', name, '角色:', state.currentUserRole);
-      localStorage.setItem('dc_operator', name);
-      localStorage.setItem('dc_user_role', state.currentUserRole);
-      localStorage.setItem('dc_last_user', name);
-      $('loginMsg').innerHTML = '';
-      showMainApp();
-    } else {
-      showMsg('loginMsg', data.error || '登录失败');
+    const resp = await fetch('/api/auth/verify', { credentials: 'same-origin' });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.valid && data.user) {
+        state.currentOperator = data.user.username;
+        state.currentUserRole = data.user.role || 'user';
+        // 同步到 common.js 的 localStorage（导航栏权限用）
+        localStorage.setItem('user', JSON.stringify({
+          name: data.user.username,
+          role: data.user.role,
+          email: data.user.email,
+          picture: data.user.picture,
+        }));
+        showMainApp();
+        return;
+      }
     }
+    // 未登录，跳转到 Google 登录页
+    window.location.href = '/login';
   } catch (e) {
-    showMsg('loginMsg', '网络错误，请重试');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '登录';
-  }
-}
-
-// ===== 注册系统 =====
-async function handleRegister() {
-  const name = $('regName').value.trim();
-  const password = $('regPassword').value;
-  const confirm = $('regConfirm').value;
-  const btn = $('regBtn');
-
-  if (!name) return showMsg('regMsg', '请填写用户名');
-  if (!password) return showMsg('regMsg', '请填写密码');
-  if (password.length < 4) return showMsg('regMsg', '密码至少4个字符');
-  if (password !== confirm) return showMsg('regMsg', '两次密码不一致');
-
-  btn.disabled = true;
-  btn.textContent = '注册中...';
-  $('regMsg').innerHTML = '';
-
-  try {
-    const { ok, data } = await api('/api/register', {
-      method: 'POST',
-      body: JSON.stringify({ name, password, confirm }),
-    });
-    if (ok) {
-      showMsg('regMsg', '注册成功！请去登录', 'success');
-      $('loginName').value = name;
-      setTimeout(() => {
-        $('registerForm').style.display = 'none';
-        $('loginForm').style.display = 'block';
-        $('regMsg').innerHTML = '';
-      }, 1500);
-    } else {
-      showMsg('regMsg', data.error || '注册失败');
-    }
-  } catch (e) {
-    showMsg('regMsg', '网络错误，请重试');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '注册';
+    console.error('登录检测失败:', e);
+    window.location.href = '/login';
   }
 }
 
 function doLogout() {
-  state.currentOperator = '';
-  localStorage.removeItem('dc_operator');
-  showLoginScreen();
+  window.location.href = '/api/auth/logout';
 }
 
 function showMainApp() {
@@ -166,6 +115,10 @@ function showMainApp() {
   applyRolePermissions();
   
   initMainApp();
+}
+
+function showLoginScreen() {
+  window.location.href = '/login';
 }
 
 // ===== 应用角色权限 =====
@@ -183,23 +136,9 @@ function applyRolePermissions() {
   }
 }
 
-function showLoginScreen() {
-  $('loginScreen').style.display = 'flex';
-  $('mainApp').style.display = 'none';
-  const lastUser = localStorage.getItem('dc_last_user');
-  if (lastUser) $('loginName').value = lastUser;
-}
-
 function autoLogin() {
-  const saved = localStorage.getItem('dc_operator');
-  const savedRole = localStorage.getItem('dc_user_role');
-  if (saved) {
-    state.currentOperator = saved;
-    state.currentUserRole = savedRole || 'user'; // 加载保存的角色
-    showMainApp();
-  } else {
-    showLoginScreen();
-  }
+  // 统一通过服务端 Cookie 验证登录状态
+  checkLoginStatus();
 }
 
 // ===== 初始化 =====
@@ -794,24 +733,8 @@ async function showDcPreview(taskId) {
 
 // ===== 事件绑定（统一在 DOMContentLoaded） =====
 document.addEventListener('DOMContentLoaded', () => {
-  // 登录/注册
-  $('loginBtn').addEventListener('click', handleLogin);
-  $('regBtn').addEventListener('click', handleRegister);
+  // 登录/注册（已废弃，统一用 Google SSO）
   $('logoutBtn').addEventListener('click', doLogout);
-  $('showRegLink').addEventListener('click', () => {
-    $('loginForm').style.display = 'none';
-    $('registerForm').style.display = 'block';
-    $('loginMsg').innerHTML = '';
-  });
-  $('showLoginLink').addEventListener('click', () => {
-    $('registerForm').style.display = 'none';
-    $('loginForm').style.display = 'block';
-    $('regMsg').innerHTML = '';
-  });
-
-  // 回车登录/注册
-  $('loginPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLogin(); });
-  $('regConfirm').addEventListener('keydown', (e) => { if (e.key === 'Enter') handleRegister(); });
 
   // Tab 切换（事件委托）
   document.querySelector('.tabs').addEventListener('click', (e) => {

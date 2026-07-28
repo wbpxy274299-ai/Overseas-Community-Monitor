@@ -1,17 +1,17 @@
 /**
  * 权限管理路由
+ * 所有接口需要 requireAuth + requireRole('admin')
  */
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const log = require('../logger');
+const { requireAuth, requireRole } = require('../middleware/auth');
+
+router.use(requireAuth);
 
 // 获取所有用户列表（仅管理员）
-router.get('/api/admin/users', (req, res) => {
-  const operator = decodeURIComponent(req.headers['x-operator'] || '');
-  if (!operator || !db.isAdmin(operator)) {
-    return res.status(403).json({ error: '权限不足，需要管理员权限' });
-  }
+router.get('/api/admin/users', requireRole('admin'), (req, res) => {
   try {
     const users = db.getAllUsers();
     res.json({ ok: true, data: users });
@@ -22,11 +22,8 @@ router.get('/api/admin/users', (req, res) => {
 });
 
 // 设置用户角色（仅管理员）
-router.put('/api/admin/users/:username/role', (req, res) => {
-  const operator = decodeURIComponent(req.headers['x-operator'] || '');
-  if (!operator || !db.isAdmin(operator)) {
-    return res.status(403).json({ error: '权限不足，需要管理员权限' });
-  }
+router.put('/api/admin/users/:username/role', requireRole('admin'), (req, res) => {
+  const operator = req.user.username;
   try {
     const { username } = req.params;
     const { role } = req.body;

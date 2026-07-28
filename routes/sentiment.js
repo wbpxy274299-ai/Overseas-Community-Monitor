@@ -14,7 +14,13 @@ const scheduler = require('../scheduler');
 const weeklyReport = require('../weekly_report');
 const { formatCst, nowCst } = require('../scanner');
 const log = require('../logger');
-const { requireRole } = require('../middleware/validate');
+const { requireAuth, requireRole } = require('../middleware/auth');
+
+// 跳过健康检查的认证（健康检查不需要登录）
+router.use((req, res, next) => {
+  if (req.path === '/health') return next();
+  requireAuth(req, res, next);
+});
 
 // 清统计缓存辅助函数
 function clearStatisticsCache() {
@@ -149,7 +155,7 @@ router.get('/api/sentiment/history', (req, res) => {
 });
 
 // ===== 手动采集 =====
-router.post('/api/sentiment/collect', async (req, res) => {
+router.post('/api/sentiment/collect', requireRole('operator', 'admin'), async (req, res) => {
   if (sentiment.getIsCollecting()) {
     return res.json({ ok: false, message: '采集进行中，请稍后再试', collecting: true });
   }
@@ -407,8 +413,8 @@ router.get('/api/sentiment/sentiment-trend', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ===== 清理数据（测试用）=====
-router.post('/api/sentiment/clear', (req, res) => {
+// ===== 清理数据（危险操作，仅管理员）=====
+router.post('/api/sentiment/clear', requireRole('admin'), (req, res) => {
   try {
     const platform = req.query.platform;
     if (platform === 'discord') {
@@ -651,8 +657,8 @@ router.get('/api/system/status', (req, res) => {
   }
 });
 
-// ===== 系统重启 API =====
-router.post('/api/system/restart', (req, res) => {
+// ===== 系统重启 API（危险操作，仅管理员）=====
+router.post('/api/system/restart', requireRole('admin'), (req, res) => {
   console.log('\n🔄 用户触发系统重启...');
   res.json({ ok: true, message: '服务器正在重启...' });
   
@@ -665,9 +671,8 @@ router.post('/api/system/restart', (req, res) => {
   }, 1000);
 });
 
-// ===== 手动数据上传 API =====
-// 打个比方：这就像一个「手动进货通道」，自动采集出问题时，你可以手动把数据送进来
-router.post('/api/sentiment/upload', async (req, res) => {
+// ===== 手动数据上传 API（需要 operator 以上）=====
+router.post('/api/sentiment/upload', requireRole('operator', 'admin'), async (req, res) => {
   if (sentiment.getIsCollecting()) {
     return res.json({ ok: false, message: '采集进行中，请稍后再试' });
   }

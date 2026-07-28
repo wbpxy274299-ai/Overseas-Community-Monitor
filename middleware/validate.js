@@ -1,26 +1,9 @@
 /**
  * 输入验证中间件
  * 根据 schema 规则自动校验 req.body，不通过则返回 400
+ *
+ * 注意：requireRole 已迁移至 middleware/auth.js，此处不再提供
  */
-const db = require('../db');
-
-/**
- * 角色权限校验中间件
- * @param {'admin'} role — 需要的最低角色
- * @returns {Function} Express 中间件
- */
-function requireRole(role) {
-  return (req, res, next) => {
-    const operator = decodeURIComponent(req.headers['x-operator'] || '');
-    if (!operator) {
-      return res.status(401).json({ error: '未登录' });
-    }
-    if (role === 'admin' && !db.isAdmin(operator)) {
-      return res.status(403).json({ error: '权限不足，需要管理员权限' });
-    }
-    next();
-  };
-}
 
 function validateInput(schema) {
   return (req, res, next) => {
@@ -85,4 +68,4 @@ function validateInput(schema) {
   };
 }
 
-module.exports = { validateInput, requireRole };
+module.exports = { validateInput };

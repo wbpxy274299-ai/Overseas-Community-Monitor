@@ -5,14 +5,14 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const log = require('../logger');
-const { requireRole } = require('../middleware/validate');
+const { requireAuth, requireRole } = require('../middleware/auth');
+
+// 所有反馈接口需要登录
+router.use(requireAuth);
 
 // 提交反馈（任何登录用户）
 router.post('/api/feedback', (req, res) => {
-  const operator = decodeURIComponent(req.headers['x-operator'] || '');
-  if (!operator) {
-    return res.status(401).json({ error: '未登录' });
-  }
+  const operator = req.user.username;
   const { title, content } = req.body;
   if (!title || !content) {
     return res.status(400).json({ error: '标题和内容不能为空' });

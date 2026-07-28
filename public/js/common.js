@@ -33,10 +33,10 @@ const Toast = {
   info(msg) { this.show(msg, 'info'); },
 };
 
-// ===== API 封装 =====
+// ===== API 封装（自动带 Cookie 凭证）=====
 const Api = {
   async get(url) {
-    const res = await fetch(url);
+    const res = await fetch(url, { credentials: 'same-origin' });
     return res.json();
   },
 
@@ -45,6 +45,7 @@ const Api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+      credentials: 'same-origin',
     });
     return res.json();
   },
@@ -54,20 +55,14 @@ const Api = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+      credentials: 'same-origin',
     });
     return res.json();
   },
 
-  async postWithOperator(url, data = {}) {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return this.post(url, { ...data, operator: user.name || '' });
-  },
-
   getHeaders() {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
     return {
       'Content-Type': 'application/json',
-      'X-Operator': encodeURIComponent(user.name || ''),
     };
   },
 };
@@ -149,11 +144,11 @@ const DarkMode = {
   },
 };
 
-// ===== 登录态检查 =====
+// ===== 登录态检查（通过服务端 JWT Cookie 验证）=====
 function checkAuth() {
   const user = JSON.parse(localStorage.getItem('user') || 'null');
   if (!user || !user.name) {
-    window.location.href = '/';
+    window.location.href = '/login';
     return null;
   }
   return user;
@@ -264,14 +259,11 @@ const FeedbackBtn = {
     if (!title) { Toast.warning('请填写标题'); return; }
     if (!content) { Toast.warning('请填写内容'); return; }
     try {
-      const user = getUser();
       const res = await fetch('/api/feedback', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Operator': encodeURIComponent(user?.name || ''),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content }),
+        credentials: 'same-origin',
       });
       const data = await res.json();
       if (data.ok) {
