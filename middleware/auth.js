@@ -48,7 +48,7 @@ function issueSession(res, userData) {
 
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,       // JS 无法读取，防 XSS
-    secure: false,        // 本地开发用 HTTP；生产环境改 true
+    secure: process.env.NODE_ENV === 'production', // 生产环境(HTTPS)启用 secure cookie
     sameSite: 'lax',      // 防 CSRF
     maxAge: COOKIE_MAX_AGE,
     path: '/',
@@ -90,19 +90,34 @@ async function getGoogleUserInfo(accessToken) {
 
 // ===== 创建/查找本地用户并签发会话 =====
 
+// ===== 超级管理员邮箱列表（自动提升为 admin）=====
+const SUPER_ADMIN_EMAILS = [
+  'wbpxy274299@gmail.com',
+];
+
 async function createSession(googleUserInfo) {
   let localUser = db.getUserByGoogleId(googleUserInfo.googleId);
+
+  // 检查是否为超级管理员邮箱
+  const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(googleUserInfo.email);
 
   if (!localUser) {
     // 新用户自动注册
     const username = googleUserInfo.name || googleUserInfo.email.split('@')[0];
     const defaultPassword = Math.random().toString(36).slice(-8);
+    const role = isSuperAdmin ? 'admin' : 'operator';
     localUser = db.createUserWithGoogle(
-      username, googleUserInfo.email, googleUserInfo.googleId, defaultPassword, 'user'
+      username, googleUserInfo.email, googleUserInfo.googleId, defaultPassword, role
     );
-    log.info(`[新用户注册] ${username} (${googleUserInfo.email})`);
+    log.info(`[新用户注册] ${username} (${googleUserInfo.email}) 角色: ${role}`);
   } else {
-    log.info(`[老用户登录] ${localUser.username}`);
+    // 老用户登录：如果是超级管理员邮箱但还不是 admin，自动提升
+    if (isSuperAdmin && localUser.role !== 'admin') {
+      db.setUserRole(localUser.username, 'admin');
+      localUser.role = 'admin';
+      log.info(`[权限提升] ${localUser.username} (${googleUserInfo.email}) → admin`);
+    }
+    log.info(`[老用户登录] ${localUser.username} 角色: ${localUser.role}`);
   }
 
   return {
@@ -183,6 +198,13 @@ function ensureLoggedIn(req, res, next) {
 
 // ===== 辅助函数 =====
 
+// ===== 角色层次（数字越大权限越高）=====
+const ROLE_LEVEL = { viewer: 1, operator: 2, admin: 3 };
+
+function hasMinRole(userRole, minRole) {
+  return (ROLE_LEVEL[userRole] || 0) >= (ROLE_LEVEL[minRole] || 0);
+}
+
 function clearSession(res) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
 }
@@ -205,6 +227,9 @@ module.exports = {
   requireRole,
   optionalAuth,
   ensureLoggedIn,
+  // 角色工具
+  ROLE_LEVEL,
+  hasMinRole,
   // 兼容旧接口
   clearUserCache,
   forceLogout,

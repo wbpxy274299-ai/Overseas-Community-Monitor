@@ -17,11 +17,13 @@
   </div>
 
   <header class="app-header">
+  <div class="app-header-inner">
     <div class="header-left">
       <h1>📊 舆情监控面板</h1>
       <p>实时追踪 Twitter + Discord 玩家反馈，智能分析情感趋势</p>
     </div>
     <nav class="header-nav" id="mainNav"></nav>
+  </div>
   </header>
 
   <!-- 系统运行状态栏 -->
@@ -44,7 +46,7 @@
       <span style="color:#ef4444;">⚠️ 错误: <span id="statusErrorCount">0</span></span>
     </div>
     <div class="status-actions">
-      <button class="btn-restart" onclick="restartSystem()" title="重启服务">🔄 重启</button>
+      <button class="btn-restart admin-only" onclick="restartSystem()" title="重启服务">🔄 重启</button>
     </div>
   </div>
 

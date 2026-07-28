@@ -82,7 +82,7 @@ async function checkLoginStatus() {
       const data = await resp.json();
       if (data.valid && data.user) {
         state.currentOperator = data.user.username;
-        state.currentUserRole = data.user.role || 'user';
+        state.currentUserRole = data.user.role || 'operator';
         // 同步到 common.js 的 localStorage（导航栏权限用）
         localStorage.setItem('user', JSON.stringify({
           name: data.user.username,

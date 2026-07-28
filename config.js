@@ -12,8 +12,9 @@ const CHANNELS_JSON = path.join(ROOT, 'dc-publish-channels.json');
 const ENV_PATH = path.join(ROOT, '.env');
 
 // ===== Discord Bot =====
-const PROXY_URL = process.env.HTTP_PROXY || 'http://netproxy.ejoy.com:23198';
-const PROXIES = { https: PROXY_URL, http: PROXY_URL };
+// 只在 .env 里设了 HTTP_PROXY 才走代理（本地开发有，线上服务器没有）
+const PROXY_URL = process.env.HTTP_PROXY || '';
+const PROXIES = PROXY_URL ? { https: PROXY_URL, http: PROXY_URL } : undefined;
 const DISCORD_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 /**

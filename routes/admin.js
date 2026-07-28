@@ -10,6 +10,11 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 
 router.use(requireAuth);
 
+// 获取有效角色列表
+router.get('/api/admin/roles', requireRole('admin'), (req, res) => {
+  res.json({ ok: true, data: db.VALID_ROLES });
+});
+
 // 获取所有用户列表（仅管理员）
 router.get('/api/admin/users', requireRole('admin'), (req, res) => {
   try {
@@ -27,8 +32,8 @@ router.put('/api/admin/users/:username/role', requireRole('admin'), (req, res) =
   try {
     const { username } = req.params;
     const { role } = req.body;
-    if (!['user', 'admin'].includes(role)) {
-      return res.status(400).json({ error: '无效的角色' });
+    if (!db.VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: '无效的角色，可选: ' + db.VALID_ROLES.join(', ') });
     }
     if (!db.userExists(username)) {
       return res.status(404).json({ error: '用户不存在' });

@@ -11,10 +11,10 @@ const log = require('../logger');
 const { upload } = require('../middleware/upload');
 const { validateInput } = require('../middleware/validate');
 const { escapeHtml } = require('../middleware/utils');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireRole } = require('../middleware/auth');
 
-// DC 发布相关 API 都需要登录（限定 /api 路径，不影响其他路由）
-router.use('/api', requireAuth);
+// DC 发布相关 API 都需要登录 + operator 以上角色
+router.use('/api', requireAuth, requireRole('operator', 'admin'));
 
 // ===== 频道 / 发送人 =====
 
@@ -30,6 +30,31 @@ router.get('/api/channels', (req, res) => {
     grouped[server].push(name);
   }
   res.json({ servers: grouped });
+});
+
+// ===== Bot Token 状态诊断 =====
+router.get('/api/token-status', requireRole('admin'), (req, res) => {
+  const servers = ['TC', 'JP', 'SEA', 'KR'];
+  const status = {};
+  for (const server of servers) {
+    const token = getDiscordToken(server);
+    status[server] = {
+      configured: !!token && token.length > 10,
+      tokenPreview: token ? `${token.slice(0, 12)}...${token.slice(-4)}` : '(未配置)',
+      length: token ? token.length : 0,
+    };
+  }
+  // 检查 .env 文件是否存在
+  const fs = require('fs');
+  const path = require('path');
+  const envPath = path.join(__dirname, '..', '.env');
+  const envExists = fs.existsSync(envPath);
+  res.json({
+    envFileExists: envExists,
+    nodeEnv: process.env.NODE_ENV || '(未设置)',
+    proxy: process.env.HTTP_PROXY || '(无代理)',
+    tokens: status,
+  });
 });
 
 // ===== 图片上传 =====

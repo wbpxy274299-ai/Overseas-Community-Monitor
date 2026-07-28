@@ -375,8 +375,8 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
   }
 });
 
-// ===== 回溯标记 =====
-router.post('/api/sentiment/backfill', (req, res) => {
+// ===== 回溯标记（admin）=====
+router.post('/api/sentiment/backfill', requireRole('admin'), (req, res) => {
   try {
     const result = sentiment.backfillExistingRecords();
     clearStatisticsCache();
@@ -384,8 +384,8 @@ router.post('/api/sentiment/backfill', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ===== 历史去重 =====
-router.post('/api/sentiment/dedup', (req, res) => {
+// ===== 历史去重（admin）=====
+router.post('/api/sentiment/dedup', requireRole('admin'), (req, res) => {
   try {
     const result = sentiment.deduplicateHistoricalData();
     clearStatisticsCache();
@@ -434,8 +434,8 @@ router.post('/api/sentiment/clear', requireRole('admin'), (req, res) => {
   }
 });
 
-// ===== 手动生成周报 =====
-router.post('/api/sentiment/generate-report', async (req, res) => {
+// ===== 手动生成周报（admin）=====
+router.post('/api/sentiment/generate-report', requireRole('admin'), async (req, res) => {
   try {
     console.log('📋 手动触发周报生成...');
     const result = await weeklyReport.generateWeeklyReport();
@@ -463,8 +463,8 @@ router.post('/api/sentiment/generate-report', async (req, res) => {
   }
 });
 
-// ===== 批量 AI 分析（修复：使用 aiAnalyzer.batchAnalyze）=====
-router.post('/api/sentiment/batch-ai-analyze', async (req, res) => {
+// ===== 批量 AI 分析（admin）=====
+router.post('/api/sentiment/batch-ai-analyze', requireRole('admin'), async (req, res) => {
   try {
     const { limit = 50 } = req.body;
     console.log(`🤖 开始批量 AI 分析（最多 ${limit} 条）...`);
@@ -495,8 +495,8 @@ router.post('/api/sentiment/batch-ai-analyze', async (req, res) => {
   }
 });
 
-// ===== 标记已处理 =====
-router.put('/api/sentiment/:id/process', (req, res) => {
+// ===== 标记已处理（operator + admin）=====
+router.put('/api/sentiment/:id/process', requireRole('operator', 'admin'), (req, res) => {
   try {
     const recordId = parseInt(req.params.id);
     const { handler } = req.body;
@@ -521,8 +521,8 @@ router.get('/api/sentiment/reports', (req, res) => {
   }
 });
 
-// 生成新报告（Node.js 原生）
-router.post('/api/weekly-report/generate', async (req, res) => {
+// 生成新报告（admin only）
+router.post('/api/weekly-report/generate', requireRole('admin'), async (req, res) => {
   try {
     console.log('📋 开始生成周报（Node.js原生版本）...');
     const result = await weeklyReport.generateWeeklyReport();

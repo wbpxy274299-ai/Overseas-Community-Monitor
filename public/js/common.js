@@ -81,26 +81,33 @@ function highlightNav() {
 // ===== 统一导航栏渲染（所有页面共用，改这一处就行）=====
 function renderNav() {
   const path = window.location.pathname;
+  const roleLevel = getRoleLevel();
   const pages = [
-    { path: '/', label: '🚀 DC发布', match: p => p === '/' },
-    { path: '/sentiment', label: '📊 舆情监控', match: p => p.startsWith('/sentiment') && !p.includes('history') },
-    { path: '/reports', label: '📋 周报管理', match: p => p.startsWith('/reports') },
-    { path: '/sentiment-history', label: '📚 历史数据', match: p => p.includes('sentiment-history') },
-    { path: '/admin', label: '🔐 权限管理', match: p => p === '/admin' },
-    { path: '/terminology', label: '📖 术语校对', match: p => p.startsWith('/terminology') },
+    { path: '/', label: '🚀 DC发布', match: p => p === '/', minRole: 'operator' },
+    { path: '/sentiment', label: '📊 舆情监控', match: p => p.startsWith('/sentiment') && !p.includes('history'), minRole: 'viewer' },
+    { path: '/reports', label: '📋 周报管理', match: p => p.startsWith('/reports'), minRole: 'operator' },
+    { path: '/sentiment-history', label: '📚 历史数据', match: p => p.includes('sentiment-history'), minRole: 'operator' },
+    { path: '/admin', label: '🔐 权限管理', match: p => p === '/admin', minRole: 'admin' },
+    { path: '/terminology', label: '📖 术语校对', match: p => p.startsWith('/terminology'), minRole: 'viewer' },
   ];
   
-  let linksHtml = pages.map(p => {
-    const isActive = p.match(path);
-    const activeClass = isActive ? ' active' : '';
-    return `<a href="${p.path}" class="nav-link${activeClass}">${p.label}</a>`;
-  }).join('');
+  let linksHtml = pages
+    .filter(p => roleLevel >= (ROLE_LEVEL[p.minRole] || 0)) // 按角色过滤可见页面
+    .map(p => {
+      const isActive = p.match(path);
+      const activeClass = isActive ? ' active' : '';
+      return `<a href="${p.path}" class="nav-link${activeClass}">${p.label}</a>`;
+    }).join('');
   
   linksHtml += '<div class="nav-divider"></div>';
-  linksHtml += '<button class="nav-dark-toggle" onclick="DarkMode.toggle(); toggleNavMenu();">🌙 切换暗黑模式</button>';
+  // 暗黑模式切换按钮（文案根据当前主题动态变化）
+  const darkBtnText = DarkMode.isDark() ? '☀️ 切换白昼模式' : '🌙 切换暗黑模式';
+  linksHtml += `<button class="nav-dark-toggle" onclick="DarkMode.toggle(); toggleNavMenu();">${darkBtnText}</button>`;
+  // 退出登录按钮
+  linksHtml += '<button class="nav-logout-btn" onclick="window.location.href=\'/api/auth/logout\'">🚪 退出登录</button>';
   
   const html = `
-    <button class="hamburger-btn" onclick="toggleNavMenu()" title="菜单">☰</button>
+    <button class="hamburger-btn" onclick="toggleNavMenu()" title="菜单">☰ <span class="hamburger-label">菜单</span></button>
     <div class="nav-dropdown" id="navDropdown">
       ${linksHtml}
     </div>
@@ -137,10 +144,19 @@ const DarkMode = {
       document.documentElement.setAttribute('data-theme', 'dark');
       localStorage.setItem('theme', 'dark');
     }
+    // 动态更新切换按钮文案
+    DarkMode.updateToggleBtn();
   },
 
   isDark() {
     return document.documentElement.getAttribute('data-theme') === 'dark';
+  },
+
+  updateToggleBtn() {
+    const btn = document.querySelector('.nav-dark-toggle');
+    if (btn) {
+      btn.textContent = DarkMode.isDark() ? '☀️ 切换白昼模式' : '🌙 切换暗黑模式';
+    }
   },
 };
 
@@ -158,16 +174,41 @@ function getUser() {
   return JSON.parse(localStorage.getItem('user') || 'null');
 }
 
-function isAdminUser() {
+// ===== 角色层次 =====
+const ROLE_LEVEL = { viewer: 1, operator: 2, admin: 3 };
+
+function getUserRole() {
   const user = getUser();
-  return user && user.role === 'admin';
+  return user && user.role ? user.role : 'viewer';
+}
+
+function getRoleLevel() {
+  return ROLE_LEVEL[getUserRole()] || 0;
+}
+
+function isAdminUser() {
+  return getUserRole() === 'admin';
+}
+
+function isOperatorOrAbove() {
+  return getRoleLevel() >= ROLE_LEVEL.operator;
 }
 
 // ===== 导航栏权限过滤 =====
-// 隐藏所有 .admin-only 元素（普通用户不可见）
+// 隐藏所有 .admin-only 元素（非管理员不可见）
 function applyNavPermissions() {
   if (isAdminUser()) return; // 管理员不过滤
   document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = 'none';
+  });
+}
+
+// 对 operator 只读页面隐藏写入按钮
+function applyReadOnlyMode() {
+  if (isAdminUser()) return; // 管理员不受限
+  if (getRoleLevel() < ROLE_LEVEL.operator) return; // viewer 根本看不到这些页面
+  // operator 在周报/历史数据页面隐藏“生成”“保存”“上传”等写入按钮
+  document.querySelectorAll('.admin-write-only').forEach(el => {
     el.style.display = 'none';
   });
 }
@@ -284,7 +325,8 @@ const FeedbackBtn = {
 document.addEventListener('DOMContentLoaded', () => {
   DarkMode.init();
   renderNav();           // 统一渲染导航栏
-  applyNavPermissions(); // 普通用户隐藏 admin-only
+  applyNavPermissions(); // 非管理员隐藏 admin-only
+  applyReadOnlyMode();   // operator 隐藏写入按钮
   FeedbackBtn.init();
   
   // 点击外部关闭汉堡菜单

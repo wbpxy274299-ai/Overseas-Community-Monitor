@@ -47,6 +47,13 @@ app.use('/api/', globalLimiter);
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // ===== 路由挂载 =====
+// 本地开发模式：绕过 Google OAuth，直接用角色选择登录（dev-auth.js 已在 .gitignore 中排除）
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    app.use('/', require('./routes/dev-auth'));
+    console.log('🔧 开发模式已启用（本地角色登录）');
+  } catch (e) { /* dev-auth.js 不存在时忽略 */ }
+}
 app.use('/', require('./routes/pages'));
 app.use('/api/auth', require('./routes/google_auth')); // Google OAuth SSO
 app.use('/', require('./routes/dc'));
@@ -77,6 +84,14 @@ async function start() {
 
   log.info('DC 发布 Web 服务启动');
   console.log(`🚀 DC 发布 Web 服务启动 (端口 ${PORT})`);
+
+  // Bot Token 状态检查
+  const { getDiscordToken } = require('./config');
+  const tokenStatus = ['TC', 'JP', 'SEA', 'KR'].map(s => {
+    const t = getDiscordToken(s);
+    return `${s}: ${t ? '✅' : '❌ 未配置'}`;
+  }).join(' | ');
+  console.log(`🔑 Bot Token: ${tokenStatus}`);
 
   server = app.listen(PORT, '0.0.0.0');
 

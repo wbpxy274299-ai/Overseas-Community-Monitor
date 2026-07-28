@@ -61,7 +61,7 @@ async function initDb() {
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       username      TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
-      role          TEXT NOT NULL DEFAULT 'user',  -- 角色: user/admin
+      role          TEXT NOT NULL DEFAULT 'operator',  -- 角色: viewer/operator/admin
       email         TEXT,                           -- Google 邮箱
       google_id     TEXT UNIQUE,                    -- Google ID (SSO)
       picture       TEXT,                           -- 头像 URL
@@ -70,12 +70,17 @@ async function initDb() {
   `);
 
   // 兼容：旧表可能没有 role 列
-  try { db.run('ALTER TABLE users ADD COLUMN role TEXT DEFAULT "user"'); } catch (_) {}
+  try { db.run('ALTER TABLE users ADD COLUMN role TEXT DEFAULT "operator"'); } catch (_) {}
   
   // 兼容：添加 Google SSO 相关字段
   try { db.run('ALTER TABLE users ADD COLUMN email TEXT'); } catch (_) {}
   try { db.run('ALTER TABLE users ADD COLUMN google_id TEXT'); } catch (_) {}
   try { db.run('ALTER TABLE users ADD COLUMN picture TEXT'); } catch (_) {}
+
+  // 数据迁移：旧版 'user' 角色 → 'operator'
+  try {
+    db.run("UPDATE users SET role = 'operator' WHERE role = 'user'");
+  } catch (_) {}
 
   // 设置默认管理员（阿饱）
   const adminExists = queryOne('SELECT id FROM users WHERE username = ?', ['阿饱']);
@@ -244,10 +249,13 @@ function userExists(username) {
   return row !== null;
 }
 
+// ===== 有效角色列表 =====
+const VALID_ROLES = ['viewer', 'operator', 'admin'];
+
 // ===== 用户角色管理 =====
 function getUserRole(username) {
   const row = queryOne('SELECT role FROM users WHERE username = ?', [username]);
-  return row ? row.role : 'user';
+  return row && VALID_ROLES.includes(row.role) ? row.role : 'operator';
 }
 
 function isAdmin(username) {
@@ -255,7 +263,7 @@ function isAdmin(username) {
 }
 
 function setUserRole(username, role) {
-  if (!['user', 'admin'].includes(role)) {
+  if (!VALID_ROLES.includes(role)) {
     throw new Error('无效的角色: ' + role);
   }
   db.run('UPDATE users SET role = ? WHERE username = ?', [role, username]);
@@ -275,7 +283,7 @@ function getUserByEmail(email) {
   return queryOne('SELECT * FROM users WHERE email = ?', [email]);
 }
 
-function createUserWithGoogle(username, email, googleId, password, role = 'user') {
+function createUserWithGoogle(username, email, googleId, password, role = 'operator') {
   try {
     db.run(
       'INSERT INTO users (username, password_hash, email, google_id, role) VALUES (?, ?, ?, ?, ?)',
@@ -298,7 +306,7 @@ function updateUserGoogleInfo(userId, googleId, email, picture) {
 }
 
 function setUserRoleByGoogleId(googleId, role) {
-  if (!['user', 'admin'].includes(role)) {
+  if (!VALID_ROLES.includes(role)) {
     throw new Error('无效的角色: ' + role);
   }
   db.run('UPDATE users SET role = ? WHERE google_id = ?', [role, googleId]);
@@ -405,7 +413,7 @@ function updateCollectionCursor(channelId, server, channelName, messageId, total
 module.exports = {
   initDb, saveDb, queryAll, queryOne,
   createUser, verifyUser, userExists,
-  getUserRole, isAdmin, setUserRole, getAllUsers,
+  getUserRole, isAdmin, setUserRole, getAllUsers, VALID_ROLES,
   getUserByGoogleId, getUserByEmail, createUserWithGoogle, updateUserGoogleInfo, setUserRoleByGoogleId,
   createTask, updateTask, getTask, listTasks,
   getPendingTasks, countTasks,

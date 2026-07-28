@@ -11,18 +11,20 @@
 </head>
 <body>
   <header class="app-header">
+  <div class="app-header-inner">
     <div class="header-left">
       <h1>📋 舆情周报管理</h1>
       <p>查看和管理历史舆情报告，支持手动生成新报告</p>
     </div>
     <nav class="header-nav" id="mainNav"></nav>
+  </div>
   </header>
 
   <div class="container">
     <!-- 操作栏 -->
     <div class="action-bar">
       <div>
-        <button class="btn btn-primary" id="generateReportBtn" onclick="generateReport()">🔄 生成新周报</button>
+        <button class="btn btn-primary admin-write-only" id="generateReportBtn" onclick="generateReport()">🔄 生成新周报</button>
         <button class="btn btn-secondary" onclick="checkData()">🔍 检查数据状态</button>
         <button class="btn btn-secondary" onclick="loadReports()">🔃 刷新列表</button>
       </div>
