@@ -850,6 +850,17 @@ body.dark .status-recalled { background: #2e2e3e; color: #8a8ea0; }
 body.dark .status-cancelled { background: #2e2e3e; color: #8a8ea0; }
 body.dark .task-count { color: #8a8ea0; }
 
+/* — 暗黑：补充元素 — */
+body.dark .modal-header h3 { color: #e0e0e0; }
+body.dark .modal-close { color: #aaa; }
+body.dark .recall-box label { color: #8a8ea0; }
+body.dark .image-preview img { border-color: #4a4a5e; }
+body.dark .img-card { border-color: #4a4a5e; }
+body.dark .detail-meta { color: #bbb; }
+body.dark .task-detail-card { background: #2a2a3e; border-color: #3a3a52; }
+body.dark .detail-row { color: #ccc; }
+body.dark #loginScreen .login-card p { color: #aaa; }
+
 /* ===== Discord 真实效果预览 ===== */
 .dc-preview-container {
     position: relative;

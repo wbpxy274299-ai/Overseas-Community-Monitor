@@ -68,11 +68,11 @@ function renderUserTable(users) {
       <tr>
         <td>
           <strong>${escapeHtml(user.username)}</strong>
-          ${user.email ? `<br><small style="color:#888;">${escapeHtml(user.email)}</small>` : ''}
+          ${user.email ? `<br><small style="color:var(--color-text-muted,#888);">${escapeHtml(user.email)}</small>` : ''}
           ${isSelf ? '<span class="badge badge-info" style="margin-left:6px;">你</span>' : ''}
         </td>
         <td>${roleBadge}</td>
-        <td><small style="color:#666;">${roleInfo.desc}</small></td>
+        <td><small style="color:var(--color-text-secondary,#666);">${roleInfo.desc}</small></td>
         <td>${formatDate(user.created_at)}</td>
         <td>${roleSelector}</td>
       </tr>`;

@@ -132,6 +132,9 @@ const DarkMode = {
     const saved = localStorage.getItem('theme');
     if (saved === 'dark') {
       document.documentElement.setAttribute('data-theme', 'dark');
+      document.body.classList.add('dark');
+    } else {
+      document.body.classList.remove('dark');
     }
   },
 
@@ -139,9 +142,11 @@ const DarkMode = {
     const current = document.documentElement.getAttribute('data-theme');
     if (current === 'dark') {
       document.documentElement.removeAttribute('data-theme');
+      document.body.classList.remove('dark');
       localStorage.setItem('theme', 'light');
     } else {
       document.documentElement.setAttribute('data-theme', 'dark');
+      document.body.classList.add('dark');
       localStorage.setItem('theme', 'dark');
     }
     // 动态更新切换按钮文案
@@ -196,11 +201,19 @@ function isOperatorOrAbove() {
 
 // ===== 导航栏权限过滤 =====
 // 隐藏所有 .admin-only 元素（非管理员不可见）
+// 隐藏所有 .operator-only 元素（viewer不可见，operator+admin可见）
 function applyNavPermissions() {
-  if (isAdminUser()) return; // 管理员不过滤
-  document.querySelectorAll('.admin-only').forEach(el => {
-    el.style.display = 'none';
-  });
+  const roleLevel = getRoleLevel();
+  if (!isAdminUser()) {
+    document.querySelectorAll('.admin-only').forEach(el => {
+      el.style.display = 'none';
+    });
+  }
+  if (roleLevel < ROLE_LEVEL.operator) {
+    document.querySelectorAll('.operator-only').forEach(el => {
+      el.style.display = 'none';
+    });
+  }
 }
 
 // 对 operator 只读页面隐藏写入按钮

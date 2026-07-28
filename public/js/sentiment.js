@@ -52,7 +52,7 @@ function renderTwitterSentimentChart(bySentiment) {
   const neutral = bySentiment?.neutral || 0;
   const negative = bySentiment?.negative || 0;
   const total = positive + neutral + negative;
-  if (total === 0) { container.innerHTML = '<div style="color: #999;">暂无数据</div>'; return; }
+  if (total === 0) { container.innerHTML = '<div style="color: var(--color-text-muted, #999);">暂无数据</div>'; return; }
   const posPercent = Math.round((positive / total) * 100);
   const neuPercent = Math.round((neutral / total) * 100);
   const negPercent = Math.round((negative / total) * 100);
@@ -61,18 +61,18 @@ function renderTwitterSentimentChart(bySentiment) {
       <div style="display: flex; justify-content: space-around; margin-bottom: 20px;">
         <div style="text-align: center;">
           <div style="font-size: 24px; color: #10b981; font-weight: bold;">${posPercent}%</div>
-          <div style="font-size: 12px; color: #666;">正面 ${positive}</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary, #666);">正面 ${positive}</div>
         </div>
         <div style="text-align: center;">
           <div style="font-size: 24px; color: #6b7280; font-weight: bold;">${neuPercent}%</div>
-          <div style="font-size: 12px; color: #666;">中性 ${neutral}</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary, #666);">中性 ${neutral}</div>
         </div>
         <div style="text-align: center;">
           <div style="font-size: 24px; color: #ef4444; font-weight: bold;">${negPercent}%</div>
-          <div style="font-size: 12px; color: #666;">负面 ${negative}</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary, #666);">负面 ${negative}</div>
         </div>
       </div>
-      <div style="height: 20px; background: #f3f4f6; border-radius: 10px; overflow: hidden; display: flex;">
+      <div style="height: 20px; background: var(--color-border-light, #f3f4f6); border-radius: 10px; overflow: hidden; display: flex;">
         <div style="width: ${posPercent}%; background: #10b981;"></div>
         <div style="width: ${neuPercent}%; background: #6b7280;"></div>
         <div style="width: ${negPercent}%; background: #ef4444;"></div>
@@ -87,7 +87,7 @@ function renderDiscordSentimentChart(bySentiment) {
   const neutral = bySentiment?.neutral || 0;
   const negative = bySentiment?.negative || 0;
   const total = positive + neutral + negative;
-  if (total === 0) { container.innerHTML = '<div style="color: #999;">暂无数据</div>'; return; }
+  if (total === 0) { container.innerHTML = '<div style="color: var(--color-text-muted, #999);">暂无数据</div>'; return; }
   const posPercent = Math.round((positive / total) * 100);
   const neuPercent = Math.round((neutral / total) * 100);
   const negPercent = Math.round((negative / total) * 100);
@@ -96,18 +96,18 @@ function renderDiscordSentimentChart(bySentiment) {
       <div style="display: flex; justify-content: space-around; margin-bottom: 20px;">
         <div style="text-align: center;">
           <div style="font-size: 24px; color: #10b981; font-weight: bold;">${posPercent}%</div>
-          <div style="font-size: 12px; color: #666;">正面 ${positive}</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary, #666);">正面 ${positive}</div>
         </div>
         <div style="text-align: center;">
           <div style="font-size: 24px; color: #6b7280; font-weight: bold;">${neuPercent}%</div>
-          <div style="font-size: 12px; color: #666;">中性 ${neutral}</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary, #666);">中性 ${neutral}</div>
         </div>
         <div style="text-align: center;">
           <div style="font-size: 24px; color: #ef4444; font-weight: bold;">${negPercent}%</div>
-          <div style="font-size: 12px; color: #666;">负面 ${negative}</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary, #666);">负面 ${negative}</div>
         </div>
       </div>
-      <div style="height: 20px; background: #f3f4f6; border-radius: 10px; overflow: hidden; display: flex;">
+      <div style="height: 20px; background: var(--color-border-light, #f3f4f6); border-radius: 10px; overflow: hidden; display: flex;">
         <div style="width: ${posPercent}%; background: #10b981;"></div>
         <div style="width: ${neuPercent}%; background: #6b7280;"></div>
         <div style="width: ${negPercent}%; background: #ef4444;"></div>
@@ -119,7 +119,7 @@ function renderDiscordSentimentChart(bySentiment) {
 function renderRegionDistribution(regions) {
   const container = document.getElementById('regionDistribution');
   if (!regions || regions.length === 0) {
-    container.innerHTML = '<span style="color: #999;">暂无数据</span>';
+    container.innerHTML = '<span style="color: var(--color-text-muted, #999);">暂无数据</span>';
     return;
   }
   let html = '';
@@ -138,7 +138,7 @@ async function loadSentimentTrend() {
     if (data.ok && data.data) { renderSentimentTrend(data.data); }
   } catch (error) {
     console.error('加载情绪倾向失败:', error);
-    document.getElementById('sentimentTrend').innerHTML = '<span style="color: #999;">加载失败</span>';
+    document.getElementById('sentimentTrend').innerHTML = '<span style="color: var(--color-text-muted, #999);">加载失败</span>';
   }
 }
 
@@ -148,11 +148,11 @@ function renderSentimentTrend(analysis) {
   const trendIcon = analysis.overall_trend === 'positive' ? '😊 正面' :
                    analysis.overall_trend === 'negative' ? '😟 负面' : '😐 稳定';
   let html = `<div style="margin-bottom: 8px;">${trendIcon}</div>`;
-  html += `<div style="font-size: 12px; color: #666;">`;
+  html += `<div style="font-size: 12px; color: var(--color-text-secondary, #666);">`;
   html += `😊 ${analysis.sentiment_ratio.positive} |  ${analysis.sentiment_ratio.negative}`;
   html += `</div>`;
   if (analysis.pain_points && analysis.pain_points.length > 0) {
-    html += `<div style="font-size: 11px; color: #999; margin-top: 4px;">主要痛点: `;
+    html += `<div style="font-size: 11px; color: var(--color-text-muted, #999); margin-top: 4px;">主要痛点: `;
     html += analysis.pain_points.slice(0, 2).map(p => p.label).join(', ');
     html += `</div>`;
   }
@@ -190,9 +190,9 @@ async function loadAITopics() {
 // 显示“正在分析中”
 function renderAnalyzing() {
   const html = `
-    <div style="padding: 30px; text-align: center; color: #666;">
+    <div style="padding: 30px; text-align: center; color: var(--color-text-secondary, #666);">
       <div style="font-size: 32px; margin-bottom: 12px;">⏳</div>
-      <div style="font-size: 15px; font-weight: bold; margin-bottom: 6px;">AI 正在分析中...</div>
+      <div style="font-size: 15px; font-weight: bold; margin-bottom: 6px; color: var(--color-text, #333);">AI 正在分析中...</div>
       <div style="font-size: 13px;">请稍后刷新页面查看结果</div>
     </div>`;
   document.getElementById('twitterTopics').innerHTML = html;
@@ -210,8 +210,8 @@ function renderDiagnosis(d) {
   const html = `
     <div style="padding: 24px; text-align: center;">
       <div style="font-size: 36px; margin-bottom: 10px;">${reasonIcon}</div>
-      <div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 12px;">${reasonTitle}</div>
-      <div style="font-size: 13px; color: #666; line-height: 1.8; text-align: left; max-width: 360px; margin: 0 auto;">
+      <div style="font-size: 16px; font-weight: bold; color: var(--color-text, #333); margin-bottom: 12px;">${reasonTitle}</div>
+      <div style="font-size: 13px; color: var(--color-text-secondary, #666); line-height: 1.8; text-align: left; max-width: 360px; margin: 0 auto;">
         ${detailLines}
       </div>
       ${d.twitterError || d.discordError ? `<div style="margin-top: 12px; font-size: 12px; color: #ef4444;">请检查网络/代理是否正常，或等待系统自动重试</div>` : ''}
@@ -221,7 +221,7 @@ function renderDiagnosis(d) {
     </div>`;
   document.getElementById('twitterTopics').innerHTML = html;
   document.getElementById('discordTopics').innerHTML = `
-    <div style="padding: 24px; text-align: center; color: #999;">
+    <div style="padding: 24px; text-align: center; color: var(--color-text-muted, #999);">
       <div style="font-size: 13px;">与 Twitter 相同的原因</div>
     </div>`;
 }
@@ -305,52 +305,52 @@ function renderAITopics(data) {
       const channels = channelDisplay.split(',').map(c => c.trim());
       channelDisplay = `<span style="color: #8b5cf6; font-weight: bold;">${channels.length}个频道</span>: ${channels.join(', ')}`;
     }
-    let card = `<div style="padding: 16px; background: white; border-radius: 8px;
+    let card = `<div style="padding: 16px; background: var(--color-card-bg, white); border-radius: 8px;
                 border-left: 4px solid ${sentimentColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 18px;">${sentimentIcon}</span>
-          <span style="font-weight: bold; font-size: 15px; color: #333;">${topic.title}</span>
+          <span style="font-weight: bold; font-size: 15px; color: var(--color-text, #333);">${topic.title}</span>
           ${tagLabel ? `<span style="font-size: 11px; padding: 2px 8px; background: ${tagColor}; color: white; border-radius: 10px;">${tagLabel}</span>` : ''}
           ${trendIndicator}
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 11px; color: #999;">讨论数: ${topic.count || 0}条</span>
-          <span style="font-size: 12px; color: #999;">热度 ${topic.heat}/10</span>
+          <span style="font-size: 11px; color: var(--color-text-muted, #999);">讨论数: ${topic.count || 0}条</span>
+          <span style="font-size: 12px; color: var(--color-text-muted, #999);">热度 ${topic.heat}/10</span>
         </div>
       </div>
       ${isMultiChannel ? `
-      <div style="margin-bottom: 8px; padding: 4px 8px; background: #f5f3ff; border-radius: 4px; border-left: 3px solid #8b5cf6;">
-        <span style="font-size: 12px; color: #666;">📍 出现在: ${channelDisplay}</span>
+      <div style="margin-bottom: 8px; padding: 4px 8px; background: var(--color-surface-raised, #f5f3ff); border-radius: 4px; border-left: 3px solid #8b5cf6;">
+        <span style="font-size: 12px; color: var(--color-text-secondary, #666);">📍 出现在: ${channelDisplay}</span>
       </div>` : ''}
       <div style="margin-bottom: 8px;">
         <span style="font-size: 12px; color: ${sentimentColor}; font-weight: bold;">📊 情绪倾向: ${sentimentText}</span>
       </div>
-      <div style="font-size: 13px; color: #666; line-height: 1.6; margin-bottom: 8px; padding: 8px; background: #f9fafb; border-radius: 4px;">
+      <div style="font-size: 13px; color: var(--color-text-secondary, #666); line-height: 1.6; margin-bottom: 8px; padding: 8px; background: var(--color-border-light, #f9fafb); border-radius: 4px;">
         ${topic.summary}
       </div>
       ${topic.detail ? `
-      <div style="margin-bottom: 8px; padding: 10px 12px; background: #f0f9ff; border-radius: 6px; border-left: 3px solid #0ea5e9;">
+      <div style="margin-bottom: 8px; padding: 10px 12px; background: var(--color-surface-raised, #f0f9ff); border-radius: 6px; border-left: 3px solid #0ea5e9;">
         <div style="font-size: 11px; color: #0369a1; font-weight: bold; margin-bottom: 4px;">🔍 深度分析</div>
-        <div style="font-size: 13px; color: #334155; line-height: 1.7;">${topic.detail}</div>
+        <div style="font-size: 13px; color: var(--color-text, #334155); line-height: 1.7;">${topic.detail}</div>
       </div>` : ''}`;
     if (topic.representative_quotes && topic.representative_quotes.length > 0) {
       card += `<div style="margin-bottom: 8px;">
-        <div style="font-size: 12px; color: #999; margin-bottom: 4px;">💬 玩家原声:</div>`;
+        <div style="font-size: 12px; color: var(--color-text-muted, #999); margin-bottom: 4px;">💬 玩家原声:</div>`;
       topic.representative_quotes.forEach((quote) => {
         // 兼容旧格式（字符串）和新格式（对象）
         const text = typeof quote === 'object' ? quote.text : quote;
         const time = typeof quote === 'object' ? quote.created_at : '';
-        card += `<div style="font-size: 12px; color: #555; padding: 4px 8px; background: #fef3c7; border-left: 3px solid #f59e0b; margin-bottom: 4px; border-radius: 2px;">
-          <span style="color: #666;">"${text}"</span>
-          ${time ? `<span style="float: right; color: #999; font-size: 11px;">${time}</span>` : ''}
+        card += `<div style="font-size: 12px; color: var(--color-text-secondary, #555); padding: 4px 8px; background: var(--color-surface-raised, #fef3c7); border-left: 3px solid #f59e0b; margin-bottom: 4px; border-radius: 2px;">
+          <span style="color: var(--color-text-secondary, #666);">\u201c${text}\u201d</span>
+          ${time ? `<span style="float: right; color: var(--color-text-muted, #999); font-size: 11px;">${time}</span>` : ''}
         </div>`;
       });
       card += '</div>';
     }
     if (topic.urls && topic.urls.length > 0) {
       card += `<div style="margin-bottom: 8px;">
-        <div style="font-size: 12px; color: #999; margin-bottom: 4px;">🔗 代表性发言:</div>
+        <div style="font-size: 12px; color: var(--color-text-muted, #999); margin-bottom: 4px;">🔗 代表性发言:</div>
         <div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
       topic.urls.forEach((url, idx) => {
         if (idx < 3) {
@@ -368,7 +368,7 @@ function renderAITopics(data) {
 
   twitterTopics = sortBySentiment(twitterTopics);
   if (twitterTopics.length === 0) {
-    twitterContainer.innerHTML = '<div style="padding: 20px; color: #999;">暂无数据</div>';
+    twitterContainer.innerHTML = '<div style="padding: 20px; color: var(--color-text-muted, #999);">暂无数据</div>';
   } else {
     let html = '<div style="display: flex; flex-direction: column; gap: 12px; padding: 20px;">';
     for (const topic of twitterTopics.slice(0, 8)) { html += renderTopicCard(topic); }
@@ -377,7 +377,7 @@ function renderAITopics(data) {
   }
   discordTopics = sortBySentiment(discordTopics);
   if (discordTopics.length === 0) {
-    discordContainer.innerHTML = '<div style="padding: 20px; color: #999;">暂无数据</div>';
+    discordContainer.innerHTML = '<div style="padding: 20px; color: var(--color-text-muted, #999);">暂无数据</div>';
   } else {
     let html = '<div style="display: flex; flex-direction: column; gap: 12px; padding: 20px;">';
     for (const topic of discordTopics.slice(0, 8)) { html += renderTopicCard(topic); }
@@ -477,14 +477,14 @@ async function loadPlayerMessages(platform = 'twitter') {
     renderPlayerMessages(result.data, platform);
     document.getElementById('msgCountInfo').textContent = `共 ${result.total} 条发言`;
   } catch (e) {
-    container.innerHTML = `<div style="color:#999;">加载失败: ${e.message}</div>`;
+    container.innerHTML = `<div style="color:var(--color-text-muted,#999);">加载失败: ${e.message}</div>`;
   }
 }
 
 function renderPlayerMessages(messages, platform) {
   const container = document.getElementById('playerMessages');
   if (!messages || messages.length === 0) {
-    container.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">暂无发言数据</div>';
+    container.innerHTML = '<div style="color:var(--color-text-muted,#999); padding:20px; text-align:center;">暂无发言数据</div>';
     return;
   }
   
@@ -504,15 +504,15 @@ function renderPlayerMessages(messages, platform) {
     const time = msg.created_at ? msg.created_at.substring(5, 16) : '';
     const url = msg.url || '';
     
-    html += `<div style="padding:10px 14px; background:var(--card-bg,#fff); border:1px solid var(--border,#e5e7eb); border-radius:8px; border-left:3px solid ${sColor};">`;
+    html += `<div style="padding:10px 14px; background:var(--color-card-bg,var(--color-surface,#fff)); border:1px solid var(--color-border,#e5e7eb); border-radius:8px; border-left:3px solid ${sColor};">`;
     html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">`;
-    html += `<span style="font-weight:600; font-size:13px; color:var(--text-primary,#333);">${sIcon} ${escapeHtml(author)}</span>`;
-    html += `<span style="font-size:11px; color:#999;">${time}`;
+    html += `<span style="font-weight:600; font-size:13px; color:var(--color-text,#333);">${sIcon} ${escapeHtml(author)}</span>`;
+    html += `<span style="font-size:11px; color:var(--color-text-muted,#999);">${time}`;
     if (url) html += ` · <a href="${url}" target="_blank" style="color:#3b82f6; text-decoration:none;">原文↗</a>`;
     html += `</span></div>`;
-    html += `<div style="font-size:13px; color:#444; line-height:1.6;">${escapeHtml(content)}</div>`;
+    html += `<div style="font-size:13px; color:var(--color-text-secondary,#444); line-height:1.6;">${escapeHtml(content)}</div>`;
     if (original && original !== content) {
-      html += `<div style="font-size:11px; color:#999; margin-top:4px; font-style:italic;">原文: ${escapeHtml(original.substring(0,100))}${original.length>100?'...':''}</div>`;
+      html += `<div style="font-size:11px; color:var(--color-text-muted,#999); margin-top:4px; font-style:italic;">原文: ${escapeHtml(original.substring(0,100))}${original.length>100?'...':''}</div>`;
     }
     html += '</div>';
   }
@@ -564,30 +564,197 @@ async function loadSystemStatus() {
   }
 }
 
-async function restartSystem() {
-  if (!confirm('确定要重启服务吗？\n重启后页面会短暂无法访问，服务会自动恢复。')) return;
+// ===== 启动抓取（替代原重启按钮） =====
+let collectPollTimer = null;
+
+async function startCollecting() {
+  const btn = document.getElementById('btnCollect');
+  if (btn.disabled) return;
+
+  // 先检查是否已有进行中的采集
   try {
-    document.getElementById('statusText').textContent = '正在重启...';
-    document.getElementById('statusDot').className = 'status-dot status-err';
-    await fetch('/api/system/restart', { method: 'POST' });
-    // 等待 5 秒后开始轮询
-    setTimeout(() => {
-      const check = setInterval(async () => {
-        try {
-          const r = await fetch('/api/system/status');
-          if (r.ok) {
-            clearInterval(check);
-            loadSystemStatus();
-            alert('✅ 服务已恢复运行');
-          }
-        } catch (_) {} // 服务器还没起来，继续等
-      }, 3000);
-      // 最多等 60 秒
-      setTimeout(() => clearInterval(check), 60000);
-    }, 5000);
+    const progressRes = await fetch('/api/sentiment/collect-progress');
+    const progressData = await progressRes.json();
+    if (progressData.ok && progressData.data.running) {
+      // 采集正在进行，显示进度并开始轮询
+      showCollectProgress(progressData.data);
+      startProgressPolling();
+      return;
+    }
+  } catch (_) {}
+
+  btn.disabled = true;
+  btn.textContent = '⏳ 启动中...';
+
+  try {
+    const res = await fetch('/api/sentiment/collect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enableAI: true }),
+    });
+    const result = await res.json();
+
+    if (result.ok) {
+      // 采集已启动
+      showCollectProgress({ running: true, phase: 'twitter', message: '正在启动采集...', elapsed: 0 });
+      startProgressPolling();
+    } else if (result.collecting) {
+      // 采集正在进行中
+      btn.textContent = '⏳ 采集中...';
+      showCollectProgress({ running: true, phase: '', message: '采集进行中...', elapsed: 0 });
+      startProgressPolling();
+    } else {
+      alert(result.message || '启动失败');
+      btn.disabled = false;
+      btn.textContent = '▶ 启动抓取';
+    }
   } catch (e) {
-    alert('重启请求失败: ' + e.message);
+    alert('采集请求失败: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '▶ 启动抓取';
   }
+}
+
+// ===== 请求AI分析 =====
+async function requestAIAnalysis() {
+  const btn = document.getElementById('btnAIAnalyze');
+  if (btn.disabled) return;
+
+  btn.disabled = true;
+  btn.textContent = '⏳ 分析中...';
+
+  try {
+    const res = await fetch('/api/sentiment/force-analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const result = await res.json();
+
+    if (result.ok) {
+      btn.textContent = '✅ 已提交';
+      Toast.success('AI 分析已启动，约30秒后刷新查看结果');
+      // 10秒后自动刷新AI话题区域
+      document.getElementById('twitterTopics').innerHTML = '<div class="loading">AI 正在分析中，请稍候...</div>';
+      document.getElementById('discordTopics').innerHTML = '<div class="loading">AI 正在分析中，请稍候...</div>';
+      setTimeout(() => {
+        loadAITopics();
+        btn.disabled = false;
+        btn.textContent = '🤖 AI分析';
+      }, 15000);
+    } else {
+      Toast.error(result.message || 'AI 分析请求失败');
+      btn.disabled = false;
+      btn.textContent = '🤖 AI分析';
+    }
+  } catch (e) {
+    Toast.error('AI 分析请求失败: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '🤖 AI分析';
+  }
+}
+
+function startProgressPolling() {
+  if (collectPollTimer) clearInterval(collectPollTimer);
+  collectPollTimer = setInterval(async () => {
+    try {
+      const res = await fetch('/api/sentiment/collect-progress');
+      const result = await res.json();
+      if (result.ok) {
+        showCollectProgress(result.data);
+        if (!result.data.running) {
+          // 采集完成，停止轮询
+          clearInterval(collectPollTimer);
+          collectPollTimer = null;
+          // 3秒后自动刷新数据
+          setTimeout(() => {
+            loadStatistics();
+            loadDailyFeedback();
+            loadSystemStatus();
+            loadAITopics();
+            loadPlayerMessages('twitter');
+          }, 3000);
+        }
+      }
+    } catch (_) {}
+  }, 2000);
+}
+
+function showCollectProgress(data) {
+  const bar = document.getElementById('collectProgressBar');
+  const fill = document.getElementById('collectProgressFill');
+  const icon = document.getElementById('collectProgressIcon');
+  const text = document.getElementById('collectProgressText');
+  const elapsed = document.getElementById('collectProgressElapsed');
+  const detail = document.getElementById('collectProgressDetail');
+  const btn = document.getElementById('btnCollect');
+
+  bar.style.display = 'block';
+  text.textContent = data.message || '准备中...';
+  elapsed.textContent = data.elapsed ? `${data.elapsed}秒` : '';
+
+  // 进度百分比和图标
+  let percent = 0;
+  if (data.phase === 'twitter') {
+    icon.textContent = '🐦';
+    percent = 15;
+  } else if (data.phase === 'discord') {
+    icon.textContent = '💬';
+    percent = 45;
+  } else if (data.phase === 'saving') {
+    icon.textContent = '💾';
+    percent = 75;
+  } else if (data.phase === 'done') {
+    icon.textContent = '✅';
+    percent = 100;
+    fill.className = 'collect-progress-fill done';
+  } else if (data.phase === 'error') {
+    icon.textContent = '❌';
+    percent = 100;
+    fill.className = 'collect-progress-fill error';
+  } else {
+    icon.textContent = '⏳';
+    percent = 5;
+  }
+  fill.style.width = percent + '%';
+
+  // 详情行
+  let detailParts = [];
+  if (data.twitterCount > 0) detailParts.push(`🐦 Twitter: ${data.twitterCount} 条`);
+  if (data.discordCount > 0) detailParts.push(`💬 Discord: ${data.discordCount} 条`);
+  if (data.savedCount > 0) detailParts.push(`✅ 保存: ${data.savedCount}`);
+  if (data.skippedCount > 0) detailParts.push(`⏭️ 跳过: ${data.skippedCount}`);
+  if (data.failedCount > 0) detailParts.push(`❌ 失败: ${data.failedCount}`);
+  detail.textContent = detailParts.join('  ·  ');
+
+  // 按钮状态
+  if (data.running) {
+    btn.disabled = true;
+    btn.textContent = '⏳ 采集中...';
+    btn.classList.add('running');
+  } else {
+    btn.disabled = false;
+    btn.textContent = '▶ 启动抓取';
+    btn.classList.remove('running');
+    // 完成后 10 秒自动隐藏进度条
+    setTimeout(() => {
+      if (!data.running) {
+        bar.style.display = 'none';
+        fill.className = 'collect-progress-fill';
+      }
+    }, 15000);
+  }
+}
+
+// 页面加载时检查是否有进行中的采集
+async function checkRunningCollection() {
+  try {
+    const res = await fetch('/api/sentiment/collect-progress');
+    const result = await res.json();
+    if (result.ok && result.data.running) {
+      showCollectProgress(result.data);
+      startProgressPolling();
+    }
+  } catch (_) {}
 }
 
 // 初始化加载数据
@@ -598,6 +765,7 @@ function refreshData() {
   loadAITopics();
   loadPlayerMessages('twitter');
   loadDailySnapshots();
+  checkRunningCollection(); // 检查是否有进行中的采集
 }
 
 // ========== 周报生成功能 ==========
@@ -680,14 +848,14 @@ async function loadDailySnapshots() {
     renderSnapshotList(result.data);
   } catch (e) {
     console.error('加载每日存档失败:', e);
-    document.getElementById('dailySnapshotList').innerHTML = '<div style="color:#999;">加载失败</div>';
+    document.getElementById('dailySnapshotList').innerHTML = '<div style="color:var(--color-text-muted,#999);">加载失败</div>';
   }
 }
 
 function renderSnapshotList(snapshots) {
   const container = document.getElementById('dailySnapshotList');
   if (!snapshots || snapshots.length === 0) {
-    container.innerHTML = '<div style="color:#999; padding:20px;">暂无存档记录，点击“💾 保存今日存档”生成第一份</div>';
+    container.innerHTML = '<div style="color:var(--color-text-muted,#999); padding:20px;">暂无存档记录，点击“💾 保存今日存档”生成第一份</div>';
     return;
   }
   let html = '<div style="display:flex; flex-wrap:wrap; gap:10px;">';
@@ -697,9 +865,9 @@ function renderSnapshotList(snapshots) {
       ? `AI分析: T${s.twitter_topics_count}+D${s.discord_topics_count}`
       : '无AI分析';
     html += `
-      <div onclick="viewSnapshotDetail('${s.date}')" style="cursor:pointer; padding:12px 16px; background:var(--card-bg,#fff); border:1px solid var(--border,#e5e7eb); border-radius:10px; min-width:160px; transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='none'">
-        <div style="font-weight:bold; font-size:15px; color:var(--text-primary,#1f2937);">📅 ${s.date}</div>
-        <div style="font-size:12px; color:#666; margin-top:4px;">📊 ${s.record_count} 条记录</div>
+      <div onclick="viewSnapshotDetail('${s.date}')" style="cursor:pointer; padding:12px 16px; background:var(--color-card-bg,var(--color-surface,#fff)); border:1px solid var(--color-border,#e5e7eb); border-radius:10px; min-width:160px; transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='none'">
+        <div style="font-weight:bold; font-size:15px; color:var(--color-text,#1f2937);">📅 ${s.date}</div>
+        <div style="font-size:12px; color:var(--color-text-secondary,#666); margin-top:4px;">📊 ${s.record_count} 条记录</div>
         <div style="font-size:11px; color:${s.has_ai_analysis ? '#059669' : '#999'}; margin-top:2px;">${aiIcon} ${aiText}</div>
       </div>`;
   }
@@ -770,7 +938,7 @@ function renderSnapshotDetail(data) {
   </div>`;
 
   if (twTopics.length === 0 && dcTopics.length === 0) {
-    html += '<div style="padding:30px; color:#999; text-align:center; font-size:15px;">当天无 AI 分析存档<br><span style="font-size:12px;">热门话题当天未被访问过，或当天无采集数据</span></div>';
+    html += '<div style="padding:30px; color:var(--color-text-muted,#999); text-align:center; font-size:15px;">当天无 AI 分析存档<br><span style="font-size:12px;">热门话题当天未被访问过，或当天无采集数据</span></div>';
   } else {
     // === 双平台并排展示 ===
     html += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">';
@@ -780,18 +948,17 @@ function renderSnapshotDetail(data) {
     html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #1d9bf0;">
       <span style="font-size:18px;">🐦</span>
       <span style="font-weight:bold; font-size:15px; color:#1d9bf0;">日服 Twitter</span>
-      <span style="font-size:12px; color:#999; margin-left:auto;">${twTopics.length} 个话题</span>
+      <span style="font-size:12px; color:var(--color-text-muted,#999); margin-left:auto;">${twTopics.length} 个话题</span>
     </div>`;
     if (twAnalyzed.length > 0) {
       twAnalyzed.slice(0, 5).forEach(t => { html += renderSnapshotCard(t); });
     }
     if (twBasic.length > 0 && twAnalyzed.length === 0) {
-      // 如果没有深度分析的，展示关键词统计的前5个
-      html += '<div style="font-size:12px; color:#999; margin-bottom:8px;">ℹ️ 当天仅有关键词统计，无AI深度分析</div>';
+      html += '<div style="font-size:12px; color:var(--color-text-muted,#999); margin-bottom:8px;">ℹ️ 当天仅有关键词统计，无AI深度分析</div>';
       twBasic.slice(0, 5).forEach(t => { html += renderSnapshotCard(t); });
     }
     if (twTopics.length === 0) {
-      html += '<div style="padding:16px; color:#ccc; text-align:center;">当天无数据</div>';
+      html += '<div style="padding:16px; color:var(--color-text-muted,#ccc); text-align:center;">当天无数据</div>';
     }
     html += '</div>';
 
@@ -800,17 +967,17 @@ function renderSnapshotDetail(data) {
     html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #5865f2;">
       <span style="font-size:18px;">💬</span>
       <span style="font-weight:bold; font-size:15px; color:#5865f2;">繁中 Discord</span>
-      <span style="font-size:12px; color:#999; margin-left:auto;">${dcTopics.length} 个话题</span>
+      <span style="font-size:12px; color:var(--color-text-muted,#999); margin-left:auto;">${dcTopics.length} 个话题</span>
     </div>`;
     if (dcAnalyzed.length > 0) {
       dcAnalyzed.slice(0, 5).forEach(t => { html += renderSnapshotCard(t); });
     }
     if (dcBasic.length > 0 && dcAnalyzed.length === 0) {
-      html += '<div style="font-size:12px; color:#999; margin-bottom:8px;">ℹ️ 当天仅有关键词统计，无AI深度分析</div>';
+      html += '<div style="font-size:12px; color:var(--color-text-muted,#999); margin-bottom:8px;">ℹ️ 当天仅有关键词统计，无AI深度分析</div>';
       dcBasic.slice(0, 5).forEach(t => { html += renderSnapshotCard(t); });
     }
     if (dcTopics.length === 0) {
-      html += '<div style="padding:16px; color:#ccc; text-align:center;">当天无数据</div>';
+      html += '<div style="padding:16px; color:var(--color-text-muted,#ccc); text-align:center;">当天无数据</div>';
     }
     html += '</div>';
 
@@ -820,12 +987,12 @@ function renderSnapshotDetail(data) {
     const otherTopics = [...twBasic, ...dcBasic];
     if (otherTopics.length > 0 && (twAnalyzed.length > 0 || dcAnalyzed.length > 0)) {
       html += `<details style="margin-top:16px;">
-        <summary style="cursor:pointer; font-size:13px; color:#999; padding:8px 0;">📝 其他关键词统计话题 (${otherTopics.length}个，无AI深度分析)</summary>
+        <summary style="cursor:pointer; font-size:13px; color:var(--color-text-muted,#999); padding:8px 0;">📝 其他关键词统计话题 (${otherTopics.length}个，无AI深度分析)</summary>
         <div style="display:flex; flex-wrap:wrap; gap:6px; padding:8px 0;">`;
       for (const t of otherTopics.slice(0, 20)) {
         const sColor = t.sentiment === 'negative' ? '#fecaca' : t.sentiment === 'positive' ? '#bbf7d0' : '#e5e7eb';
         const pIcon = t.title ? '' : '';
-        html += `<span style="font-size:11px; padding:3px 10px; background:${sColor}; border-radius:12px; color:#555;">${t.title} (${t.count || 0}条, 热度${t.heat})</span>`;
+        html += `<span style="font-size:11px; padding:3px 10px; background:${sColor}; border-radius:12px; color:var(--color-text-secondary,#555);">${t.title} (${t.count || 0}条, 热度${t.heat})</span>`;
       }
       html += '</div></details>';
     }
@@ -839,20 +1006,20 @@ function renderSnapshotCard(t) {
   const sentimentText = t.sentiment === 'negative' ? '😞 负面' : t.sentiment === 'positive' ? '😊 正面' : '😐 中性';
   const hasAnalysis = !!t.detail;
 
-  let html = `<div style="margin-bottom:10px; padding:12px; background:var(--card-bg,#fff); border:1px solid var(--border,#e5e7eb); border-radius:10px; ${hasAnalysis ? 'border-left:3px solid ' + sentimentColor + ';' : ''}">`;
+  let html = `<div style="margin-bottom:10px; padding:12px; background:var(--color-card-bg,var(--color-surface,#fff)); border:1px solid var(--color-border,#e5e7eb); border-radius:10px; ${hasAnalysis ? 'border-left:3px solid ' + sentimentColor + ';' : ''}">`;
 
   // 标题行
   html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
-    <span style="font-weight:bold; font-size:14px; color:var(--text-primary,#1f2937);">${t.title}</span>
+    <span style="font-weight:bold; font-size:14px; color:var(--color-text,#1f2937);">${t.title}</span>
     <span style="font-size:10px; padding:2px 8px; background:${sentimentColor}15; color:${sentimentColor}; border-radius:10px; font-weight:600;">${sentimentText}</span>
-    <span style="font-size:10px; color:#999;">🔥${t.heat}/10 · ${t.count}条讨论</span>
+    <span style="font-size:10px; color:var(--color-text-muted,#999);">🔥${t.heat}/10 · ${t.count}条讨论</span>
   </div>`;
 
   // 深度分析（有则展示）
   if (t.detail) {
-    html += `<div style="font-size:13px; color:#334155; line-height:1.6; margin-bottom:8px;">${t.detail}</div>`;
+    html += `<div style="font-size:13px; color:var(--color-text,#334155); line-height:1.6; margin-bottom:8px;">${t.detail}</div>`;
   } else if (t.summary) {
-    html += `<div style="font-size:13px; color:#666; line-height:1.5; margin-bottom:8px;">${t.summary}</div>`;
+    html += `<div style="font-size:13px; color:var(--color-text-secondary,#666); line-height:1.5; margin-bottom:8px;">${t.summary}</div>`;
   }
 
   // 玩家原声
@@ -861,8 +1028,8 @@ function renderSnapshotCard(t) {
     t.representative_quotes.forEach(q => {
       const text = typeof q === 'object' ? q.text : q;
       const time = typeof q === 'object' ? q.created_at : '';
-      html += `<div style="font-size:12px; color:#92400e; padding:4px 10px; background:#fffbeb; border-left:3px solid #f59e0b; margin:4px 0; border-radius:0 4px 4px 0; line-height:1.5;">
-        “${text}” ${time ? `<span style="float:right; color:#999; font-size:11px;">${time}</span>` : ''}
+      html += `<div style="font-size:12px; color:#92400e; padding:4px 10px; background:var(--color-surface-raised,#fffbeb); border-left:3px solid #f59e0b; margin:4px 0; border-radius:0 4px 4px 0; line-height:1.5;">
+        “${text}” ${time ? `<span style="float:right; color:var(--color-text-muted,#999); font-size:11px;">${time}</span>` : ''}
       </div>`;
     });
     html += '</div>';
@@ -870,7 +1037,7 @@ function renderSnapshotCard(t) {
 
   // 建议
   if (t.action) {
-    html += `<div style="font-size:11px; color:#7c3aed; padding:4px 10px; background:#f5f3ff; border-radius:6px;">💡 ${t.action}</div>`;
+    html += `<div style="font-size:11px; color:#7c3aed; padding:4px 10px; background:var(--color-surface-raised,#f5f3ff); border-radius:6px;">💡 ${t.action}</div>`;
   }
 
   html += '</div>';

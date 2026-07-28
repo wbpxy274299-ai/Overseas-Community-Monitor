@@ -59,13 +59,13 @@
         </div>
         <!-- Twitter CSV 上传 -->
         <div id="uploadTwitter">
-          <p style="font-size:12px; color:#666; margin-bottom:8px;">选择 Twitter 搜索导出的 CSV 文件（需包含 created_at, full_text, url 等字段）</p>
+          <p style="font-size:12px; color:var(--color-text-secondary,#666); margin-bottom:8px;">选择 Twitter 搜索导出的 CSV 文件（需包含 created_at, full_text, url 等字段）</p>
           <input type="file" id="twitterCsvFile" accept=".csv" style="margin-bottom:8px;">
           <button class="btn btn-primary btn-sm" onclick="uploadTwitterCSV()">上传并处理</button>
         </div>
         <!-- Discord 文本上传 -->
         <div id="uploadDiscord" style="display:none;">
-          <p style="font-size:12px; color:#666; margin-bottom:8px;">粘贴 Discord 聊天记录（格式：用户名 — 日期 时间，下一行是消息内容）</p>
+          <p style="font-size:12px; color:var(--color-text-secondary,#666); margin-bottom:8px;">粘贴 Discord 聊天记录（格式：用户名 — 日期 时间，下一行是消息内容）</p>
           <textarea id="discordTextInput" rows="8" placeholder="Seraphm — 2026/7/23 22:06&#10;無盡大約有50人吧&#10;&#10;luguo1354 — 2026/7/24 16:07&#10;我們從1300升到1700多" style="width:100%; font-size:13px; padding:10px; border:1px solid #d1d5db; border-radius:6px; margin-bottom:8px; font-family:monospace;"></textarea>
           <button class="btn btn-primary btn-sm" onclick="uploadDiscordText()">上传并处理</button>
         </div>

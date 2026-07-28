@@ -154,32 +154,180 @@ router.get('/api/sentiment/history', (req, res) => {
   }
 });
 
-// ===== 手动采集 =====
+// ===== 采集进度追踪 =====
+let collectProgress = {
+  running: false,
+  phase: '',        // 'twitter' | 'discord' | 'saving' | 'done' | 'error'
+  twitterCount: 0,
+  discordCount: 0,
+  savedCount: 0,
+  skippedCount: 0,
+  failedCount: 0,
+  message: '',
+  startTime: null,
+  endTime: null,
+};
+
+// ===== 手动采集（异步后台执行）=====
 router.post('/api/sentiment/collect', requireRole('operator', 'admin'), async (req, res) => {
-  if (sentiment.getIsCollecting()) {
-    return res.json({ ok: false, message: '采集进行中，请稍后再试', collecting: true });
-  }
-  try {
-    sentiment.setIsCollecting(true);
-    console.log('📊 开始采集 Twitter + Discord 舆情数据...');
-    const enableAI = req.body.enableAI === true || req.query.enableAI === 'true';
-    const twitterRecords = await sentiment.collectFromTwitter();
-    const discordRecords = await sentiment.collectFromDiscord();
-    const allRecords = [...twitterRecords, ...discordRecords];
-    const result = await sentiment.batchSaveRecords(allRecords, enableAI);
-    console.log(`✅ 采集完成: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条`);
-    res.json({
-      ok: true, collected: allRecords.length,
-      twitter_count: twitterRecords.length, discord_count: discordRecords.length,
-      saved: result.success, skipped: result.skipped || 0, failed: result.failed,
-      ai_enabled: enableAI
-    });
-  } catch (e) {
-    log.error('采集舆情数据失败', e.message);
-    res.status(500).json({ error: `采集失败: ${e.message}` });
-  } finally {
+  // 防卡死：如果采集状态已持续超过 15 分钟，自动重置（正常采集不会这么久）
+  const stuckThreshold = 15 * 60 * 1000;
+  if (collectProgress.running && collectProgress.startTime && (Date.now() - collectProgress.startTime) > stuckThreshold) {
+    console.log('⚠️ 检测到采集状态卡死（超过15分钟），自动重置');
+    collectProgress.running = false;
     sentiment.setIsCollecting(false);
   }
+
+  if (sentiment.getIsCollecting() || collectProgress.running) {
+    return res.json({ ok: false, message: '采集进行中，请稍后再试', collecting: true });
+  }
+
+  // 立即返回，后台执行
+  res.json({ ok: true, message: '采集已启动，正在后台执行', collecting: true });
+
+  // 后台异步执行采集
+  (async () => {
+    collectProgress = {
+      running: true, phase: 'twitter',
+      twitterCount: 0, discordCount: 0, savedCount: 0, skippedCount: 0, failedCount: 0,
+      message: '正在采集 Twitter 数据...', startTime: Date.now(), endTime: null,
+    };
+    sentiment.setIsCollecting(true);
+    console.log('📊 [手动采集] 开始采集 Twitter + Discord 舆情数据...');
+
+    try {
+      const enableAI = req.body.enableAI === true || req.query.enableAI === 'true';
+
+      // Twitter 采集
+      collectProgress.phase = 'twitter';
+      collectProgress.message = '正在采集 Twitter（日服 Yahoo 搜索）...';
+      let twitterRecords = [];
+      try {
+        twitterRecords = await sentiment.collectFromTwitter();
+        collectProgress.twitterCount = twitterRecords.length;
+        console.log(`📊 [手动采集] Twitter 采集完成: ${twitterRecords.length} 条`);
+      } catch (e) {
+        console.error('📊 [手动采集] Twitter 采集失败:', e.message);
+        collectProgress.message = `Twitter 采集失败: ${e.message}，继续采集 Discord...`;
+      }
+
+      // Discord 采集
+      collectProgress.phase = 'discord';
+      collectProgress.message = '正在采集 Discord（繁中频道）...';
+      let discordRecords = [];
+      try {
+        discordRecords = await sentiment.collectFromDiscord();
+        collectProgress.discordCount = discordRecords.length;
+        console.log(`📊 [手动采集] Discord 采集完成: ${discordRecords.length} 条`);
+      } catch (e) {
+        console.error('📊 [手动采集] Discord 采集失败:', e.message);
+        collectProgress.message = `Discord 采集失败: ${e.message}`;
+      }
+
+      // 保存数据
+      const allRecords = [...twitterRecords, ...discordRecords];
+      if (allRecords.length > 0) {
+        collectProgress.phase = 'saving';
+        collectProgress.message = `正在保存 ${allRecords.length} 条数据...`;
+        const result = await sentiment.batchSaveRecords(allRecords, enableAI);
+        collectProgress.savedCount = result.success || 0;
+        collectProgress.skippedCount = result.skipped || 0;
+        collectProgress.failedCount = result.failed || 0;
+        console.log(`📊 [手动采集] 保存完成: 成功 ${result.success}, 跳过 ${result.skipped}, 失败 ${result.failed}`);
+      }
+
+      collectProgress.phase = 'done';
+      collectProgress.message = `采集完成！Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条`;
+      collectProgress.endTime = Date.now();
+      console.log(`✅ [手动采集] 全部完成`);
+
+      // 清除统计数据缓存，让下次请求拿到最新数据
+      clearStatisticsCache();
+
+    } catch (e) {
+      log.error('手动采集舆情数据失败', e.message);
+      collectProgress.phase = 'error';
+      collectProgress.message = `采集失败: ${e.message}`;
+      collectProgress.endTime = Date.now();
+    } finally {
+      collectProgress.running = false;
+      sentiment.setIsCollecting(false);
+    }
+  })();
+});
+
+// ===== 手动触发 AI 分析（绕过每日一次限制）=====
+router.post('/api/sentiment/force-analyze', requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    // 清除分析锁和缓存，强制重新分析
+    dailyAnalysisLock = { date: null, analyzing: false };
+    aiAnalyzer.clearTopicCache();
+    sentiment.clearTodayTopics();
+    console.log('🔄 [手动AI分析] 已清除缓存和锁，开始强制分析...');
+
+    // 立即返回
+    res.json({ ok: true, message: 'AI 分析已启动，请稍后刷新页面查看结果' });
+
+    // 后台执行分析（复用 hot-topics 的逻辑）
+    const { startDate, endDate, periodLabel } = sentiment.getTodayPeriod();
+    console.log(`   周期: ${periodLabel}`);
+    const twitterRecords = sentiment.getQualityFeedback(30, 'twitter', startDate, endDate);
+    const discordRecords = sentiment.getQualityFeedback(30, 'discord', startDate, endDate);
+
+    if ((!twitterRecords || twitterRecords.length === 0) &&
+        (!discordRecords || discordRecords.length === 0)) {
+      console.log('⚠️ [手动AI分析] 无数据可分析');
+      return;
+    }
+
+    console.log(`   📝 高质量数据: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条`);
+    dailyAnalysisLock = { date: null, analyzing: true };
+    try {
+      const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
+      const dedupByTag = (topics) => {
+        const seen = new Set();
+        return (topics || []).filter(t => {
+          if (seen.has(t.tag)) return false;
+          seen.add(t.tag);
+          return true;
+        });
+      };
+      result.twitter_topics = dedupByTag(result.twitter_topics);
+      result.discord_topics = dedupByTag(result.discord_topics);
+      sortByHeat(result.twitter_topics);
+      sortByHeat(result.discord_topics);
+      const totalTopics = result.twitter_topics.length + result.discord_topics.length;
+      console.log(`✅ [手动AI分析] 生成 ${result.twitter_topics.length} 个 Twitter 话题, ${result.discord_topics.length} 个 Discord 话题`);
+
+      if (result.twitter_topics.length > 0) sentiment.saveTopicHistory(result.twitter_topics, 'twitter', true);
+      if (result.discord_topics.length > 0) sentiment.saveTopicHistory(result.discord_topics, 'discord', true);
+
+      dailyAnalysisLock = { date: todayStr(), analyzing: false };
+      sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
+      sentiment.getCollectionStatus().analysis.topicCount = totalTopics;
+      console.log('🔒 [手动AI分析] 分析完成');
+    } finally {
+      dailyAnalysisLock.analyzing = false;
+    }
+  } catch (e) {
+    dailyAnalysisLock.analyzing = false;
+    console.error('❌ [手动AI分析] 失败:', e.message);
+    log.error('手动AI分析失败', e.message);
+  }
+});
+
+// ===== 采集进度查询 =====
+router.get('/api/sentiment/collect-progress', (req, res) => {
+  const elapsed = collectProgress.startTime
+    ? Math.round(((collectProgress.endTime || Date.now()) - collectProgress.startTime) / 1000)
+    : 0;
+  res.json({
+    ok: true,
+    data: {
+      ...collectProgress,
+      elapsed,
+    }
+  });
 });
 
 // ===== 手动保存每日快照（仅管理员）=====

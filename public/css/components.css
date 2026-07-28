@@ -272,13 +272,13 @@
 }
 
 .btn-secondary {
-  background: #f7fafc;
-  color: #4a5568;
+  background: var(--color-surface-raised, #f7fafc);
+  color: var(--color-text-secondary, #4a5568);
   border: 1px solid var(--color-border);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: #edf2f7;
-  border-color: #cbd5e0;
+  background: var(--color-border-light, #edf2f7);
+  border-color: var(--color-border, #cbd5e0);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
@@ -349,6 +349,20 @@ tr:hover td { background: #f8f9ff; }
 [data-theme="dark"] .nav-logout-btn { color: #fc8181; }
 [data-theme="dark"] .nav-logout-btn:hover { background: #374151; }
 
+/* 暗黑模式 — 按钮 / 表单 / 卡片 */
+[data-theme="dark"] .btn-secondary { background: #374151; color: #d1d5db; border-color: #4a5568; }
+[data-theme="dark"] .btn-secondary:hover:not(:disabled) { background: #4a5568; border-color: #6b7280; }
+[data-theme="dark"] .card { background: var(--color-surface); border-color: rgba(255,255,255,0.04); }
+[data-theme="dark"] .stat-card { background: var(--color-surface); border-color: rgba(255,255,255,0.04); }
+[data-theme="dark"] .action-bar { background: var(--color-surface); border-color: rgba(255,255,255,0.04); }
+[data-theme="dark"] .modal-content { background: var(--color-surface); }
+[data-theme="dark"] .feedback-modal { background: var(--color-surface); }
+[data-theme="dark"] .feedback-modal-body { background: var(--color-surface); }
+[data-theme="dark"] .feedback-input { background: #374151; color: #e2e8f0; border-color: #4a5568; }
+[data-theme="dark"] .feedback-textarea { background: #374151; color: #e2e8f0; border-color: #4a5568; }
+[data-theme="dark"] .feedback-list-item:hover { background: rgba(102,126,234,0.08); }
+[data-theme="dark"] .feedback-list-item.unread { border-left-color: var(--color-primary); }
+
 /* ===== 徽章 ===== */
 .badge {
   padding: 6px 14px;
@@ -395,7 +409,8 @@ select, textarea {
   font-size: var(--font-size-base);
   font-family: var(--font-family);
   transition: var(--transition-normal);
-  background: #f7fafc;
+  background: var(--color-input-bg, #f7fafc);
+  color: var(--color-text);
   outline: none;
 }
 [data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea {
@@ -578,7 +593,18 @@ textarea { resize: vertical; min-height: 80px; }
   color: var(--color-text-muted);
 }
 .empty-state .icon { font-size: 48px; margin-bottom: var(--space-md); }
-.empty-state .message { font-size: var(--font-size-lg); }
+.empty-state .message { font-size: var(--font-size-lg); color: var(--color-text-muted); }
+
+/* 暗黑模式 — 提示框 */
+[data-theme="dark"] .alert-warning { background: linear-gradient(135deg, #422006, #451a03); border-left-color: #d97706; }
+[data-theme="dark"] .alert-warning strong { color: #fbbf24; }
+[data-theme="dark"] .alert-info { background: linear-gradient(135deg, #1e3a5f, #172554); border-left-color: #3b82f6; }
+[data-theme="dark"] .alert-danger { background: linear-gradient(135deg, #450a0a, #4c0519); border-left-color: #ef4444; }
+
+/* 暗黑模式 — 分页 */
+[data-theme="dark"] .pagination button { background: #374151; border-color: #4a5568; color: #d1d5db; }
+[data-theme="dark"] .pagination button:hover:not(:disabled) { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+[data-theme="dark"] .pagination .page-info { color: #a0aec0; }
 
 /* ===== 反馈浮动按钮 ===== */
 .feedback-fab {

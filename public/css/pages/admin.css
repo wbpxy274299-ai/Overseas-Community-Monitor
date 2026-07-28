@@ -35,3 +35,16 @@
 }
 .action-result.success { background: var(--color-success-light); color: #276749; }
 .action-result.error { background: var(--color-danger-light); color: #c53030; }
+
+/* 暗黑模式 */
+[data-theme="dark"] .warning-box {
+  background: linear-gradient(135deg, #422006, #451a03);
+  border-left-color: #d97706;
+}
+[data-theme="dark"] .warning-box strong { color: #fbbf24; }
+[data-theme="dark"] .user-table {
+  background: var(--color-surface);
+  border-color: rgba(255,255,255,0.04);
+}
+[data-theme="dark"] .action-result.success { background: #064e3b; color: #6ee7b7; }
+[data-theme="dark"] .action-result.error { background: #7f1d1d; color: #fca5a5; }

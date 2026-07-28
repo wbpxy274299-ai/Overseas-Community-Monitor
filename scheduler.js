@@ -23,6 +23,7 @@ const taskRunLog = {
   dailyAnalysis: { lastRun: null, success: false, message: '' },
   dailySnapshot: { lastRun: null, success: false, message: '' },
   midnightCollect: { lastRun: null, success: false, message: '' },
+  afternoonBackup: { lastRun: null, success: false, message: '' },
 };
 
 // 从文件读取状态（重启后恢复）
@@ -36,7 +37,7 @@ function loadState() {
   } catch (e) {
     console.warn('⚠️ 调度器状态文件读取失败，使用默认值');
   }
-  return { dailyAnalysis: null, dailySnapshot: null, midnightCollect: null };
+  return { dailyAnalysis: null, dailySnapshot: null, midnightCollect: null, afternoonBackup: null };
 }
 
 // 状态写入文件（持久化）
@@ -53,6 +54,10 @@ let lastRunDates = loadState();
 // 重试节流：失败后每 30 分钟才重试一次，避免代理挂的时候每分钟刷屏
 let lastAnalysisRetryTime = 0;
 const RETRY_INTERVAL_MS = 30 * 60 * 1000; // 30 分钟
+
+// 采集锁卡死检测：记录发现锁住的时间，超过 30 分钟自动解锁
+let collectLockDetectedAt = null;
+const COLLECT_LOCK_TIMEOUT = 30 * 60 * 1000; // 30 分钟
 
 // 获取任务执行日志（状态面板用）
 function getTaskRunLog() { return taskRunLog; }
@@ -259,6 +264,21 @@ function checkScheduledJobs() {
   const today = todayStr();
   const currentHour = now.getHours();
   const currentMinute = now.getMinutes();
+
+  // ★ 采集锁卡死保护：就像厨房门锁了30分钟还没人出来，自动撬锁
+  if (sentiment.getIsCollecting()) {
+    if (!collectLockDetectedAt) {
+      collectLockDetectedAt = Date.now();
+      console.log('🔒 检测到采集锁已上锁，开始计时...');
+    } else if (Date.now() - collectLockDetectedAt > COLLECT_LOCK_TIMEOUT) {
+      console.log('⚠️ 采集锁已卡死超过30分钟，强制解锁！');
+      sentiment.setIsCollecting(false);
+      collectLockDetectedAt = null;
+      sentiment.recordError('调度器-锁卡死', '采集锁卡死超过30分钟，已自动解锁');
+    }
+  } else {
+    collectLockDetectedAt = null; // 锁已正常释放，重置计时
+  }
   
   // 1. 每日 8:30 热门话题分析（启动补跑：已过 8:30 但今天未跑）
   // ★ 修复：先干活，成功了再打卡；失败了下一轮还能重试
@@ -323,6 +343,33 @@ function checkScheduledJobs() {
         sentiment.recordError('调度器-零点采集', e.message);
         console.error('❌ 零点采集失败:', e.message);
       });
+    }
+  }
+
+  // 4. ★ 下午 14:00 备份采集（安全网：如果上午采集都失败了，下午再补一次）
+  // 打个比方：上午的课没赶上，下午还有个补课机会
+  if (lastRunDates.afternoonBackup !== today) {
+    if (currentHour >= 14 && currentHour < 18 && !sentiment.getIsCollecting()) {
+      // 检查今天是否已经有足够数据（如果8:30分析成功了就不用补）
+      const todayTopics = sentiment.getTodayHotTopics();
+      const hasTopics = todayTopics && ((todayTopics.twitter_topics?.length || 0) + (todayTopics.discord_topics?.length || 0) > 0);
+      
+      if (!hasTopics) {
+        console.log('⏰ 触发下午备份采集（上午数据不足，补货）');
+        lastRunDates.afternoonBackup = today;
+        saveState();
+        afternoonBackupTask().then((result) => {
+          taskRunLog.afternoonBackup = { lastRun: new Date().toISOString(), success: result?.success || false, message: result?.message || '完成' };
+        }).catch(e => {
+          taskRunLog.afternoonBackup = { lastRun: new Date().toISOString(), success: false, message: e.message };
+          sentiment.recordError('调度器-下午备份', e.message);
+          console.error('❌ 下午备份采集失败:', e.message);
+        });
+      } else {
+        // 数据充足，标记跳过
+        lastRunDates.afternoonBackup = today;
+        saveState();
+      }
     }
   }
 }
@@ -434,6 +481,54 @@ async function saveDailySnapshotTask() {
   }
   
   console.log('📊 ===== 每日舆情快照保存任务完成 =====\n');
+}
+
+/**
+ * 下午备份采集任务（安全网：上午没采到数据，下午补一次）
+ * 打个比方：上午的货没进到，下午再跑一趟批发市场
+ */
+async function afternoonBackupTask() {
+  if (sentiment.getIsCollecting()) {
+    console.log('⚠️ 采集进行中，跳过下午备份采集');
+    return { success: false, message: '采集进行中' };
+  }
+
+  console.log('\n🛡️ ===== 开始执行下午备份采集 =====');
+
+  try {
+    sentiment.setIsCollecting(true);
+
+    // 第一步：采集数据
+    console.log('📥 采集 Twitter + Discord...');
+    const twitterData = await sentiment.collectFromTwitter();
+    console.log(`   🐦 Twitter: ${twitterData.length} 条`);
+    const discordData = await sentiment.collectFromDiscord();
+    console.log(`   💬 Discord: ${discordData.length} 条`);
+
+    const allData = [...twitterData, ...discordData];
+    if (allData.length > 0) {
+      const saved = await sentiment.batchSaveRecords(allData, true);
+      console.log(`   ✅ 保存: 新增 ${saved.saved || saved.success || 0} 条`);
+    }
+
+    // 第二步：AI 分析
+    console.log('\n🤖 AI 分析热门话题...');
+    const result = await sentiment.runDailyHotTopicsAnalysis();
+
+    const topicCount = (result.twitter || 0) + (result.discord || 0);
+    if (topicCount > 0) {
+      console.log(`✅ 下午备份完成: ${topicCount} 个话题`);
+      return { success: true, message: `采集 ${allData.length} 条, 生成 ${topicCount} 个话题` };
+    } else {
+      console.log('⚠️ 下午备份采集完成但未生成话题');
+      return { success: true, message: `采集 ${allData.length} 条, 但无话题` };
+    }
+  } catch (e) {
+    console.error('❌ 下午备份采集异常:', e.message);
+    return { success: false, message: e.message };
+  } finally {
+    sentiment.setIsCollecting(false);
+  }
 }
 
 /**

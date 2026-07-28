@@ -76,6 +76,7 @@
   --color-bg: #1a202c;
   --color-bg-alt: #2d3748;
   --color-surface: #2d3748;
+  --color-surface-raised: #374151;
   --color-text: #e2e8f0;
   --color-text-secondary: #a0aec0;
   --color-text-muted: #718096;
@@ -83,6 +84,9 @@
   --color-border-light: #4a5568;
   --shadow-card: 0 4px 20px rgba(0,0,0,0.3);
   --shadow-card-hover: 0 12px 28px rgba(0,0,0,0.4);
+  --color-input-bg: #374151;
+  --color-hover-row: #374151;
+  --color-card-bg: #2d3748;
 }
 
 /* ===== Reset ===== */
@@ -137,6 +141,8 @@ h3 { font-size: 18px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #4a5568; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #718096; }
 
 /* ===== 动画 ===== */
 @keyframes fadeInUp {

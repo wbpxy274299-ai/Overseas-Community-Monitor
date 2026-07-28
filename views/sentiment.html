@@ -46,7 +46,23 @@
       <span style="color:#ef4444;">⚠️ 错误: <span id="statusErrorCount">0</span></span>
     </div>
     <div class="status-actions">
-      <button class="btn-restart admin-only" onclick="restartSystem()" title="重启服务">🔄 重启</button>
+      <button class="btn-collect operator-only" id="btnCollect" onclick="startCollecting()" title="手动采集 Twitter + Discord 舆情数据">▶ 启动抓取</button>
+      <button class="btn-ai-analyze operator-only" id="btnAIAnalyze" onclick="requestAIAnalysis()" title="强制重新调用AI分析，生成热门话题总结">🤖 AI分析</button>
+    </div>
+  </div>
+
+  <!-- 采集进度条 -->
+  <div id="collectProgressBar" class="collect-progress-bar" style="display:none;">
+    <div class="collect-progress-inner">
+      <div class="collect-progress-header">
+        <span class="collect-progress-icon" id="collectProgressIcon">⏳</span>
+        <span class="collect-progress-text" id="collectProgressText">准备中...</span>
+        <span class="collect-progress-elapsed" id="collectProgressElapsed"></span>
+      </div>
+      <div class="collect-progress-track">
+        <div class="collect-progress-fill" id="collectProgressFill" style="width:0%"></div>
+      </div>
+      <div class="collect-progress-detail" id="collectProgressDetail"></div>
     </div>
   </div>
 
@@ -55,7 +71,7 @@
     <div class="feedback-section">
       <div class="section-header">
         <h2>📅 一日内舆情</h2>
-        <span style="color: #999; font-size: 14px;" id="dailyMonitorPeriod">监控时间：加载中...</span>
+        <span style="color: var(--color-text-muted, #999); font-size: 14px;" id="dailyMonitorPeriod">监控时间：加载中...</span>
       </div>
 
       <!-- 统计卡片 -->
@@ -104,7 +120,7 @@
         <div class="chart-card">
           <div style="display:flex; align-items:center; gap:8px;">
             <h3 style="margin:0;">🔥 日服（Twitter）热门话题</h3>
-            <button onclick="toggleHeatHelp()" style="background:none; border:1px solid #ddd; border-radius:50%; width:22px; height:22px; cursor:pointer; font-size:12px; color:#999; line-height:1; padding:0;" title="热度评分说明">?</button>
+            <button onclick="toggleHeatHelp()" style="background:none; border:1px solid var(--color-border,#ddd); border-radius:50%; width:22px; height:22px; cursor:pointer; font-size:12px; color:var(--color-text-muted,#999); line-height:1; padding:0;" title="热度评分说明">?</button>
           </div>
           <div id="heatHelp" style="display:none; margin:8px 0; padding:12px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; font-size:12px; color:#92400e; line-height:1.8;">
             <strong>🔥 热度评分规则（满分10分）</strong><br>
@@ -131,7 +147,7 @@
             <button id="msgTabTwitter" class="btn btn-primary" onclick="switchMsgTab('twitter')" style="border-radius:6px 0 0 6px; margin:0;">🐦 日服 Twitter</button>
             <button id="msgTabDiscord" class="btn btn-secondary" onclick="switchMsgTab('discord')" style="border-radius:0 6px 6px 0; margin:0;">💬 繁中 Discord</button>
           </div>
-          <span style="color:#999; font-size:12px;" id="msgCountInfo">加载中...</span>
+          <span style="color:var(--color-text-muted,#999); font-size:12px;" id="msgCountInfo">加载中...</span>
         </div>
       </div>
       <div id="playerMessages" style="padding:16px;">
@@ -144,7 +160,7 @@
       <div class="section-header">
         <h2>📚 每日舆情存档</h2>
         <div style="display: flex; gap: 10px; align-items: center;">
-          <span style="color: #999; font-size: 13px;">每天自动存档，不调用AI，只读取已有分析</span>
+          <span style="color: var(--color-text-muted, #999); font-size: 13px;">每天自动存档，不调用AI，只读取已有分析</span>
           <button class="btn btn-secondary admin-only" onclick="saveTodaySnapshot()" title="手动保存今天的快照">💾 保存今日存档</button>
         </div>
       </div>
