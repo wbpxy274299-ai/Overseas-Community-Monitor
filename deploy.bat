@@ -87,12 +87,12 @@ ssh %SERVER_USER%@%SERVER_IP% "cd %SERVER_DIR% && echo '--- 拉取最新代码 -
 if %errorlevel% neq 0 (
     echo.
     echo [错误] 服务器同步失败！
-    echo 可能原因：
-    echo   1. 服务器密码错误
-    echo   2. 网络连不上（检查代理/VPN）
-    echo   3. SSH 连接超时
     echo.
-    echo 你也可以手动 SSH 登录后执行：
+    echo   1. SSH 密钥失效（运行 ssh-keygen -R %SERVER_IP% 后重试）
+    echo   2. 网络连不上（检查代理或 VPN）
+    echo   3. 服务器密码错误或连接超时
+    echo.
+    echo 手动 SSH 登录后执行：
     echo   cd %SERVER_DIR% ^&^& git pull origin main ^&^& pm2 restart %PM2_NAME%
     echo.
     pause
