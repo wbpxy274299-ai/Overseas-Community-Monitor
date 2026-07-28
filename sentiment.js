@@ -47,6 +47,40 @@ function fmtLocalDate(d) {
   return `${y}-${m}-${day} ${h}:${min}:${sec}`;
 }
 
+// ===== 时间格式统一规范化 =====
+// 比喻：就像所有入库的货物都要统一贴标准标签，不管原来贴的是什么格式
+function normalizeDateTime(timeValue) {
+  if (!timeValue) return formatCst(nowCst());
+  const str = String(timeValue).trim();
+  
+  // 已经是标准格式 YYYY-MM-DD HH:MM:SS
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(str)) return str;
+  
+  // 带时区偏移：2026-07-27 12:14:58 +08:00
+  const tzMatch = str.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s*[+\-]\d{2}:\d{2}$/);
+  if (tzMatch) return tzMatch[1];
+  
+  // 中文格式：2026年07月27日 10:49:57
+  const cnMatch = str.match(/^(\d{4})\D(\d{1,2})\D(\d{1,2})\D?\s*(\d{1,2}):(\d{2}):(\d{2})/);
+  if (cnMatch) {
+    return `${cnMatch[1]}-${cnMatch[2].padStart(2,'0')}-${cnMatch[3].padStart(2,'0')} ${cnMatch[4].padStart(2,'0')}:${cnMatch[5]}:${cnMatch[6]}`;
+  }
+  
+  // 斜杠格式：2026/07/27 12:14:58
+  const slashMatch = str.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+  if (slashMatch) {
+    return `${slashMatch[1]}-${slashMatch[2].padStart(2,'0')}-${slashMatch[3].padStart(2,'0')} ${slashMatch[4].padStart(2,'0')}:${slashMatch[5]}:${slashMatch[6]}`;
+  }
+  
+  // 其他格式：尝试 new Date 解析
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return formatCst(d);
+  } catch (_) {}
+  
+  return formatCst(nowCst());
+}
+
 // ===== 数据库表结构 =====
 async function initSentimentTable() {
   const sql = `
@@ -129,6 +163,29 @@ async function initSentimentTable() {
         console.log(`✅ Twitter region 自动修正: ${twWrong.cnt} 条 tc→jp`);
       }
     } catch (_) {}
+    
+    // 启动时自动修正非标准时间格式（如“2026年07月27日 10:49:57” → “2026-07-27 10:49:57”）
+    try {
+      const badDates = db.queryAll(
+        "SELECT id, created_at FROM sentiment_records WHERE created_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]' LIMIT 500"
+      );
+      if (badDates.length > 0) {
+        let fixed = 0;
+        for (const row of badDates) {
+          const normalized = normalizeDateTime(row.created_at);
+          if (normalized !== row.created_at) {
+            db.getDb().run('UPDATE sentiment_records SET created_at = ? WHERE id = ?', [normalized, row.id]);
+            fixed++;
+          }
+        }
+        if (fixed > 0) {
+          db.saveDb();
+          console.log(`✅ 时间格式自动修正: ${fixed} 条非标准格式已统一为 YYYY-MM-DD HH:MM:SS`);
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ 时间格式修正失败:', e.message);
+    }
     
     console.log('✅ 舆情监控数据库表初始化完成');
   } catch (e) {
@@ -1117,23 +1174,12 @@ async function saveSentimentRecord(record, enableAI = false) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   
-  // 处理时间字段：优先使用record中的created_at或timestamp（已经是CST格式），否则使用当前CST时间
+  // 处理时间字段：统一转换为 YYYY-MM-DD HH:MM:SS 标准格式
   let createdAt;
-  const timeValue = record.created_at || record.timestamp;  // 支持两种字段名
+  const timeValue = record.created_at || record.timestamp;
   
   if (timeValue) {
-    // 如果timeValue已经是CST格式字符串（YYYY-MM-DD HH:MM:SS），直接使用
-    if (typeof timeValue === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timeValue)) {
-      createdAt = timeValue;
-    } else {
-      // 如果是其他格式，尝试转换
-      try {
-        const dateObj = new Date(timeValue);
-        createdAt = formatCst(dateObj);
-      } catch (e) {
-        createdAt = formatCst(nowCst());
-      }
-    }
+    createdAt = normalizeDateTime(timeValue);
   } else {
     createdAt = formatCst(nowCst());
   }
@@ -2267,4 +2313,5 @@ module.exports = {
   getSystemErrors,             // 获取系统错误日志（状态面板用）
   getCollectionStatus,         // 获取采集状态（状态面板用）
   recordError,                 // 记录错误（其他模块也可用）
+  normalizeDateTime,           // 时间格式统一规范化
 };

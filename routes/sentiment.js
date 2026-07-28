@@ -854,8 +854,8 @@ router.post('/api/sentiment/upload', requireRole('operator', 'admin'), async (re
         // 从 URL 提取 tweet ID
         const tweetId = url.split('/').pop().split('?')[0];
         
-        // 时间转换："2026-07-27 12:14:58 +08:00" -> "2026-07-27 12:14:58"
-        const postTime = created_at.replace(/\s*\+\d+:\d+$/, '').trim();
+        // 时间转换：统一规范化为标准格式 YYYY-MM-DD HH:MM:SS
+        const postTime = sentiment.normalizeDateTime(created_at);
         
         records.push({
           platform: 'twitter',
@@ -958,7 +958,7 @@ router.post('/api/sentiment/upload', requireRole('operator', 'admin'), async (re
           author: author,
           channel_name: '手动上传',
           region: 'tc',
-          created_at: postTime,
+          created_at: sentiment.normalizeDateTime(postTime),
           has_media: content.includes('图片') ? 1 : 0,
           time_text: null,
           url: null,
