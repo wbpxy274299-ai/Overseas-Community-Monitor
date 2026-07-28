@@ -79,7 +79,7 @@ echo.
 :deploy
 echo [第二步] 同步到 Vultr 服务器...
 echo.
-echo 正在连接 %SERVER_IP%（可能需要输入服务器密码）
+echo 正在连接服务器 %SERVER_IP%...
 echo.
 
 ssh %SERVER_USER%@%SERVER_IP% "cd %SERVER_DIR% && echo '--- 拉取最新代码 ---' && git pull origin main && echo '--- 重启服务 ---' && pm2 restart %PM2_NAME% && echo '' && echo '=== 部署完成 ===' && pm2 status"
