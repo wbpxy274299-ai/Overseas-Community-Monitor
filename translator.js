@@ -17,9 +17,9 @@ const TERM_REPLACEMENTS = [
   { from: 'ﾄｽﾈﾊﾞ', to: 'TOSN' },  // 半角片假名版本
 ];
 
-// Groq API 配置（用于翻译）
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+// DeepSeek API 配置（用于翻译）
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
 /**
  * 翻译前预处理：替换游戏专有名词
@@ -34,27 +34,27 @@ function preProcessForTranslation(text) {
 }
 
 /**
- * 使用 Groq AI 翻译文本（日语 -> 中文）
+ * 使用 DeepSeek AI 翻译文本（日语 -> 中文）
  * 作为 MyMemory API 的备选方案
  * 
  * @param {string} text - 要翻译的日语文本
  * @returns {Promise<string>} 翻译后的中文文本
  */
-async function translateWithGroq(text) {
-  if (!GROQ_API_KEY) {
-    console.warn('   ⚠️ GROQ_API_KEY 未配置，无法使用 Groq 翻译');
+async function translateWithDeepSeek(text) {
+  if (!DEEPSEEK_API_KEY) {
+    console.warn('   ⚠️ DEEPSEEK_API_KEY 未配置，无法使用 DeepSeek 翻译');
     return text;
   }
   
   try {
     const response = await axios.post(
-      GROQ_API_URL,
+      DEEPSEEK_API_URL,
       {
-        model: 'llama-3.1-8b-instant',
+        model: 'deepseek-chat',
         messages: [
           {
             role: 'system',
-            content: '你是一个专业的日语到中文翻译助手。请将日语文本翻译成简体中文，保持原意不变。注意：“TOSN”是游戏名称，保持原样不翻译。只返回翻译结果，不要添加任何解释。'
+            content: '你是一个专业的日语到中文翻译助手。请将日语文本翻译成简体中文，保持原意不变。注意："TOSN"是游戏名称，保持原样不翻译。只返回翻译结果，不要添加任何解释。'
           },
           {
             role: 'user',
@@ -66,23 +66,23 @@ async function translateWithGroq(text) {
       },
       {
         headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
           'Content-Type': 'application/json'
         },
-        timeout: 10000,
+        timeout: 15000,
         proxy: getProxyConfig()
       }
     );
     
     if (response.data && response.data.choices && response.data.choices.length > 0) {
       const translatedText = response.data.choices[0].message.content.trim();
-      console.log(`   ✅ Groq 翻译成功`);
+      console.log(`   ✅ DeepSeek 翻译成功`);
       return translatedText;
     }
     
     return text;
   } catch (e) {
-    console.error('   ❌ Groq 翻译失败:', e.response?.data?.error?.message || e.message);
+    console.error('   ❌ DeepSeek 翻译失败:', e.response?.data?.error?.message || e.message);
     return text;
   }
 }
@@ -152,16 +152,16 @@ async function translateJapaneseToChinese(text, retryCount = 0) {
         await new Promise(resolve => setTimeout(resolve, delay));
         return translateJapaneseToChinese(text, retryCount + 1);
       } else {
-        console.log('   🔄 MyMemory API 多次重试失败，切换到 Groq AI 翻译...');
-        // 切换到 Groq 翻译
-        return translateWithGroq(processedText);
+        console.log('   🔄 MyMemory API 多次重试失败，切换到 DeepSeek AI 翻译...');
+        // 切换到 DeepSeek 翻译
+        return translateWithDeepSeek(processedText);
       }
     }
     
     console.error(' 翻译 API 调用失败:', e.message);
-    // 出错时尝试使用 Groq
-    console.log('   🔄 尝试使用 Groq AI 翻译...');
-    return translateWithGroq(processedText);
+    // 出错时尝试使用 DeepSeek
+    console.log('   🔄 尝试使用 DeepSeek AI 翻译...');
+    return translateWithDeepSeek(processedText);
   }
 }
 
@@ -172,13 +172,11 @@ async function translateJapaneseToChinese(text, retryCount = 0) {
  * @returns {boolean} 是否包含日文字符
  */
 function hasJapaneseCharacters(text) {
-  // 日语字符范围：
-  // 平假名: \u3040-\u309F
-  // 片假名: \u30A0-\u30FF
-  // 汉字: \u4E00-\u9FFF
-  // 全角符号: \uFF00-\uFFEF
-  const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\uFF00-\uFFEF]/;
-  return japaneseRegex.test(text);
+  // 只检测日语独有字符：平假名和片假名
+  // CJK 汉字（\u4E00-\u9FFF）中日共用，不能用来判断
+  // 打个比方：平假名/片假名就像日本人的“身份证”，有它才是日文
+  const japaneseOnlyRegex = /[\u3040-\u309F\u30A0-\u30FF]/;
+  return japaneseOnlyRegex.test(text);
 }
 
 module.exports = {

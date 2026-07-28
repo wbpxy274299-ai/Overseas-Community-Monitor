@@ -20,6 +20,25 @@ let isCollecting = false;
 function getIsCollecting() { return isCollecting; }
 function setIsCollecting(val) { isCollecting = val; }
 
+// ===== 全局错误日志 + 采集状态记录 =====
+// 打个比方：这就是系统的「黑匣子」，出了问题可以看它
+const systemErrors = [];  // 最多保留50条错误
+const collectionStatus = {
+  twitter: { lastRun: null, lastCount: 0, lastError: null },
+  discord: { lastRun: null, lastCount: 0, lastError: null },
+  analysis: { lastRun: null, topicCount: 0, lastError: null },
+};
+
+function recordError(source, message) {
+  const entry = { time: fmtLocalDate(new Date()), source, message: String(message).substring(0, 200) };
+  systemErrors.unshift(entry);
+  if (systemErrors.length > 50) systemErrors.length = 50;
+  console.error(`❌ [${source}] ${message}`);
+}
+
+function getSystemErrors() { return systemErrors; }
+function getCollectionStatus() { return collectionStatus; }
+
 // 本地时间格式化（避免 toISOString 的 UTC 偏移）
 function fmtLocalDate(d) {
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'),
@@ -670,9 +689,16 @@ async function collectFromTwitter(isFullCollect = false) {
   const searchQuery = keywords.join(' OR ');
   
   try {
-    return await collectFromYahooApi(searchQuery, isFullCollect);
+    const result = await collectFromYahooApi(searchQuery, isFullCollect);
+    // 记录采集状态
+    collectionStatus.twitter.lastRun = fmtLocalDate(new Date());
+    collectionStatus.twitter.lastCount = result.length;
+    collectionStatus.twitter.lastError = null;
+    return result;
   } catch (error) {
-    console.error('❌ Twitter 采集失败:', error.message);
+    recordError('Twitter采集', error.message);
+    collectionStatus.twitter.lastRun = fmtLocalDate(new Date());
+    collectionStatus.twitter.lastError = error.message;
     return [];
   }
 }
@@ -806,14 +832,16 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
   return allRecords;
 }
 
-// ===== Discord 数据采集（仅繁中服）=====
+// ===== Discord 数据采集（只繁中服）=====
+// 打个比方：这个函数就像个快递员，挨家挨户（每个频道）去取包裹（消息）
+// 如果某家不在（失败），等5秒再去一次（重试），两次都不行就记录错误
 async function collectFromDiscord() {
   console.log('💬 开始从 Discord 采集数据...');
   
   // 繁中服 Discord 频道配置
   const tcChannels = [
     { id: '1236867556355346484', name: '💬日常閒聊' },
-    { id: '1320748853732970556', name: '👂八卦吃瓜' }
+    { id: '1320748853732970556', name: '👂八卦吃瓜' },
   ];
   
   // 用于去重的 Map：key = author + contentHash, value = { channels: [], firstMessage }
@@ -822,86 +850,121 @@ async function collectFromDiscord() {
   console.log(`\n   正在采集 TC（繁中服）Discord 数据...`);
   
   for (const channel of tcChannels) {
-    try {
-      console.log(`     📡 频道: ${channel.name}`);
-      
-      // 使用繁中服 Bot Token，增加采集数量以获取最新消息
-      const messages = await fetchMessages(channel.id, 'TC', 200); // 从100增加到200
-      
-      if (Array.isArray(messages)) {
-        console.log(`        ✅ 获取到 ${messages.length} 条原始消息`);
+    let messages = null;
+    let retries = 0;
+    const maxRetries = 2;  // 最多试2次（第1次失败后重试1次）
+    
+    while (retries < maxRetries && !messages) {
+      try {
+        console.log(`     📡 频道: ${channel.name}${retries > 0 ? '（重试中）' : ''}`);
         
-        let validCount = 0;
-        for (const msg of messages) {
-          const content = msg.content || '';
-          
-          // 跳过空消息和 Bot 消息
-          if (!content.trim() || msg.author?.bot) {
-            continue;
-          }
-          
-          validCount++;
-          
-          // 生成作者+内容的唯一标识（用于去重）
-          const author = msg.author?.global_name || msg.author?.username || '未知用户';
-          const crypto = require('crypto');
-          // 只取前100个字符进行哈希比较，避免过长内容影响性能
-          const contentPreview = content.substring(0, 100);
-          const contentHash = crypto.createHash('md5').update(contentPreview).digest('hex').substring(0, 16);
-          const uniqueKey = `${author}_${contentHash}`;
-          
-          if (messageMap.has(uniqueKey)) {
-            // 已存在相同内容，添加频道标记
-            const existing = messageMap.get(uniqueKey);
-            if (!existing.channels.includes(channel.name)) {
-              existing.channels.push(channel.name);
-            }
-            // 保留最早的 timestamp 和对应的 source_id
-            if (msg.timestamp && (!existing.firstMessage.timestamp || msg.timestamp < existing.firstMessage.timestamp)) {
-              existing.firstMessage.timestamp = msg.timestamp;
-              existing.firstMessage.source_id = msg.id;
-            }
-          } else {
-            // 新消息，创建记录
-            // Discord的timestamp是ISO格式，需要转换为CST时间字符串
-            let cstTimeStr;
-            try {
-              const discordTime = new Date(msg.timestamp);
-              // Discord返回的是UTC时间，需要+8小时转换为CST
-              cstTimeStr = formatCst(discordTime);
-            } catch (e) {
-              // 如果解析失败，使用当前CST时间
-              cstTimeStr = formatCst(nowCst());
-            }
-            
-            messageMap.set(uniqueKey, {
-              channels: [channel.name],
-              firstMessage: {
-                platform: 'discord',
-                source_id: msg.id,
-                content: content,
-                author: author,
-                timestamp: cstTimeStr, // 使用CST时间字符串
-                region: 'tc'
-              }
-            });
+        const result = await fetchMessages(channel.id, 'TC', 200);
+        
+        if (Array.isArray(result)) {
+          messages = result;
+        } else {
+          console.log(`        ⚠️  返回数据格式异常`);
+          if (retries === 0) {
+            console.log('        🔄 5秒后重试...');
+            await new Promise(r => setTimeout(r, 5000));
           }
         }
-        
-        console.log(`         有效消息: ${validCount} 条`);
-      } else {
-        console.log(`        ⚠️  返回数据格式异常`);
+      } catch (e) {
+        const errMsg = `Discord频道${channel.name}采集失败: ${e.message}`;
+        if (e.response?.status === 401) {
+          recordError('Discord采集', `TC Bot Token无效或已过期！${e.message}`);
+        } else if (retries === 0) {
+          console.log(`        ❌ ${e.message}，5秒后重试...`);
+          await new Promise(r => setTimeout(r, 5000));
+        } else {
+          recordError('Discord采集', errMsg);
+        }
       }
-    } catch (e) {
-      console.error(`        ❌ 获取频道 ${channel.name} 失败: ${e.message}`);
+      retries++;
+    }
+    
+    if (messages && messages.length > 0) {
+      console.log(`        ✅ 获取到 ${messages.length} 条原始消息`);
+      // 诊断：为什么被过滤
+      const emptyCount = messages.filter(m => !(m.content || '').trim()).length;
+      const botCount = messages.filter(m => m.author?.bot).length;
+      console.log(`        🔍 诊断: 空内容 ${emptyCount} 条, Bot消息 ${botCount} 条`);
+      if (messages.length > 0) {
+        const sample = messages[0];
+        console.log(`        📋 样本: content="${(sample.content||'').substring(0,50)}", author=${sample.author?.username}, bot=${sample.author?.bot}`);
+      }
+      
+      let validCount = 0;
+      for (const msg of messages) {
+        const content = msg.content || '';
+        
+        // 跳过空消息和 Bot 消息
+        if (!content.trim() || msg.author?.bot) {
+          continue;
+        }
+        
+        validCount++;
+        
+        // 生成作者+内容的唯一标识（用于去重）
+        const author = msg.author?.global_name || msg.author?.username || '未知用户';
+        const crypto = require('crypto');
+        const contentPreview = content.substring(0, 100);
+        const contentHash = crypto.createHash('md5').update(contentPreview).digest('hex').substring(0, 16);
+        const uniqueKey = `${author}_${contentHash}`;
+        
+        if (messageMap.has(uniqueKey)) {
+          const existing = messageMap.get(uniqueKey);
+          if (!existing.channels.includes(channel.name)) {
+            existing.channels.push(channel.name);
+          }
+          if (msg.timestamp && (!existing.firstMessage.timestamp || msg.timestamp < existing.firstMessage.timestamp)) {
+            existing.firstMessage.timestamp = msg.timestamp;
+            existing.firstMessage.source_id = msg.id;
+          }
+        } else {
+          let cstTimeStr;
+          try {
+            const discordTime = new Date(msg.timestamp);
+            cstTimeStr = formatCst(discordTime);
+          } catch (e) {
+            cstTimeStr = formatCst(nowCst());
+          }
+          
+          messageMap.set(uniqueKey, {
+            channels: [channel.name],
+            firstMessage: {
+              platform: 'discord',
+              source_id: msg.id,
+              content: content,
+              author: author,
+              timestamp: cstTimeStr,
+              region: 'tc'
+            }
+          });
+        }
+      }
+      
+      console.log(`         有效消息: ${validCount} 条`);
+    } else if (!messages) {
+      console.log(`        ❌ 频道 ${channel.name} 采集失败（已重试）`);
     }
   }
   
   // 转换为最终结果，合并频道标记
   const collected = Array.from(messageMap.values()).map(item => ({
     ...item.firstMessage,
-    channel_name: item.channels.join(', ')  // 多个频道用逗号分隔
+    channel_name: item.channels.join(', ')
   }));
+  
+  // 更新采集状态记录
+  collectionStatus.discord.lastRun = fmtLocalDate(new Date());
+  collectionStatus.discord.lastCount = collected.length;
+  if (collected.length === 0) {
+    collectionStatus.discord.lastError = '采集结果为0条，可能存在问题';
+    recordError('Discord采集', '本次采集结果为0条，请检查Token和网络');
+  } else {
+    collectionStatus.discord.lastError = null;
+  }
   
   console.log(`\n✅ 从 Discord（繁中服）共采集到 ${collected.length} 条玩家发言（已去重）`);
   return collected;
@@ -2149,4 +2212,7 @@ module.exports = {
   saveDailySnapshot,         // 保存每日舆情快照
   getDailySnapshots,           // 获取快照列表
   getDailySnapshotDetail,      // 获取快照详情
+  getSystemErrors,             // 获取系统错误日志（状态面板用）
+  getCollectionStatus,         // 获取采集状态（状态面板用）
+  recordError,                 // 记录错误（其他模块也可用）
 };

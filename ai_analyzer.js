@@ -1,95 +1,39 @@
 /**
  * AI 智能分析模块
- * 双 AI 后端：Google Gemini（主力） + Groq Cloud（备胎）
+ * 单 AI 后端：DeepSeek（OpenAI 兼容格式）
  * 功能：情感分析、话题提取、智能总结
  */
 
 const axios = require('axios');
 const { getProxyConfig } = require('./config');
 
-// ===== AI API 配置 =====
-// Gemini（主力）：免费、肚量大、中日文强
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-lite:generateContent';
-
-// Groq（备胎）：速度快，用于兑底
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.1-8b-instant';
+// ===== DeepSeek AI 配置 =====
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+const DEEPSEEK_MODEL = 'deepseek-chat';
 
 /**
- * 调用 Google Gemini API
- * 优势：100万 token 上下文、中日文理解强、免费额度大
+ * 调用 DeepSeek API
+ * OpenAI 兼容格式，中日文理解能力强
  */
-async function callGeminiAPI(prompt, content, options = {}) {
+async function callDeepSeekAPI(prompt, content, options = {}) {
   const { maxTokens = 500, jsonMode = false } = options;
   
-  if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('粘贴')) {
+  if (!DEEPSEEK_API_KEY) {
     return null;
   }
   
   try {
-    // 精简版模型不支持 systemInstruction，合并到用户内容里
-    const fullText = jsonMode
-      ? `[系统指令]\n${prompt}\n\n[用户内容]\n${content}\n\n请严格按 JSON 格式返回。`
-      : `[系统指令]\n${prompt}\n\n[用户内容]\n${content}`;
+    // 截断超长内容，避免请求体过大
+    const truncatedContent = content.length > 6000 ? content.substring(0, 6000) + '\n...(内容已截断)' : content;
     
     const requestBody = {
-      contents: [{
-        parts: [{ text: fullText }]
-      }],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: maxTokens,
-      }
-    };
-    
-    const response = await axios.post(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      requestBody,
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000,
-        proxy: getProxyConfig()
-      }
-    );
-    
-    const candidates = response.data?.candidates;
-    if (candidates && candidates[0]?.content?.parts?.[0]?.text) {
-      return candidates[0].content.parts[0].text;
-    }
-    
-    return null;
-  } catch (e) {
-    if (e.response?.status === 429) {
-      console.log('    Gemini API 频率限制');
-      return null;
-    }
-    console.error('❌ Gemini API 调用失败:', e.response?.data?.error?.message || e.message);
-    return null;
-  }
-}
-
-/**
- * 调用 Groq API（备用通道）
- */
-async function callGroqAPI(prompt, content, options = {}) {
-  const { maxTokens = 500, jsonMode = false } = options;
-  
-  if (!GROQ_API_KEY) {
-    return null;
-  }
-  
-  try {
-    // Groq 有请求体大小限制，截断用户内容避免 413
-    const truncatedContent = content.length > 3000 ? content.substring(0, 3000) + '\n...(内容已截断)' : content;
-    const requestBody = {
-      model: GROQ_MODEL,
+      model: DEEPSEEK_MODEL,
       messages: [
         { role: 'system', content: prompt },
         { role: 'user', content: truncatedContent }
       ],
-      temperature: 0.3,
+      temperature: 0.1,
       max_tokens: maxTokens,
     };
     
@@ -98,14 +42,14 @@ async function callGroqAPI(prompt, content, options = {}) {
     }
     
     const response = await axios.post(
-      GROQ_API_URL,
+      DEEPSEEK_API_URL,
       requestBody,
       {
         headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
           'Content-Type': 'application/json'
         },
-        timeout: 20000,
+        timeout: 60000,
         proxy: getProxyConfig()
       }
     );
@@ -117,36 +61,70 @@ async function callGroqAPI(prompt, content, options = {}) {
     return null;
   } catch (e) {
     if (e.response?.status === 429) {
-      console.log('    Groq API 频率限制');
+      console.log('    DeepSeek API 频率限制');
       return null;
     }
-    console.error('❌ Groq API 调用失败:', e.message);
+    console.error('❌ DeepSeek API 调用失败:', e.response?.data?.error?.message || e.message);
     return null;
   }
 }
 
 /**
  * 统一 AI 调用入口
- * 优先用 Gemini（分析师），失败自动切 Groq 兑底
- * Groq 主要负责翻译工作（在 translator.js 中）
+ * 使用 DeepSeek 作为唯一 AI 后端
  */
 async function callAI(prompt, content, options = {}) {
-  // 优先使用 Gemini（分析师：负责话题分析、周报分析）
-  const geminiResult = await callGeminiAPI(prompt, content, options);
-  if (geminiResult) {
-    console.log('   ✅ Gemini 返回成功');
-    return geminiResult;
+  const result = await callDeepSeekAPI(prompt, content, options);
+  if (result) {
+    console.log('   ✅ DeepSeek 返回成功');
+    return result;
   }
   
-  // Gemini 失败，降级 Groq
-  console.log('   🔄 Gemini 不可用，切换 Groq 兑底');
-  const groqResult = await callGroqAPI(prompt, content, options);
-  if (groqResult) {
-    console.log('   ✅ Groq 返回成功');
-    return groqResult;
-  }
+  console.warn('   ⚠️ DeepSeek 不可用');
+  return null;
+}
+
+// ===== JSON 安全解析（带自动修复）=====
+// 打个比方：AI 有时候写 JSON 像写作文写错别字，这个函数就是「自动纠错老师」
+function safeJsonParse(text, context = '') {
+  if (!text) return null;
   
-  console.warn('   ⚠️ Gemini + Groq 均不可用');
+  // 第1次：直接解析
+  try {
+    return JSON.parse(text);
+  } catch (_) {}
+  
+  // 第2次：清理常见 AI 格式错误后再解析
+  try {
+    let cleaned = text
+      // 去掉 markdown 代码块标记
+      .replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+      // 去掉尾部多余的逗号（如 ,} 或 ,]）
+      .replace(/,\s*([\]}])/g, '$1')
+      // 把单引号换成双引号（AI 偶尔用单引号）
+      .replace(/(?<=[\[{,])\s*'([^']*)'\s*(?=[,\]}:])/g, ' "$1" ')
+      // 去掉 BOM 和不可见字符
+      .replace(/[\uFEFF\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+      .trim();
+    return JSON.parse(cleaned);
+  } catch (_) {}
+  
+  // 第3次：尝试提取 JSON 片段再修复
+  try {
+    // 尝试提取 {...} 或 [...]
+    const jsonObj = text.match(/\{[\s\S]*\}/);
+    const jsonArr = text.match(/\[[\s\S]*\]/);
+    const candidate = jsonObj ? jsonObj[0] : (jsonArr ? jsonArr[0] : null);
+    if (candidate) {
+      let cleaned = candidate
+        .replace(/,\s*([\]}])/g, '$1')
+        .replace(/[\uFEFF\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+        .trim();
+      return JSON.parse(cleaned);
+    }
+  } catch (_) {}
+  
+  console.warn(`⚠️ JSON 解析彻底失败 [${context}]，前100字: ${text.substring(0, 100)}`);
   return null;
 }
 
@@ -182,7 +160,8 @@ async function aiAnalyzeSentiment(text, language = 'ja') {
     // 尝试解析 JSON
     const jsonMatch = result.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = safeJsonParse(jsonMatch[0], '情感分析');
+      if (!parsed) throw new Error('解析为空');
       return {
         sentiment: parsed.sentiment || 'neutral',
         confidence: parsed.confidence || 0.5,
@@ -229,7 +208,8 @@ async function aiExtractTopics(texts) {
     // 尝试解析 JSON 数组
     const arrayMatch = result.match(/\[[\s\S]*\]/);
     if (arrayMatch) {
-      const parsed = JSON.parse(arrayMatch[0]);
+      const parsed = safeJsonParse(arrayMatch[0], '话题提取');
+      if (!parsed) throw new Error('解析为空');
       return Array.isArray(parsed) ? parsed.slice(0, 5) : [];
     }
   } catch (e) {
@@ -383,7 +363,9 @@ function groupRecordsByTag(records, prefix = '', truncate = false) {
     let text = r.translated_content || r.content || '';
     if (truncate) text = text.substring(0, 100);
     const url = r.url ? ` (链接:${r.url})` : '';
-    groups[tag].push(`[${prefix}${i+1}] ${text}${url}`);
+    // 把发帖时间也带上，AI 才能知道真实日期
+    const timeStr = r.created_at ? ` (时间:${r.created_at})` : '';
+    groups[tag].push(`[${prefix}${i+1}] ${text}${timeStr}${url}`);
   }
   
   // 格式化为文本
@@ -487,12 +469,10 @@ async function aiSummarizeHotTopics(records) {
   if (!result) return fallbackTopicExtraction(records);
   
   try {
-    let parsed;
-    if (result.trim().startsWith('[')) {
-      parsed = JSON.parse(result);
-    } else {
+    let parsed = safeJsonParse(result, '热门话题');
+    if (!parsed) {
       const m = result.match(/\[[\s\S]*\]/);
-      if (m) parsed = JSON.parse(m[0]);
+      if (m) parsed = safeJsonParse(m[0], '热门话题-提取');
     }
     if (Array.isArray(parsed)) {
       return deduplicateTopics(parsed.map(t => ({
@@ -626,26 +606,39 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
     return { twitter_topics: [], discord_topics: [] };
   }
   
-  // 检查缓存
+  // 检查缓存（只使用有话题的缓存，0话题缓存视为失败）
   const now = Date.now();
   if (topicCache.result && 
       (now - topicCache.lastUpdated) < CACHE_TTL_MS &&
       Math.abs(totalRecords - topicCache.recordCount) < 10) {
-    console.log('📦 使用 AI 话题缓存结果（1小时内，数据变化小于10条）');
-    return topicCache.result;
+    const cachedTotal = (topicCache.result.twitter_topics?.length || 0) + (topicCache.result.discord_topics?.length || 0);
+    if (cachedTotal > 0) {
+      console.log('📦 使用 AI 话题缓存结果（1小时内，数据变化小于10条）');
+      return topicCache.result;
+    }
+    console.log('⚠️ 缓存结果为0话题，跳过缓存，重新分析');
   }
   
+  // ★ 修复：只缓存有话题的结果，0话题不缓存（失败时允许重试）
+  const cacheIfHasTopics = (result) => {
+    const total = (result.twitter_topics?.length || 0) + (result.discord_topics?.length || 0);
+    if (total > 0) {
+      topicCache = { result, lastUpdated: now, recordCount: totalRecords };
+    }
+    return result;
+  };
+
   // 只有一个平台有数据
   if (hasTwitter && !hasDiscord) {
     const topics = await aiSummarizeHotTopics(twitterRecords);
     const result = { twitter_topics: topics, discord_topics: [] };
-    topicCache = { result, lastUpdated: now, recordCount: totalRecords };
+    cacheIfHasTopics(result);
     return result;
   }
   if (!hasTwitter && hasDiscord) {
     const topics = await aiSummarizeHotTopics(discordRecords);
     const result = { twitter_topics: [], discord_topics: topics };
-    topicCache = { result, lastUpdated: now, recordCount: totalRecords };
+    cacheIfHasTopics(result);
     return result;
   }
   
@@ -732,17 +725,15 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
       aiSummarizeHotTopics(discordRecords)
     ]);
     const finalResult = { twitter_topics: tw, discord_topics: dc };
-    topicCache = { result: finalResult, lastUpdated: now, recordCount: totalRecords };
+    cacheIfHasTopics(finalResult);
     return finalResult;
   }
   
   try {
-    let parsed;
-    if (result.trim().startsWith('{')) {
-      parsed = JSON.parse(result);
-    } else {
+    let parsed = safeJsonParse(result, '双平台话题');
+    if (!parsed) {
       const m = result.match(/\{[\s\S]*\}/);
-      if (m) parsed = JSON.parse(m[0]);
+      if (m) parsed = safeJsonParse(m[0], '双平台话题-提取');
     }
     
     if (parsed) {
@@ -775,7 +766,7 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
         twitter_topics: applyRealCounts(deduplicateTopics((parsed.twitter_topics || []).map(mapTopic))),
         discord_topics: applyRealCounts(deduplicateTopics((parsed.discord_topics || []).map(mapTopic)))
       };
-      topicCache = { result: finalResult, lastUpdated: now, recordCount: totalRecords };
+      cacheIfHasTopics(finalResult);
       return finalResult;
     }
   } catch (e) {
@@ -884,12 +875,10 @@ async function aiScoutNewTopics(generalRecords) {
   }
   
   try {
-    let parsed;
-    if (result.trim().startsWith('[')) {
-      parsed = JSON.parse(result);
-    } else {
+    let parsed = safeJsonParse(result, 'AI哨兵');
+    if (!parsed) {
       const m = result.match(/\[[\s\S]*\]/);
-      if (m) parsed = JSON.parse(m[0]);
+      if (m) parsed = safeJsonParse(m[0], 'AI哨兵-提取');
     }
     
     if (Array.isArray(parsed) && parsed.length > 0) {

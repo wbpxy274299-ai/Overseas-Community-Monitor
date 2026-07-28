@@ -19,6 +19,15 @@ const { requireRole } = require('../middleware/validate');
 // 统计数据缓存
 let statisticsCache = { data: null, timestamp: 0, ttl: 30 * 60 * 1000 };
 
+// ===== 每日分析锁 =====
+// 打个比方：这把锁就像「今天已打过勾的考勤表」，同一天只允许 AI 分析跑一次
+let dailyAnalysisLock = { date: null, analyzing: false };
+
+function todayStr() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+}
+
 // ===== 健康检查 =====
 router.get('/health', (req, res) => {
   const health = {
@@ -209,58 +218,146 @@ router.get('/api/sentiment/daily-snapshots/:date', (req, res) => {
 // 排序：热度高→低，发言多→少
 const sortByHeat = (topics) => topics.sort((a, b) => (b.heat || 0) - (a.heat || 0) || (b.count || 0) - (a.count || 0));
 
+// 诊断函数：用大白话解释为什么没数据
+function buildDiagnosisMessage(cs, twitterCount, discordCount) {
+  const parts = [];
+  // Twitter 采集状态
+  const twErr = cs.twitter?.lastError;
+  if (twErr) {
+    parts.push(`🐦 Twitter 采集失败：${twErr}`);
+  } else if (!cs.twitter?.lastRun) {
+    parts.push('🐦 Twitter 今天还没采集过');
+  } else {
+    parts.push(`🐦 Twitter 采集了 ${cs.twitter.lastCount || 0} 条，但经质量筛选后无有效数据`);
+  }
+  // Discord 采集状态
+  const dcErr = cs.discord?.lastError;
+  if (dcErr) {
+    parts.push(`💬 Discord 采集失败：${dcErr}`);
+  } else if (!cs.discord?.lastRun) {
+    parts.push('💬 Discord 今天还没采集过');
+  } else {
+    parts.push(`💬 Discord 采集了 ${cs.discord.lastCount || 0} 条，但经质量筛选后无有效数据`);
+  }
+  return parts.join('\n');
+}
+
 router.get('/api/sentiment/hot-topics', async (req, res) => {
   try {
     const force = req.query.force === 'true';
+    const today = todayStr();
+    
     if (force) {
-      // 清除数据库和内存缓存
       console.log('🔄 强制重新分析，清除缓存...');
       aiAnalyzer.clearTopicCache();
       sentiment.clearTodayTopics();
+      dailyAnalysisLock = { date: null, analyzing: false };  // 重置锁
     }
     
     // 1. 先查今天是否已经有分析结果
     const existing = sentiment.getTodayHotTopics();
     if (existing && !force) {
-      sortByHeat(existing.twitter_topics);
-      sortByHeat(existing.discord_topics);
-      console.log('📦 使用已有分析结果（不重复调AI）');
-      console.log(`   Twitter: ${existing.twitter_topics.length} 个话题, Discord: ${existing.discord_topics.length} 个话题`);
-      return res.json({ ok: true, data: existing, cached: true });
+      const totalTopics = (existing.twitter_topics?.length || 0) + (existing.discord_topics?.length || 0);
+      if (totalTopics > 0) {
+        sortByHeat(existing.twitter_topics);
+        sortByHeat(existing.discord_topics);
+        console.log('📦 使用已有分析结果（不重复调AI）');
+        return res.json({ ok: true, data: existing, cached: true });
+      }
+      // 今天有记录但话题为0，说明上次分析失败了，继续往下走重新分析
+      console.log('⚠️ 今天有记录但话题为0，尝试重新分析...');
     }
     
-    // 2. 没有分析结果，才调 AI（锁死前日8:30~今日8:30）
-    console.log('🔥 今日无分析结果，开始调用 AI 分析...');
-    const { startDate, endDate, periodLabel } = sentiment.getTodayPeriod();
-    console.log(`   周期: ${periodLabel}`);
-    const twitterRecords = sentiment.getQualityFeedback(30, 'twitter', startDate, endDate);
-    const discordRecords = sentiment.getQualityFeedback(30, 'discord', startDate, endDate);
-    if ((!twitterRecords || twitterRecords.length === 0) &&
-        (!discordRecords || discordRecords.length === 0)) {
-      return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [] }, message: '暂无高质量数据' });
+    // 2. 检查当日分析锁：同一天只允许调一次 AI
+    if (dailyAnalysisLock.date === today && !force) {
+      console.log('🔒 今日 AI 分析已执行过，返回空结果（避免重复调用）');
+      return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [] }, cached: true, locked: true });
     }
-    console.log(`   📝 高质量数据: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条`);
-    const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
-    // ★ 读时去重：同 tag 只保留一条（与 getTodayHotTopics 保持一致）
-    const dedupByTag = (topics) => {
-      const seen = new Set();
-      return (topics || []).filter(t => {
-        if (seen.has(t.tag)) return false;
-        seen.add(t.tag);
-        return true;
-      });
-    };
-    result.twitter_topics = dedupByTag(result.twitter_topics);
-    result.discord_topics = dedupByTag(result.discord_topics);
-    sortByHeat(result.twitter_topics);
-    sortByHeat(result.discord_topics);
-    console.log(`✅ AI 生成 ${result.twitter_topics.length} 个 Twitter 话题, ${result.discord_topics.length} 个 Discord 话题`);
-    // ★ 关键修复：传入 skipDedup=true，因为 result 已经在路由层做过 dedupByTag
-    // 避免 saveTopicHistory() 内部的二次去重把数据搞乱
-    if (result.twitter_topics.length > 0) sentiment.saveTopicHistory(result.twitter_topics, 'twitter', true);
-    if (result.discord_topics.length > 0) sentiment.saveTopicHistory(result.discord_topics, 'discord', true);
-    res.json({ ok: true, data: result, cached: false });
+    
+    // 3. 如果正在分析中，避免并发
+    if (dailyAnalysisLock.analyzing) {
+      console.log('⏳ AI 分析正在进行中，请稍候...');
+      return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [] }, analyzing: true });
+    }
+    
+    // 4. 调 AI 分析（先不锁，等成功了再锁）
+    dailyAnalysisLock = { date: null, analyzing: true };
+    try {
+      console.log('🔥 今日无分析结果，开始调用 AI 分析...');
+      const { startDate, endDate, periodLabel } = sentiment.getTodayPeriod();
+      console.log(`   周期: ${periodLabel}`);
+      const twitterRecords = sentiment.getQualityFeedback(30, 'twitter', startDate, endDate);
+      const discordRecords = sentiment.getQualityFeedback(30, 'discord', startDate, endDate);
+      if ((!twitterRecords || twitterRecords.length === 0) &&
+          (!discordRecords || discordRecords.length === 0)) {
+        dailyAnalysisLock.analyzing = false;
+        // ★ 诊断：为什么没数据？
+        const cs = sentiment.getCollectionStatus();
+        const diagnosis = {
+          reason: 'no_data',
+          detail: buildDiagnosisMessage(cs, 0, 0),
+          twitterCount: 0,
+          discordCount: 0,
+          twitterError: cs.twitter?.lastError || null,
+          discordError: cs.discord?.lastError || null,
+          collectionTwitter: cs.twitter?.lastRun || null,
+          collectionDiscord: cs.discord?.lastRun || null
+        };
+        return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [] }, diagnosis });
+      }
+      console.log(`   📝 高质量数据: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条`);
+      const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
+      const dedupByTag = (topics) => {
+        const seen = new Set();
+        return (topics || []).filter(t => {
+          if (seen.has(t.tag)) return false;
+          seen.add(t.tag);
+          return true;
+        });
+      };
+      result.twitter_topics = dedupByTag(result.twitter_topics);
+      result.discord_topics = dedupByTag(result.discord_topics);
+      sortByHeat(result.twitter_topics);
+      sortByHeat(result.discord_topics);
+      const totalTopics = result.twitter_topics.length + result.discord_topics.length;
+      console.log(`✅ AI 生成 ${result.twitter_topics.length} 个 Twitter 话题, ${result.discord_topics.length} 个 Discord 话题`);
+      if (result.twitter_topics.length > 0) sentiment.saveTopicHistory(result.twitter_topics, 'twitter', true);
+      if (result.discord_topics.length > 0) sentiment.saveTopicHistory(result.discord_topics, 'discord', true);
+      
+      // ★ 分析返回0个话题时，返回诊断信息而不是空数据
+      if (totalTopics === 0) {
+        dailyAnalysisLock = { date: null, analyzing: false };
+        console.log('⚠️ 分析返回0个话题，不上锁（下次刷新可重试）');
+        const cs = sentiment.getCollectionStatus();
+        const diagnosis = {
+          reason: 'ai_failed',
+          detail: `采集到 Twitter ${twitterRecords.length} 条、Discord ${discordRecords.length} 条数据，但 AI 分析未能生成话题。可能是 AI 服务不可用，稍后会自动重试。`,
+          twitterCount: twitterRecords.length,
+          discordCount: discordRecords.length,
+          twitterError: cs.twitter?.lastError || null,
+          discordError: cs.discord?.lastError || null,
+          collectionTwitter: cs.twitter?.lastRun || null,
+          collectionDiscord: cs.discord?.lastRun || null
+        };
+        sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
+        sentiment.getCollectionStatus().analysis.topicCount = 0;
+        return res.json({ ok: true, data: result, diagnosis });
+      }
+      
+      dailyAnalysisLock = { date: today, analyzing: false };
+      console.log('🔒 分析成功，已上锁（今天不再重复调AI）');
+      
+      // 更新分析状态
+      sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
+      sentiment.getCollectionStatus().analysis.topicCount = totalTopics;
+      
+      res.json({ ok: true, data: result, cached: false });
+    } finally {
+      dailyAnalysisLock.analyzing = false;
+    }
   } catch (e) {
+    dailyAnalysisLock.analyzing = false;
+    sentiment.recordError('热门话题API', e.message);
     console.error('❌ AI 热门话题生成失败:', e.message);
     log.error('AI 热门话题生成失败', e.message);
     res.status(500).json({ error: `AI 话题生成失败: ${e.message}` });
@@ -507,5 +604,230 @@ router.get('/api/sentiment/report/:id/download', (req, res) => {
     res.status(500).json({ error: `下载失败: ${e.message}` });
   }
 });
+
+// ===== 系统运行状态 API =====
+router.get('/api/system/status', (req, res) => {
+  try {
+    const uptimeSeconds = Math.floor(process.uptime());
+    const days = Math.floor(uptimeSeconds / 86400);
+    const hours = Math.floor((uptimeSeconds % 86400) / 3600);
+    const mins = Math.floor((uptimeSeconds % 3600) / 60);
+    const mem = process.memoryUsage();
+    
+    const collectionStatus = sentiment.getCollectionStatus();
+    const taskLog = scheduler.getTaskRunLog ? scheduler.getTaskRunLog() : {};
+    const errors = sentiment.getSystemErrors().slice(0, 10);
+    
+    // 检查今日是否有热门话题分析
+    const todayTopics = sentiment.getTodayHotTopics();
+    const hasTopics = todayTopics && (todayTopics.twitter_topics?.length > 0 || todayTopics.discord_topics?.length > 0);
+    
+    res.json({
+      ok: true,
+      data: {
+        uptime: `${days > 0 ? days + '天' : ''}${hours}时${mins}分`,
+        uptimeSeconds,
+        memory: `${Math.round(mem.heapUsed / 1024 / 1024)}MB / ${Math.round(mem.heapTotal / 1024 / 1024)}MB`,
+        port: 5000,
+        pid: process.pid,
+        collection: collectionStatus,
+        tasks: taskLog,
+        topicsReady: hasTopics,
+        topicCount: hasTopics ? (todayTopics.twitter_topics?.length || 0) + (todayTopics.discord_topics?.length || 0) : 0,
+        errors: errors,
+        errorCount: sentiment.getSystemErrors().length,
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== 系统重启 API =====
+router.post('/api/system/restart', (req, res) => {
+  console.log('\n🔄 用户触发系统重启...');
+  res.json({ ok: true, message: '服务器正在重启...' });
+  
+  // 延迟 1 秒后重启（确保响应已发送）
+  setTimeout(() => {
+    try {
+      scheduler.stopScheduler();
+    } catch (_) {}
+    process.exit(0);  // 退出后由外部进程管理器重启，或直接退出
+  }, 1000);
+});
+
+// ===== 手动数据上传 API =====
+// 打个比方：这就像一个「手动进货通道」，自动采集出问题时，你可以手动把数据送进来
+router.post('/api/sentiment/upload', async (req, res) => {
+  if (sentiment.getIsCollecting()) {
+    return res.json({ ok: false, message: '采集进行中，请稍后再试' });
+  }
+  
+  try {
+    sentiment.setIsCollecting(true);
+    const { platform, data } = req.body;
+    
+    if (!platform || !data) {
+      return res.status(400).json({ error: '缺少 platform 或 data 参数' });
+    }
+    
+    let records = [];
+    
+    if (platform === 'twitter') {
+      // Twitter CSV 格式解析
+      // 字段：created_at, full_text, name, favorite_count, retweet_count, bookmark_count, quote_count, reply_count, views_count, url
+      const lines = data.split('\n').filter(l => l.trim());
+      if (lines.length < 2) {
+        return res.status(400).json({ error: 'CSV 数据不足，至少需要表头+1行数据' });
+      }
+      
+      // 跳过表头
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        // 简单 CSV 解析（处理双引号内的逗号）
+        const fields = parseCsvLine(line);
+        if (fields.length < 10) continue;
+        
+        const [created_at, full_text, name, fav, rt, bm, qt, rp, views, url] = fields;
+        if (!full_text || !url) continue;
+        
+        // 从 URL 提取 tweet ID
+        const tweetId = url.split('/').pop().split('?')[0];
+        
+        // 时间转换："2026-07-27 12:14:58 +08:00" -> "2026-07-27 12:14:58"
+        const postTime = created_at.replace(/\s*\+\d+:\d+$/, '').trim();
+        
+        records.push({
+          platform: 'twitter',
+          source_id: tweetId,
+          content: full_text.replace(/\\n/g, '\n'),
+          author: name || '',
+          channel_name: '手动上传',
+          region: 'jp',
+          created_at: postTime,
+          url: url,
+          has_media: 0,
+          time_text: null,
+        });
+      }
+    } else if (platform === 'discord') {
+      // Discord 文本格式解析
+      // 格式：用户名 — 日期 时间\n消息内容\n\n下一条...
+      // 统一换行符（Windows \r\n 和 Mac \r 都转成 \n）
+      let cleanData = data.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const blocks = cleanData.split(/\n\n+/).filter(b => b.trim());
+      
+      for (const block of blocks) {
+        const lines = block.split('\n');
+        if (lines.length < 2) continue;
+        
+        // 第一行：用户名 — 日期 时间
+        const headerMatch = lines[0].match(/^(.+?)\s*[—\u2014-]\s*(.+)$/);
+        if (!headerMatch) continue;
+        
+        const author = headerMatch[1].trim();
+        const timeStr = headerMatch[2].trim();
+        const content = lines.slice(1).join('\n').trim();
+        
+        if (!content || content.startsWith('图片') || content.length < 2) continue;
+        
+        // 解析时间："2026/7/23 22:06" 或 "昨天19:32" 或 "00:02"
+        let postTime;
+        try {
+          if (timeStr.includes('昨天')) {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const timeParts = timeStr.replace('昨天', '').trim().split(':');
+            yesterday.setHours(parseInt(timeParts[0]), parseInt(timeParts[1] || 0), 0, 0);
+            postTime = yesterday.getFullYear() + '-' + String(yesterday.getMonth()+1).padStart(2,'0') + '-' + String(yesterday.getDate()).padStart(2,'0') + ' ' + String(yesterday.getHours()).padStart(2,'0') + ':' + String(yesterday.getMinutes()).padStart(2,'0') + ':00';
+          } else if (/^\d{2}:\d{2}$/.test(timeStr)) {
+            // 只有时间，用今天
+            const now = new Date();
+            const [h, m] = timeStr.split(':').map(Number);
+            postTime = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':00';
+          } else {
+            // 完整日期 "2026/7/23 22:06"
+            const d = new Date(timeStr.replace(/\//g, '-'));
+            if (!isNaN(d.getTime())) {
+              postTime = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':00';
+            } else {
+              postTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            }
+          }
+        } catch (_) {
+          postTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        }
+        
+        const crypto = require('crypto');
+        const contentHash = crypto.createHash('md5').update(content.substring(0, 100)).digest('hex').substring(0, 16);
+        
+        records.push({
+          platform: 'discord',
+          source_id: `manual_${Date.now()}_${contentHash}`,
+          content: content,
+          author: author,
+          channel_name: '手动上传',
+          region: 'tc',
+          created_at: postTime,
+          has_media: content.includes('图片') ? 1 : 0,
+          time_text: null,
+          url: null,
+        });
+      }
+    } else {
+      return res.status(400).json({ error: `不支持的平台: ${platform}` });
+    }
+    
+    if (records.length === 0) {
+      return res.json({ ok: false, message: '未解析到有效数据' });
+    }
+    
+    console.log(`📤 手动上传: ${platform} ${records.length} 条记录`);
+    const result = await sentiment.batchSaveRecords(records, true);
+    
+    res.json({
+      ok: true,
+      message: `上传成功`,
+      platform,
+      parsed: records.length,
+      saved: result.success,
+      skipped: result.skipped || 0,
+      failed: result.failed,
+    });
+  } catch (e) {
+    sentiment.recordError('手动上传', e.message);
+    console.error('❌ 手动上传失败:', e.message);
+    res.status(500).json({ error: `上传失败: ${e.message}` });
+  } finally {
+    sentiment.setIsCollecting(false);
+  }
+});
+
+// CSV 行解析器（处理双引号内的逗号）
+function parseCsvLine(line) {
+  const fields = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      fields.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current);
+  return fields;
+}
 
 module.exports = router;

@@ -25,11 +25,19 @@ function getProxyConfig() {
   
   try {
     const url = new URL(PROXY_URL);
-    return {
-      protocol: 'http',
+    const config = {
+      protocol: url.protocol.replace(':', '') || 'http',
       host: url.hostname,
-      port: parseInt(url.port)
+      port: parseInt(url.port),
     };
+    // 如果代理地址带了用户名密码，自动加上认证信息
+    if (url.username) {
+      config.auth = {
+        username: decodeURIComponent(url.username),
+        password: decodeURIComponent(url.password || ''),
+      };
+    }
+    return config;
   } catch (e) {
     console.warn('⚠️ 代理 URL 格式错误:', e.message);
     return undefined;

@@ -171,13 +171,69 @@ async function loadAITopics() {
     const response = await fetch(`${API_BASE}/hot-topics`);
     const result = await response.json();
     if (result.ok) {
-      renderAITopics(result.data);
+      if (result.analyzing) {
+        renderAnalyzing();
+      } else if (result.diagnosis) {
+        renderDiagnosis(result.diagnosis);
+      } else {
+        renderAITopics(result.data);
+      }
     } else {
       renderTopicError(result.error || '未知错误');
     }
   } catch (error) {
     console.error('加载AI话题失败:', error);
     renderTopicError(error.message);
+  }
+}
+
+// 显示“正在分析中”
+function renderAnalyzing() {
+  const html = `
+    <div style="padding: 30px; text-align: center; color: #666;">
+      <div style="font-size: 32px; margin-bottom: 12px;">⏳</div>
+      <div style="font-size: 15px; font-weight: bold; margin-bottom: 6px;">AI 正在分析中...</div>
+      <div style="font-size: 13px;">请稍后刷新页面查看结果</div>
+    </div>`;
+  document.getElementById('twitterTopics').innerHTML = html;
+  document.getElementById('discordTopics').innerHTML = html;
+}
+
+// 显示诊断信息：告诉用户为什么没数据 + 指引看存档
+function renderDiagnosis(d) {
+  const reasonIcon = d.reason === 'collection_failed' ? '❌' : d.reason === 'ai_failed' ? '🤖' : '📭';
+  const reasonTitle = d.reason === 'collection_failed' ? '采集失败' :
+                      d.reason === 'ai_failed' ? 'AI 分析失败' :
+                      d.reason === 'no_posts' ? '玩家暂无发言' : '暂无数据';
+  // 详细原因分行显示
+  const detailLines = (d.detail || '').split('\n').map(l => `<div style="margin: 4px 0;">${l}</div>`).join('');
+  const html = `
+    <div style="padding: 24px; text-align: center;">
+      <div style="font-size: 36px; margin-bottom: 10px;">${reasonIcon}</div>
+      <div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 12px;">${reasonTitle}</div>
+      <div style="font-size: 13px; color: #666; line-height: 1.8; text-align: left; max-width: 360px; margin: 0 auto;">
+        ${detailLines}
+      </div>
+      ${d.twitterError || d.discordError ? `<div style="margin-top: 12px; font-size: 12px; color: #ef4444;">请检查网络/代理是否正常，或等待系统自动重试</div>` : ''}
+      <div style="margin-top: 16px;">
+        <button onclick="scrollToSnapshots()" style="padding: 8px 20px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">📂 查看昨日舆情存档</button>
+      </div>
+    </div>`;
+  document.getElementById('twitterTopics').innerHTML = html;
+  document.getElementById('discordTopics').innerHTML = `
+    <div style="padding: 24px; text-align: center; color: #999;">
+      <div style="font-size: 13px;">与 Twitter 相同的原因</div>
+    </div>`;
+}
+
+// 滚动到存档区域
+function scrollToSnapshots() {
+  const el = document.getElementById('snapshotSection') || document.querySelector('[id*=snapshot]') || document.querySelector('[id*=Snapshot]');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth' });
+  } else {
+    // 如果没有存档区域，切换到历史页面
+    window.location.href = '/sentiment-history';
   }
 }
 
@@ -462,8 +518,161 @@ function renderPlayerMessages(messages, platform) {
   container.innerHTML = html;
 }
 
+// ===== 系统运行状态 =====
+async function loadSystemStatus() {
+  try {
+    const res = await fetch('/api/system/status');
+    const result = await res.json();
+    if (!result.ok) throw new Error(result.error);
+    const d = result.data;
+    
+    // 状态点 + 文字
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    const uptime = document.getElementById('statusUptime');
+    const errCount = d.errorCount || 0;
+    const isHealthy = errCount < 5;
+    
+    dot.className = 'status-dot ' + (isHealthy ? 'status-ok' : 'status-err');
+    text.textContent = isHealthy ? '运行正常' : '有异常';
+    uptime.textContent = `已运行 ${d.uptime}`;
+    
+    // 采集数据
+    const twCount = d.collection?.twitter?.lastCount ?? '-';
+    const dcCount = d.collection?.discord?.lastCount ?? '-';
+    document.getElementById('statusTwitterCount').textContent = twCount;
+    document.getElementById('statusDiscordCount').textContent = dcCount;
+    
+    // 话题
+    const topicInfo = d.topicsReady ? `${d.topicCount} 个已就绪` : '未生成';
+    document.getElementById('statusTopicInfo').textContent = topicInfo;
+    
+    // 错误
+    const errItem = document.getElementById('statusErrorItem');
+    if (errCount > 0) {
+      errItem.style.display = '';
+      document.getElementById('statusErrorCount').textContent = errCount;
+      errItem.title = (d.errors || []).map(e => `[${e.source}] ${e.message}`).join('\n');
+    } else {
+      errItem.style.display = 'none';
+    }
+  } catch (e) {
+    document.getElementById('statusText').textContent = '状态获取失败';
+    document.getElementById('statusDot').className = 'status-dot status-err';
+  }
+}
+
+async function restartSystem() {
+  if (!confirm('确定要重启服务吗？\n重启后页面会短暂无法访问，服务会自动恢复。')) return;
+  try {
+    document.getElementById('statusText').textContent = '正在重启...';
+    document.getElementById('statusDot').className = 'status-dot status-err';
+    await fetch('/api/system/restart', { method: 'POST' });
+    // 等待 5 秒后开始轮询
+    setTimeout(() => {
+      const check = setInterval(async () => {
+        try {
+          const r = await fetch('/api/system/status');
+          if (r.ok) {
+            clearInterval(check);
+            loadSystemStatus();
+            alert('✅ 服务已恢复运行');
+          }
+        } catch (_) {} // 服务器还没起来，继续等
+      }, 3000);
+      // 最多等 60 秒
+      setTimeout(() => clearInterval(check), 60000);
+    }, 5000);
+  } catch (e) {
+    alert('重启请求失败: ' + e.message);
+  }
+}
+
+// ===== 手动上传 =====
+function toggleUploadPanel() {
+  const panel = document.getElementById('uploadPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function switchUploadTab(type) {
+  const twBtn = document.getElementById('uploadTabTwitter');
+  const dcBtn = document.getElementById('uploadTabDiscord');
+  const twDiv = document.getElementById('uploadTwitter');
+  const dcDiv = document.getElementById('uploadDiscord');
+  if (type === 'twitter') {
+    twBtn.className = 'btn btn-primary btn-sm';
+    dcBtn.className = 'btn btn-secondary btn-sm';
+    twDiv.style.display = 'block';
+    dcDiv.style.display = 'none';
+  } else {
+    twBtn.className = 'btn btn-secondary btn-sm';
+    dcBtn.className = 'btn btn-primary btn-sm';
+    twDiv.style.display = 'none';
+    dcDiv.style.display = 'block';
+  }
+  document.getElementById('uploadResult').innerHTML = '';
+}
+
+async function uploadTwitterCSV() {
+  const fileInput = document.getElementById('twitterCsvFile');
+  const resultDiv = document.getElementById('uploadResult');
+  if (!fileInput.files.length) {
+    resultDiv.innerHTML = '<span style="color:#ef4444;">请先选择 CSV 文件</span>';
+    return;
+  }
+  resultDiv.innerHTML = '<span style="color:#3b82f6;">读取文件中...</span>';
+  try {
+    const file = fileInput.files[0];
+    const text = await file.text();
+    resultDiv.innerHTML = '<span style="color:#3b82f6;">上传处理中...</span>';
+    const res = await fetch('/api/sentiment/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform: 'twitter', data: text })
+    });
+    const result = await res.json();
+    if (result.ok) {
+      resultDiv.innerHTML = `<span style="color:#059669;">✅ 上传成功：解析 ${result.parsed} 条，保存 ${result.saved} 条，跳过 ${result.skipped} 条</span>`;
+      setTimeout(() => { loadStatistics(); loadDailyFeedback(); loadAITopics(); loadPlayerMessages('twitter'); }, 2000);
+    } else {
+      resultDiv.innerHTML = `<span style="color:#ef4444;">❌ ${result.message || result.error}</span>`;
+    }
+  } catch (e) {
+    resultDiv.innerHTML = `<span style="color:#ef4444;">❌ 上传失败: ${e.message}</span>`;
+  }
+}
+
+async function uploadDiscordText() {
+  const textInput = document.getElementById('discordTextInput');
+  const resultDiv = document.getElementById('uploadResult');
+  const text = textInput.value.trim();
+  if (!text) {
+    resultDiv.innerHTML = '<span style="color:#ef4444;">请先粘贴 Discord 聊天记录</span>';
+    return;
+  }
+  resultDiv.innerHTML = '<span style="color:#3b82f6;">上传处理中...</span>';
+  try {
+    const res = await fetch('/api/sentiment/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform: 'discord', data: text })
+    });
+    const result = await res.json();
+    if (result.ok) {
+      resultDiv.innerHTML = `<span style="color:#059669;">✅ 上传成功：解析 ${result.parsed} 条，保存 ${result.saved} 条，跳过 ${result.skipped} 条</span>`;
+      textInput.value = '';
+      setTimeout(() => { loadStatistics(); loadDailyFeedback(); loadAITopics(); loadPlayerMessages('discord'); }, 2000);
+    } else {
+      resultDiv.innerHTML = `<span style="color:#ef4444;">❌ ${result.message || result.error}</span>`;
+    }
+  } catch (e) {
+    resultDiv.innerHTML = `<span style="color:#ef4444;">❌ 上传失败: ${e.message}</span>`;
+  }
+}
+
 // 初始化加载数据
 function refreshData() {
+  loadSystemStatus();
   loadStatistics();
   loadDailyFeedback();
   loadAITopics();
@@ -777,6 +986,8 @@ async function saveTodaySnapshot() {
 window.addEventListener('DOMContentLoaded', () => {
   console.log('🚀 [v2.0] 舆情面板加载...');
   refreshData();
-  // 每 30 分钟自动刷新
+  // 每 60 秒刷新系统状态
+  setInterval(loadSystemStatus, 60 * 1000);
+  // 每 30 分钟自动刷新数据
   setInterval(() => { loadStatistics(); loadDailyFeedback(); }, 30 * 60 * 1000);
 });

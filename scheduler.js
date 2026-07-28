@@ -11,13 +11,51 @@ const db = require('./db');
 const { CHANNELS } = require('./config');
 
 let schedulerInterval = null;
+const path = require('path');
+const fs = require('fs');
 
-// 每个任务的上次运行日期（YYYY-MM-DD）
-let lastRunDates = {
-  dailyAnalysis: null,
-  dailySnapshot: null,
-  midnightCollect: null,
+// 打个比方：lastRunDates 就像调度器的「工作日志」
+// 以前写在脑子里（内存），一重启就忘了。现在写到笔记本上（文件），重启后翻开笔记本就知道今天干了什么
+const STATE_FILE = path.join(__dirname, '.scheduler_state.json');
+
+// 任务执行状态记录（状态面板用）
+const taskRunLog = {
+  dailyAnalysis: { lastRun: null, success: false, message: '' },
+  dailySnapshot: { lastRun: null, success: false, message: '' },
+  midnightCollect: { lastRun: null, success: false, message: '' },
 };
+
+// 从文件读取状态（重启后恢复）
+function loadState() {
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
+      console.log('📂 调度器状态已从文件恢复');
+      return data;
+    }
+  } catch (e) {
+    console.warn('⚠️ 调度器状态文件读取失败，使用默认值');
+  }
+  return { dailyAnalysis: null, dailySnapshot: null, midnightCollect: null };
+}
+
+// 状态写入文件（持久化）
+function saveState() {
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify(lastRunDates, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('⚠️ 调度器状态保存失败:', e.message);
+  }
+}
+
+let lastRunDates = loadState();
+
+// 重试节流：失败后每 30 分钟才重试一次，避免代理挂的时候每分钟刷屏
+let lastAnalysisRetryTime = 0;
+const RETRY_INTERVAL_MS = 30 * 60 * 1000; // 30 分钟
+
+// 获取任务执行日志（状态面板用）
+function getTaskRunLog() { return taskRunLog; }
 
 /**
  * 计算距离目标时间的毫秒数
@@ -223,11 +261,32 @@ function checkScheduledJobs() {
   const currentMinute = now.getMinutes();
   
   // 1. 每日 8:30 热门话题分析（启动补跑：已过 8:30 但今天未跑）
+  // ★ 修复：先干活，成功了再打卡；失败了下一轮还能重试
+  // ★ 节流：失败后每 30 分钟重试一次，不刷屏
   if (lastRunDates.dailyAnalysis !== today) {
-    if (currentHour > 8 || (currentHour === 8 && currentMinute >= 30)) {
+    const timeSinceLastRetry = Date.now() - lastAnalysisRetryTime;
+    const canRetry = lastAnalysisRetryTime === 0 || timeSinceLastRetry >= RETRY_INTERVAL_MS;
+    if ((currentHour > 8 || (currentHour === 8 && currentMinute >= 30)) && canRetry) {
+      lastAnalysisRetryTime = Date.now();
       console.log('⏰ 触发每日热门话题分析（补跑/定时）');
-      lastRunDates.dailyAnalysis = today;
-      dailyAnalysisTask().catch(e => console.error('❌ 每日分析失败:', e.message));
+      dailyAnalysisTask().then((result) => {
+        // 只有成功了（有话题产生）才标记“今天已跑”
+        if (result && result.success && ((result.twitter || 0) + (result.discord || 0) > 0)) {
+          lastRunDates.dailyAnalysis = today;
+          saveState();
+          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: true, message: '完成' };
+          console.log('✅ 每日分析成功，已标记完成');
+        } else {
+          // 失败了不标记，下一轮定时检查会重试
+          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: result?.message || '无话题产生' };
+          console.log('⚠️ 每日分析未产生话题，不标记完成，稍后重试');
+        }
+      }).catch(e => {
+        // 异常也不标记，允许重试
+        taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: e.message };
+        sentiment.recordError('调度器-每日分析', e.message);
+        console.error('❌ 每日分析失败（不标记，稍后重试）:', e.message);
+      });
     }
   }
   
@@ -239,7 +298,14 @@ function checkScheduledJobs() {
       } else {
         console.log('⏰ 触发每日舆情快照保存（补跑/定时）');
         lastRunDates.dailySnapshot = today;
-        saveDailySnapshotTask().catch(e => console.error('❌ 快照保存失败:', e.message));
+        saveState();  // 持久化
+        saveDailySnapshotTask().then(() => {
+          taskRunLog.dailySnapshot = { lastRun: new Date().toISOString(), success: true, message: '完成' };
+        }).catch(e => {
+          taskRunLog.dailySnapshot = { lastRun: new Date().toISOString(), success: false, message: e.message };
+          sentiment.recordError('调度器-快照', e.message);
+          console.error('❌ 快照保存失败:', e.message);
+        });
       }
     }
   }
@@ -249,7 +315,14 @@ function checkScheduledJobs() {
     if (currentHour < 6 && !sentiment.getIsCollecting()) {
       console.log('⏰ 触发每日零点全量采集');
       lastRunDates.midnightCollect = today;
-      midnightFullCollectTask().catch(e => console.error('❌ 零点采集失败:', e.message));
+      saveState();  // 持久化
+      midnightFullCollectTask().then(() => {
+        taskRunLog.midnightCollect = { lastRun: new Date().toISOString(), success: true, message: '完成' };
+      }).catch(e => {
+        taskRunLog.midnightCollect = { lastRun: new Date().toISOString(), success: false, message: e.message };
+        sentiment.recordError('调度器-零点采集', e.message);
+        console.error('❌ 零点采集失败:', e.message);
+      });
     }
   }
 }
@@ -260,11 +333,12 @@ function checkScheduledJobs() {
 async function dailyAnalysisTask() {
   if (sentiment.getIsCollecting()) {
     console.log('⚠️ 采集进行中，跳过每日分析任务');
-    return;
+    return { success: false, message: '采集进行中' };
   }
   
   console.log('\n🔥 ===== 开始执行每日日报任务（采集 + 分析）=====');
   
+  let taskResult = { success: false, message: '未完成' };
   try {
     sentiment.setIsCollecting(true);
     
@@ -289,8 +363,10 @@ async function dailyAnalysisTask() {
       console.log(`✅ 每日日报任务完成`);
       console.log(`   Twitter: ${result.twitter || 0} 个话题`);
       console.log(`   Discord: ${result.discord || 0} 个话题`);
+      taskResult = { success: true, twitter: result.twitter || 0, discord: result.discord || 0 };
     } else {
       console.error('❌ 分析失败:', result.message || result.error);
+      taskResult = { success: false, message: result.message || result.error };
     }
     
     // 第三步：回填缺失的 AI 情感分析
@@ -299,11 +375,13 @@ async function dailyAnalysisTask() {
   } catch (e) {
     console.error('❌ 每日日报任务异常:', e.message);
     console.error(e.stack);
+    taskResult = { success: false, message: e.message };
   } finally {
     sentiment.setIsCollecting(false);
   }
   
   console.log('🔥 ===== 每日日报任务完成 =====\n');
+  return taskResult;
 }
 
 /**
@@ -375,4 +453,5 @@ module.exports = {
   stopScheduler,
   executeScheduledTask,
   checkAndExecuteTasks,
+  getTaskRunLog,  // 状态面板用
 };
