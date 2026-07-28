@@ -1,0 +1,151 @@
+/* 术语校对页面样式 */
+
+.term-stats-bar {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--card-bg, #1e1e2e);
+  border: 1px solid var(--border, #333);
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.term-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.term-tab {
+  padding: 8px 20px;
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text, #ccc);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.term-tab:hover { background: var(--hover-bg, #2a2a3a); }
+.term-tab.active { background: var(--primary, #7c3aed); color: #fff; border-color: var(--primary, #7c3aed); }
+
+.term-panel { display: none; }
+.term-panel.active { display: block; }
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.term-search-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  background: var(--input-bg, #1a1a2e);
+  color: var(--text, #ccc);
+  font-size: 14px;
+  outline: none;
+}
+
+.term-search-input:focus { border-color: var(--primary, #7c3aed); }
+
+.search-hint {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  margin-bottom: 12px;
+}
+
+.search-count {
+  font-size: 13px;
+  color: var(--text-muted, #888);
+  margin-bottom: 10px;
+}
+
+.search-results {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.search-results mark {
+  background: #f59e0b;
+  color: #000;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.cat-cell {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  white-space: nowrap;
+}
+
+.check-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  background: var(--input-bg, #1a1a2e);
+  color: var(--text, #ccc);
+  font-size: 14px;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.check-textarea:focus { border-color: var(--primary, #7c3aed); }
+
+.check-result {
+  margin-top: 12px;
+}
+
+.found-count {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.empty-state, .error {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-muted, #888);
+  font-size: 14px;
+}
+
+.error { color: #f87171; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th, .data-table td {
+  padding: 6px 10px;
+  border: 1px solid var(--border, #333);
+  text-align: left;
+}
+
+.data-table th {
+  background: var(--card-bg, #1e1e2e);
+  font-weight: 600;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.data-table tr:hover td {
+  background: var(--hover-bg, #2a2a3a);
+}
+
+.data-table td:first-child {
+  font-weight: 500;
+}
+
+/* 校对结果表格紧凑化 */
+.check-result .data-table td {
+  font-size: 12px;
+  padding: 5px 8px;
+}

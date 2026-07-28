@@ -890,15 +890,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 30000);
 
-  // 暗黑模式切换
-  const savedTheme = localStorage.getItem('dc_theme') || 'light';
-  document.body.classList.toggle('dark', savedTheme === 'dark');
-  $('themeToggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
-  $('themeToggle').addEventListener('click', () => {
-    const isDark = document.body.classList.toggle('dark');
-    localStorage.setItem('dc_theme', isDark ? 'dark' : 'light');
-    $('themeToggle').textContent = isDark ? '☀️' : '🌙';
-  });
+  // 暗黑模式（已迁移到 common.js 统一管理）
+  DarkMode.init();
 
   // 启动
   autoLogin();

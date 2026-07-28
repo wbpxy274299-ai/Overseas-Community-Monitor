@@ -1,0 +1,180 @@
+/* ========================================
+   游戏术语校对工具 - 样式表
+   ======================================== */
+
+/* --- 基础重置 --- */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+}
+
+/* --- 布局 --- */
+.container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+/* --- 标题栏 --- */
+h1 {
+  font-size: 22px; margin-bottom: 20px; display: flex; align-items: center;
+  gap: 10px; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.2); flex-wrap: wrap;
+}
+h1 .ver { font-size: 12px; background: rgba(255,255,255,.2); padding: 3px 10px; border-radius: 12px; }
+.update-btn {
+  margin-left: auto; padding: 8px 18px; background: rgba(255,255,255,.9); color: #764ba2;
+  border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .2s;
+}
+.update-btn:hover { background: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.ver-date {
+  font-size: 12px; background: rgba(255,255,255,.15); padding: 4px 12px;
+  border-radius: 12px; color: rgba(255,255,255,.9); font-weight: 500;
+}
+
+/* --- 加载动画 --- */
+#loading { text-align: center; padding: 100px 20px; }
+#loading .spinner {
+  width: 48px; height: 48px; border: 4px solid rgba(255,255,255,.3); border-top-color: #fff;
+  border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 20px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#loading .progress { color: rgba(255,255,255,.8); font-size: 14px; }
+
+/* --- 卡片 --- */
+.card { background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 8px 32px rgba(0,0,0,.12); }
+
+/* --- Tab 切换 --- */
+.tabs { display: flex; gap: 6px; margin-bottom: 20px; }
+.tab {
+  padding: 10px 24px; border: none; background: #f0f0f0; border-radius: 10px 10px 0 0;
+  cursor: pointer; font-size: 14px; font-weight: 500; transition: all .2s;
+}
+.tab:hover:not(.active) { background: #e0e0e0; }
+.tab.active { background: #fff; color: #764ba2; font-weight: 600; box-shadow: 0 -2px 8px rgba(0,0,0,.06); }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* --- 搜索模块 --- */
+.search-box { display: flex; gap: 10px; margin-bottom: 16px; }
+.search-box input {
+  flex: 1; padding: 12px 16px; border: 2px solid #e8e8e8; border-radius: 10px;
+  font-size: 15px; outline: none; transition: border-color .2s;
+}
+.search-box input:focus { border-color: #764ba2; }
+.search-box button {
+  padding: 12px 24px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff;
+  border: none; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s;
+}
+.search-box button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(118,75,162,.3); }
+
+/* --- 校对模块 --- */
+.check-input {
+  width: 100%; min-height: 140px; padding: 14px 16px; border: 2px solid #e8e8e8; border-radius: 10px;
+  font-size: 14px; line-height: 1.8; resize: vertical; outline: none; font-family: inherit; transition: border-color .2s;
+}
+.check-input:focus { border-color: #764ba2; }
+.check-btn {
+  margin-top: 12px; padding: 12px 28px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff;
+  border: none; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s;
+}
+.check-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(118,75,162,.3); }
+
+/* --- 统计与计数 --- */
+.count { font-size: 13px; color: #999; margin-bottom: 12px; }
+
+/* --- 结果列表 --- */
+.results { max-height: 55vh; overflow-y: auto; }
+.result-item { padding: 14px 16px; border-bottom: 1px solid #f5f5f5; transition: background .15s; }
+.result-item:hover { background: #fafafa; }
+.result-item:last-child { border-bottom: none; }
+.result-item .cn { font-weight: 600; font-size: 15px; margin-bottom: 8px; color: #333; }
+.result-item .translations { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 16px; }
+.result-item .trans { font-size: 13px; color: #555; }
+.result-item .trans .label { color: #999; font-size: 11px; display: block; }
+.result-item .meta { font-size: 12px; color: #999; margin-top: 8px; }
+.result-item .cat { display: inline-block; background: #f0e6ff; color: #764ba2; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 8px; }
+
+/* --- 高亮 --- */
+.highlight { background: #fff3cd; padding: 1px 3px; border-radius: 3px; }
+
+/* --- 校对结果 --- */
+.check-result { margin-top: 16px; }
+.check-result .term-match {
+  display: inline-block; background: linear-gradient(135deg, #d4edda, #c3e6cb);
+  color: #155724; padding: 2px 8px; border-radius: 5px; margin: 2px; font-size: 13px; font-weight: 500;
+}
+
+/* --- 校对详情表格 --- */
+.check-detail { margin-top: 16px; padding: 16px; background: #fafafa; border-radius: 12px; overflow-x: auto; }
+.check-detail table { width: 100%; border-collapse: collapse; }
+.check-detail th {
+  padding: 10px 12px; text-align: left; border-bottom: 2px solid #e0e0e0;
+  font-size: 12px; font-weight: 600; white-space: nowrap; color: #666; background: #f5f5f5;
+}
+.check-detail td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; }
+.check-detail td.ok { color: #28a745; font-weight: 500; }
+.check-detail tr:hover td { background: #f0f7ff; }
+
+/* --- 批量上传区域 --- */
+.batch-upload {
+  border: 2px dashed #ddd; border-radius: 12px; padding: 50px; text-align: center;
+  cursor: pointer; transition: all .2s;
+}
+.batch-upload:hover { border-color: #764ba2; background: #faf5ff; }
+.batch-upload input { display: none; }
+.batch-upload .icon { font-size: 40px; margin-bottom: 10px; }
+.batch-upload .hint { color: #999; font-size: 13px; margin-top: 6px; }
+
+/* --- 模态弹窗（更新术语表） --- */
+.modal-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.5); z-index: 1000; justify-content: center; align-items: center;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: #fff; border-radius: 16px; padding: 28px; max-width: 600px; width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto;
+}
+.modal h2 { font-size: 18px; margin-bottom: 6px; color: #333; }
+.modal .subtitle { color: #999; font-size: 13px; margin-bottom: 18px; }
+.modal .mode-tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+.modal .mode-tab {
+  padding: 8px 18px; border: 2px solid #e8e8e8; background: #fff; border-radius: 8px;
+  cursor: pointer; font-size: 13px; transition: all .2s;
+}
+.modal .mode-tab.active { border-color: #764ba2; background: #f0e6ff; color: #764ba2; font-weight: 600; }
+
+/* --- 拖拽上传区 --- */
+.modal .drop-zone {
+  border: 2px dashed #ddd; border-radius: 10px; padding: 30px; text-align: center;
+  cursor: pointer; transition: all .2s;
+}
+.modal .drop-zone:hover, .modal .drop-zone.dragover { border-color: #764ba2; background: #faf5ff; }
+.modal .drop-zone .icon { font-size: 36px; }
+.modal .drop-zone .text { font-size: 14px; color: #666; margin-top: 8px; }
+.modal .drop-zone .hint { font-size: 12px; color: #999; margin-top: 4px; }
+.modal .drop-zone input { display: none; }
+
+/* --- 文件列表 --- */
+.modal .file-list { margin-top: 12px; font-size: 13px; }
+.modal .file-list .file-item { padding: 4px 0; color: #666; }
+.modal .file-list .file-item b { color: #333; }
+
+/* --- 状态提示 --- */
+.modal .status { margin-top: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: none; }
+.modal .status.loading { display: block; background: #e8f0fe; color: #4a90d9; }
+.modal .status.success { display: block; background: #d4edda; color: #155724; }
+.modal .status.error { display: block; background: #f8d7da; color: #721c24; }
+.modal .stats { margin-top: 10px; font-size: 12px; color: #666; line-height: 1.8; display: none; }
+.modal .stats b { color: #333; }
+
+/* --- 操作按钮 --- */
+.modal .actions { margin-top: 18px; display: flex; gap: 10px; }
+.modal .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; }
+.modal .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+.modal .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(118,75,162,.3); }
+.modal .btn-secondary { background: #f0f0f0; color: #666; }
+.modal .btn-secondary:hover { background: #e0e0e0; }
+
+/* --- 页脚 --- */
+.footer { text-align: center; padding: 24px; color: rgba(255,255,255,.6); font-size: 12px; }

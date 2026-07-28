@@ -1,0 +1,19 @@
+{
+  "name": "terminology-tool",
+  "version": "1.0.0",
+  "description": "游戏术语校对工具 + 贴文助手",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "extract": "node scripts/extract_data.js"
+  },
+  "keywords": [
+    "terminology",
+    "proofreading",
+    "translation",
+    "game"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {}
+}

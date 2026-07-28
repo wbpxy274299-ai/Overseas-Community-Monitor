@@ -1,167 +1,165 @@
 /**
- * 免费翻译服务模块
- * 使用 MyMemory Translation API（免费，无需 API Key）
- * 备选方案：LibreTranslate（开源自托管）
+ * AI 翻译服务模块
+ * 主力：DeepSeek AI（带游戏术语注入）
+ * 
+ * 比喻：翻译时给 AI 一本术语手册，让它知道"ルミ=露米，ツリネバ是游戏名别动"
+ *      而不是瞎猜乱翻
  */
 
 const axios = require('axios');
+const crypto = require('crypto');
 const { getProxyConfig } = require('./config');
+const terminology = require('./terminology');
 
-// 翻译缓存：避免重复翻译相同内容
+// 翻译缓存：避免重复翻译相同内容（省 API 调用费）
 const translationCache = new Map();
+const MAX_CACHE_SIZE = 5000;
 
-// 翻译前术语替换：确保游戏专有名词不被乱翻译
-// 比喻：就像给快递包裹贴“勿动”标签，让翻译API不去碰这些词
-const TERM_REPLACEMENTS = [
-  { from: 'ツリネバ', to: 'TOSN' },
-  { from: 'ﾄｽﾈﾊﾞ', to: 'TOSN' },  // 半角片假名版本
-];
-
-// DeepSeek API 配置（用于翻译）
+// DeepSeek API 配置
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
+// 游戏名称保护列表（翻译前替换成代码，翻译后还原）
+// 比喻：给游戏名贴个"勿动"标签，防止 AI 瞎翻译
+const GAME_NAMES = [
+  { original: 'ツリネバ', code: '__GAME1__' },
+  { original: 'ﾄｽﾈﾊﾞ', code: '__GAME1__' },  // 半角片假名
+  { original: 'トスネバ', code: '__GAME1__' },
+];
+
 /**
- * 翻译前预处理：替换游戏专有名词
- * 让翻译API不去碰这些词，保证术语统一
+ * 预处理：将游戏名替换为保护代码
  */
-function preProcessForTranslation(text) {
+function protectGameNames(text) {
   let result = text;
-  for (const r of TERM_REPLACEMENTS) {
-    result = result.split(r.from).join(r.to);
+  for (const g of GAME_NAMES) {
+    result = result.split(g.original).join(g.code);
   }
   return result;
 }
 
 /**
+ * 后处理：将保护代码还原为游戏名
+ */
+function restoreGameNames(text) {
+  return text.split('__GAME1__').join('ツリネバ');
+}
+
+/**
+ * 构建带术语的 system prompt
+ * 比喻：给翻译官一本小手册，上面写着"这些词必须这么翻"
+ */
+function buildSystemPrompt(text) {
+  let prompt = '你是一个专业的日语到中文翻译助手，专门翻译游戏相关内容。\n';
+  prompt += '规则：\n';
+  prompt += '1. 将日语翻译成简体中文，保持原意不变\n';
+  prompt += '2. 口语化内容保持口语风格，不要翻译得太书面\n';
+  prompt += '3. 只返回翻译结果，不要添加任何解释或注释\n';
+  prompt += '4. 文本中的 __GAME1__ 是游戏名称占位符，必须在翻译中保留原样，不要删除或修改它\n';
+
+  // 从术语库提取命中的术语
+  const matchedTerms = terminology.findTermsInText(text, 20);
+  if (matchedTerms.length > 0) {
+    prompt += '\n\n以下是本文中包含的游戏术语，请严格按对照表翻译：\n';
+    for (const term of matchedTerms) {
+      prompt += `- ${term.ja} → ${term.zh}\n`;
+    }
+  }
+
+  return prompt;
+}
+
+/**
  * 使用 DeepSeek AI 翻译文本（日语 -> 中文）
- * 作为 MyMemory API 的备选方案
+ * 带术语注入，保证翻译质量
  * 
  * @param {string} text - 要翻译的日语文本
  * @returns {Promise<string>} 翻译后的中文文本
  */
-async function translateWithDeepSeek(text) {
-  if (!DEEPSEEK_API_KEY) {
-    console.warn('   ⚠️ DEEPSEEK_API_KEY 未配置，无法使用 DeepSeek 翻译');
+async function translateJapaneseToChinese(text) {
+  if (!text || text.trim().length === 0) {
+    return '';
+  }
+
+  // 如果文本中没有日文字符，直接返回原文
+  if (!hasJapaneseCharacters(text)) {
     return text;
   }
-  
+
+  // 截断过长文本（API 有 token 限制）
+  const rawText = text.substring(0, 800);
+
+  // 保护游戏名称不被乱翻译
+  const textToTranslate = protectGameNames(rawText);
+
+  // 缓存 key：用完整文本的 MD5，避免不同推文因前150字相同而命中同一缓存
+  const cacheKey = crypto.createHash('md5').update(textToTranslate).digest('hex');
+  if (translationCache.has(cacheKey)) {
+    return translationCache.get(cacheKey);
+  }
+
+  // API Key 检查
+  if (!DEEPSEEK_API_KEY) {
+    console.warn('   ⚠️ DEEPSEEK_API_KEY 未配置，返回原文');
+    return text;
+  }
+
   try {
+    const systemPrompt = buildSystemPrompt(textToTranslate);
+
     const response = await axios.post(
       DEEPSEEK_API_URL,
       {
         model: 'deepseek-chat',
         messages: [
-          {
-            role: 'system',
-            content: '你是一个专业的日语到中文翻译助手。请将日语文本翻译成简体中文，保持原意不变。注意："TOSN"是游戏名称，保持原样不翻译。只返回翻译结果，不要添加任何解释。'
-          },
-          {
-            role: 'user',
-            content: text.substring(0, 500)
-          }
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: textToTranslate }
         ],
         temperature: 0.3,
-        max_tokens: 1000
+        max_tokens: 1200
       },
       {
         headers: {
           'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
           'Content-Type': 'application/json'
         },
-        timeout: 15000,
+        timeout: 20000,
         proxy: getProxyConfig()
       }
     );
-    
-    if (response.data && response.data.choices && response.data.choices.length > 0) {
-      const translatedText = response.data.choices[0].message.content.trim();
+
+    if (response.data?.choices?.length > 0) {
+      let translatedText = response.data.choices[0].message.content.trim();
+
+      // 还原游戏名称
+      translatedText = restoreGameNames(translatedText);
+
+      // 清理推文格式噪音（START/END 是 Twitter 嵌入游戏标签的原始格式）
+      translatedText = translatedText
+        .replace(/START\s*ツリネバ\s*END/g, '')
+        .replace(/START\s*TOSN\s*END/g, '')
+        .replace(/#\s*START.*?END\s*/g, '')
+        .replace(/START\s+END/g, '')
+        .replace(/\t+/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+      // 存入缓存（限制缓存大小防止内存泄漏）
+      if (translationCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = translationCache.keys().next().value;
+        translationCache.delete(firstKey);
+      }
+      translationCache.set(cacheKey, translatedText);
+
       console.log(`   ✅ DeepSeek 翻译成功`);
       return translatedText;
     }
-    
-    return text;
-  } catch (e) {
-    console.error('   ❌ DeepSeek 翻译失败:', e.response?.data?.error?.message || e.message);
-    return text;
-  }
-}
 
-/**
- * 使用 MyMemory API 翻译文本（日语 -> 中文）
- * 免费额度：每天 1000 词
- * 
- * @param {string} text - 要翻译的日语文本
- * @param {number} retryCount - 重试次数（内部使用）
- * @returns {Promise<string>} 翻译后的中文文本
- */
-async function translateJapaneseToChinese(text, retryCount = 0) {
-  if (!text || text.trim().length === 0) {
-    return '';
-  }
-  
-  // 如果文本中没有日文字符，直接返回原文
-  if (!hasJapaneseCharacters(text)) {
     return text;
-  }
-  
-  // 翻译前预处理：替换游戏专有名词（如 ツリネバ → TOSN）
-  const processedText = preProcessForTranslation(text);
-  
-  // 检查缓存
-  const cacheKey = processedText.substring(0, 100); // 用处理后的文本作缓存键
-  if (translationCache.has(cacheKey)) {
-    return translationCache.get(cacheKey);
-  }
-  
-  try {
-    const url = 'https://api.mymemory.translated.net/get';
-    const params = {
-      q: processedText.substring(0, 500), // API 限制每次最多 500 字符
-      langpair: 'ja|zh-CN', // 日语 -> 简体中文
-    };
-    
-    const response = await axios.get(url, { 
-      params,
-      timeout: 5000,
-      proxy: getProxyConfig()
-    });
-    
-    if (response.data && response.data.responseData) {
-      const translatedText = response.data.responseData.translatedText;
-      
-      // 检查翻译质量
-      if (translatedText && !translatedText.includes('MYMEMORY WARNING')) {
-        // 存入缓存
-        translationCache.set(cacheKey, translatedText);
-        return translatedText;
-      }
-    }
-    
-    // 如果翻译失败，返回预处理后的文本（ツリネバ已替换为TOSN）
-    console.warn('⚠️ 翻译失败，返回预处理文本:', processedText.substring(0, 50));
-    return processedText;
-    
   } catch (e) {
-    // 429 错误表示频率限制，进行重试
-    if (e.response && e.response.status === 429) {
-      if (retryCount < 2) {
-        // 指数退避：第1次等5秒，第2次等10秒
-        const delay = (retryCount + 1) * 5000;
-        console.log(`   ⏳ 翻译 API 频率限制，${delay/1000}秒后重试 (${retryCount + 1}/2)...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return translateJapaneseToChinese(text, retryCount + 1);
-      } else {
-        console.log('   🔄 MyMemory API 多次重试失败，切换到 DeepSeek AI 翻译...');
-        // 切换到 DeepSeek 翻译
-        return translateWithDeepSeek(processedText);
-      }
-    }
-    
-    console.error(' 翻译 API 调用失败:', e.message);
-    // 出错时尝试使用 DeepSeek
-    console.log('   🔄 尝试使用 DeepSeek AI 翻译...');
-    return translateWithDeepSeek(processedText);
+    const errMsg = e.response?.data?.error?.message || e.message;
+    console.error('   ❌ DeepSeek 翻译失败:', errMsg);
+    return text;
   }
 }
 
@@ -174,7 +172,7 @@ async function translateJapaneseToChinese(text, retryCount = 0) {
 function hasJapaneseCharacters(text) {
   // 只检测日语独有字符：平假名和片假名
   // CJK 汉字（\u4E00-\u9FFF）中日共用，不能用来判断
-  // 打个比方：平假名/片假名就像日本人的“身份证”，有它才是日文
+  // 打个比方：平假名/片假名就像日本人的"身份证"，有它才是日文
   const japaneseOnlyRegex = /[\u3040-\u309F\u30A0-\u30FF]/;
   return japaneseOnlyRegex.test(text);
 }

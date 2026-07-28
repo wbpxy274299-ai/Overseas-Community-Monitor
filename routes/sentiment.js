@@ -16,6 +16,11 @@ const { formatCst, nowCst } = require('../scanner');
 const log = require('../logger');
 const { requireRole } = require('../middleware/validate');
 
+// 清统计缓存辅助函数
+function clearStatisticsCache() {
+  statisticsCache = { data: null, timestamp: 0, ttl: 30 * 60 * 1000 };
+}
+
 // 统计数据缓存
 let statisticsCache = { data: null, timestamp: 0, ttl: 30 * 60 * 1000 };
 
@@ -121,7 +126,7 @@ router.get('/api/sentiment/history', (req, res) => {
     const startDate = req.query.startDate || null;
     const endDate = req.query.endDate || null;
 
-    let whereClauses = [];
+    let whereClauses = ['is_noise = 0'];
     let params = [];
     if (platform) { whereClauses.push('platform = ?'); params.push(platform); }
     if (startDate) { whereClauses.push('created_at >= ?'); params.push(startDate + ' 00:00:00'); }
@@ -132,7 +137,7 @@ router.get('/api/sentiment/history', (req, res) => {
     const total = countResult.total;
     const offset = (page - 1) * pageSize;
     const data = db.queryAll(
-      `SELECT id, platform, author, content, created_at, url, has_media, time_text
+      `SELECT id, platform, author, content, translated_content, created_at, url, has_media, time_text
        FROM sentiment_records ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     );
@@ -368,6 +373,7 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
 router.post('/api/sentiment/backfill', (req, res) => {
   try {
     const result = sentiment.backfillExistingRecords();
+    clearStatisticsCache();
     res.json({ ok: true, ...result });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -376,6 +382,7 @@ router.post('/api/sentiment/backfill', (req, res) => {
 router.post('/api/sentiment/dedup', (req, res) => {
   try {
     const result = sentiment.deduplicateHistoricalData();
+    clearStatisticsCache();
     res.json({ ok: true, ...result });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -414,6 +421,7 @@ router.post('/api/sentiment/clear', (req, res) => {
       db.execute(`DELETE FROM sentiment_records`);
       res.json({ ok: true, message: '已删除所有舆情记录', platform: 'all' });
     }
+    clearStatisticsCache();
   } catch (e) {
     log.error('清理数据失败', e.message);
     res.status(500).json({ error: `清理失败: ${e.message}` });
@@ -455,7 +463,7 @@ router.post('/api/sentiment/batch-ai-analyze', async (req, res) => {
     const { limit = 50 } = req.body;
     console.log(`🤖 开始批量 AI 分析（最多 ${limit} 条）...`);
     const records = db.queryAll(
-      `SELECT * FROM sentiment_records WHERE ai_sentiment IS NULL ORDER BY created_at DESC LIMIT ?`,
+      `SELECT * FROM sentiment_records WHERE ai_sentiment IS NULL AND is_noise = 0 ORDER BY created_at DESC LIMIT ?`,
       [limit]
     );
     if (records.length === 0) return res.json({ ok: true, message: '没有需要分析的数据' });
@@ -677,16 +685,14 @@ router.post('/api/sentiment/upload', async (req, res) => {
     if (platform === 'twitter') {
       // Twitter CSV 格式解析
       // 字段：created_at, full_text, name, favorite_count, retweet_count, bookmark_count, quote_count, reply_count, views_count, url
-      const lines = data.split('\n').filter(l => l.trim());
-      if (lines.length < 2) {
+      const rows = parseCsvRows(data);
+      if (rows.length < 2) {
         return res.status(400).json({ error: 'CSV 数据不足，至少需要表头+1行数据' });
       }
       
       // 跳过表头
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        // 简单 CSV 解析（处理双引号内的逗号）
-        const fields = parseCsvLine(line);
+      for (let i = 1; i < rows.length; i++) {
+        const fields = rows[i];
         if (fields.length < 10) continue;
         
         const [created_at, full_text, name, fav, rt, bm, qt, rp, views, url] = fields;
@@ -712,25 +718,55 @@ router.post('/api/sentiment/upload', async (req, res) => {
         });
       }
     } else if (platform === 'discord') {
-      // Discord 文本格式解析
-      // 格式：用户名 — 日期 时间\n消息内容\n\n下一条...
-      // 统一换行符（Windows \r\n 和 Mac \r 都转成 \n）
+      // Discord 文本格式解析（智能版：逐行扫描，自动识别新消息头）
+      // 支持：用户名 — 日期 时间\n内容   （单换行或双换行都能识别）
       let cleanData = data.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      const blocks = cleanData.split(/\n\n+/).filter(b => b.trim());
+      const allLines = cleanData.split('\n');
       
-      for (const block of blocks) {
-        const lines = block.split('\n');
-        if (lines.length < 2) continue;
+      // 头部正则：匹配 "用户名 — 日期 时间" 格式
+      // 分隔符用 [^\w\s\u4e00-\u9fff] 匹配任何非字母非空格非汉字字符（em dash / en dash / 普通横杠 / 全角横杠等都能识别）
+      const headerRegex = /^(.+?)\s*[^\w\s\u4e00-\u9fff]\s*(\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}|\u6628\u5929\d{1,2}:\d{2}|\d{2}:\d{2})$/;
+      
+      console.log(`📝 Discord 解析开始: 总行数=${allLines.length}`);
+      
+      // 第一遍：逐行扫描，拆分成消息块
+      const msgBlocks = []; // [{ headerLine, contentLines }]
+      let current = null;
+      
+      for (const line of allLines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue; // 跳过空行
         
-        // 第一行：用户名 — 日期 时间
-        const headerMatch = lines[0].match(/^(.+?)\s*[—\u2014-]\s*(.+)$/);
-        if (!headerMatch) continue;
+        const match = trimmed.match(headerRegex);
+        if (match) {
+          // 这是一条新消息的头
+          if (current && current.contentLines.length > 0) {
+            msgBlocks.push(current);
+          }
+          current = { headerLine: trimmed, contentLines: [] };
+        } else if (current) {
+          // 这是当前消息的内容行
+          current.contentLines.push(line);
+        }
+      }
+      // 别忘了最后一条
+      if (current && current.contentLines.length > 0) {
+        msgBlocks.push(current);
+      }
+      console.log(`📝 Discord 解析: 识别到 ${msgBlocks.length} 条消息块`);
+      
+      // 第二遍：解析每条消息
+      for (const block of msgBlocks) {
+        const match = block.headerLine.match(headerRegex);
+        if (!match) continue;
         
-        const author = headerMatch[1].trim();
-        const timeStr = headerMatch[2].trim();
-        const content = lines.slice(1).join('\n').trim();
+        const author = match[1].trim();
+        const timeStr = match[2].trim();
+        const content = block.contentLines.join('\n').trim();
         
-        if (!content || content.startsWith('图片') || content.length < 2) continue;
+        if (!content || content.length < 2) continue;
+        // 跳过纯图片行
+        if (content.replace(/图片/g, '').trim().length < 2) continue;
         
         // 解析时间："2026/7/23 22:06" 或 "昨天19:32" 或 "00:02"
         let postTime;
@@ -804,16 +840,17 @@ router.post('/api/sentiment/upload', async (req, res) => {
   }
 });
 
-// CSV 行解析器（处理双引号内的逗号）
-function parseCsvLine(line) {
-  const fields = [];
+// CSV 状态机解析器：处理双引号内的逗号、换行和转义引号
+function parseCsvRows(text) {
+  const rows = [];
+  let fields = [];
   let current = '';
   let inQuotes = false;
   
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
     if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
+      if (inQuotes && text[i + 1] === '"') {
         current += '"';
         i++;
       } else {
@@ -822,12 +859,21 @@ function parseCsvLine(line) {
     } else if (ch === ',' && !inQuotes) {
       fields.push(current);
       current = '';
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      fields.push(current);
+      current = '';
+      if (fields.length > 0) rows.push(fields);
+      fields = [];
     } else {
       current += ch;
     }
   }
+  // 处理末尾
   fields.push(current);
-  return fields;
+  if (fields.length > 0 && fields.some(f => f.trim())) rows.push(fields);
+  
+  return rows;
 }
 
 module.exports = router;

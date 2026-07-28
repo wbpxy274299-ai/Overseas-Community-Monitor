@@ -199,8 +199,74 @@ async function fetchChannel(channelId, server = 'TC') {
   }
 }
 
+/**
+ * 获取某个游标之后的新消息（增量采集用）
+ * 打个比方：告诉 Discord "从上次追到那条消息开始，后面的新消息全给我"
+ * @param {string} channelId - Discord 频道 ID
+ * @param {string} server - 服务器标识: 'TC' | 'JP' | 'SEA' | 'KR'
+ * @param {string} afterMessageId - 游标：从这条消息之后开始取
+ * @param {number} maxLimit - 最多取多少条（默认 2000，足够覆盖几天）
+ * @returns {Promise<Array>} Discord 消息对象数组
+ */
+async function fetchMessagesAfter(channelId, server = 'TC', afterMessageId, maxLimit = 2000) {
+  const token = getDiscordToken(server);
+  if (!token) {
+    console.error(`   ❌ ${server} Bot Token 未配置`);
+    return [];
+  }
+
+  const proxyConfig = getProxyConfig();
+  const axiosConfig = {
+    headers: {
+      'Authorization': `Bot ${token}`,
+      'Content-Type': 'application/json',
+    },
+    timeout: 30000,
+    proxy: proxyConfig,
+  };
+
+  const allMessages = [];
+  let after = afterMessageId;
+
+  try {
+    while (allMessages.length < maxLimit) {
+      const batchSize = Math.min(maxLimit - allMessages.length, 100);
+      const url = `${DISCORD_API_BASE}/channels/${channelId}/messages?limit=${batchSize}&after=${after}`;
+
+      const response = await axios.get(url, axiosConfig);
+
+      if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+        break;
+      }
+
+      allMessages.push(...response.data);
+
+      if (response.data.length < batchSize) {
+        break;
+      }
+
+      // after 返回的是 ID 降序，最后一条是最旧的，用它继续往前翻
+      after = response.data[response.data.length - 1].id;
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    console.log(`   ✅ Discord 增量获取 ${allMessages.length} 条新消息 (server=${server})`);
+    return allMessages;
+  } catch (e) {
+    if (e.response?.status === 429) {
+      const retryAfter = e.response.data?.retry_after || 5;
+      console.log(`   ⏳ Discord API 限流，${retryAfter}秒后重试...`);
+      await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+      return fetchMessagesAfter(channelId, server, afterMessageId, maxLimit);
+    }
+    console.error(`   ❌ Discord 增量获取失败 (channel=${channelId}): ${e.message}`);
+    return [];
+  }
+}
+
 module.exports = {
   fetchMessages,
+  fetchMessagesAfter,
   sendMessage,
   deleteMessage,
   fetchMessage,

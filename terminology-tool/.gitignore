@@ -1,0 +1,14 @@
+# 忽略临时文件和系统文件
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+
+# 忽略备份文件
+data/backup/
+
+# 忽略 IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo

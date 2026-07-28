@@ -381,6 +381,11 @@ async function fetchMessages(channelId, server, limit = 100) {
   return result; // 返回消息数组（Discord API 原生格式）
 }
 
+async function fetchMessagesAfter(channelId, server, afterMessageId, maxLimit = 2000) {
+  const result = await discordClient.fetchMessagesAfter(channelId, server, afterMessageId, maxLimit);
+  return result;
+}
+
 module.exports = { 
   discordSend, 
   discordRecall, 
@@ -390,6 +395,7 @@ module.exports = {
   fetchMessage, 
   fetchChannel, 
   fetchMessages,
+  fetchMessagesAfter,
   nowCst,
   formatCst
 };

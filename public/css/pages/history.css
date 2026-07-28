@@ -83,3 +83,12 @@
   font-size: var(--font-size-xs);
 }
 .url-link:hover { text-decoration: underline; }
+
+/* 上传区域 */
+.upload-section {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--space-lg);
+}

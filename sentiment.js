@@ -11,7 +11,7 @@ const db = require('./db');
 const log = require('./logger');
 const translator = require('./translator');
 const aiAnalyzer = require('./ai_analyzer');
-const { fetchMessages, nowCst, formatCst } = require('./scanner');
+const { fetchMessages, fetchMessagesAfter, nowCst, formatCst } = require('./scanner');
 
 // ===== 全局采集锁（防止并发冲突）=====
 let isCollecting = false;
@@ -720,7 +720,8 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
     },
-    proxy: proxyConfig
+    proxy: proxyConfig,
+    responseType: 'arraybuffer'  // 获取原始字节，手动解码编码
   });
   
   console.log('🚀 Yahoo 实时搜索 API 采集');
@@ -738,7 +739,16 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
       params: { p: searchQuery, ei: 'UTF-8', ifr: 'tl_sc', b: 0 }
     });
     
-    const $ = cheerio.load(response.data);
+    // 智能解码：先查 Content-Type 的 charset，Yahoo Japan 有时用 EUC-JP
+    const contentType = response.headers['content-type'] || '';
+    let charset = 'utf-8';
+    const charsetMatch = contentType.match(/charset=([\w-]+)/i);
+    if (charsetMatch) charset = charsetMatch[1].toLowerCase();
+    
+    const iconv = require('iconv-lite');
+    const htmlText = iconv.decode(Buffer.from(response.data), charset);
+    
+    const $ = cheerio.load(htmlText);
     const scriptTag = $('#__NEXT_DATA__');
     if (!scriptTag.length) {
       console.log(`  ❌ 未找到数据`);
@@ -762,7 +772,17 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
     let skippedDup = 0;
     for (const entry of entries) {
       // 解析内容
-      const content = entry.displayText || entry.displayTextBody || '';
+      // Yahoo 实时搜索会用 \tSTART\t关键词\tEND\t 包裹匹配关键词（TAB分隔）
+      let content = entry.displayText || entry.displayTextBody || '';
+      content = content
+        .replace(/\t*START\s*ツリネバ\s*END\t*/g, 'ツリネバ')
+        .replace(/\t*START\s*TOSN\s*END\t*/g, 'TOSN')
+        .replace(/\t*START\s*TOSNeverland\s*END\t*/g, 'TOSNeverland')
+        .replace(/\t*START\s+/g, ' ')
+        .replace(/\s+END\t*/g, ' ')
+        .replace(/\t+/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
       if (!content) continue;
       
       const name = entry.name || '';
@@ -833,8 +853,9 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
 }
 
 // ===== Discord 数据采集（只繁中服）=====
-// 打个比方：这个函数就像个快递员，挨家挨户（每个频道）去取包裹（消息）
-// 如果某家不在（失败），等5秒再去一次（重试），两次都不行就记录错误
+// 打个比方：快递员每次出发前先看小本子——上次送到哪户了？
+// 如果本子上有记录，就从那户往后继续取（增量追新）
+// 如果没记录（第一次来），就先跑一趟大的，把整条街都走一遍（回填历史）
 async function collectFromDiscord() {
   console.log('💬 开始从 Discord 采集数据...');
   
@@ -852,13 +873,29 @@ async function collectFromDiscord() {
   for (const channel of tcChannels) {
     let messages = null;
     let retries = 0;
-    const maxRetries = 2;  // 最多试2次（第1次失败后重试1次）
+    const maxRetries = 2;
+    
+    // 查看这个频道上次追到哪条消息了
+    const cursor = db.getCollectionCursor(channel.id, 'TC');
+    const isBackfill = !cursor;
+    const fetchLimit = isBackfill ? 2000 : 2000; // 回填和增量都设2000，确保不遗漏
+    
+    if (isBackfill) {
+      console.log(`     📡 频道: ${channel.name}（首次采集，回填历史数据）`);
+    } else {
+      console.log(`     📡 频道: ${channel.name}（增量采集，上次追到: ${cursor.last_message_id}）`);
+    }
     
     while (retries < maxRetries && !messages) {
       try {
-        console.log(`     📡 频道: ${channel.name}${retries > 0 ? '（重试中）' : ''}`);
-        
-        const result = await fetchMessages(channel.id, 'TC', 200);
+        let result;
+        if (cursor) {
+          // 有游标：只取游标之后的新消息
+          result = await fetchMessagesAfter(channel.id, 'TC', cursor.last_message_id, fetchLimit);
+        } else {
+          // 无游标：首次采集，取最近2000条回填历史
+          result = await fetchMessages(channel.id, 'TC', fetchLimit);
+        }
         
         if (Array.isArray(result)) {
           messages = result;
@@ -884,8 +921,7 @@ async function collectFromDiscord() {
     }
     
     if (messages && messages.length > 0) {
-      console.log(`        ✅ 获取到 ${messages.length} 条原始消息`);
-      // 诊断：为什么被过滤
+      console.log(`        ✅ 获取到 ${messages.length} 条原始消息${isBackfill ? '（历史回填）' : '（增量）'}`);
       const emptyCount = messages.filter(m => !(m.content || '').trim()).length;
       const botCount = messages.filter(m => m.author?.bot).length;
       console.log(`        🔍 诊断: 空内容 ${emptyCount} 条, Bot消息 ${botCount} 条`);
@@ -895,6 +931,8 @@ async function collectFromDiscord() {
       }
       
       let validCount = 0;
+      let newestMsgId = cursor ? cursor.last_message_id : null;
+      
       for (const msg of messages) {
         const content = msg.content || '';
         
@@ -904,6 +942,11 @@ async function collectFromDiscord() {
         }
         
         validCount++;
+        
+        // 记录最新的消息 ID（用于下次增量采集的游标）
+        if (!newestMsgId || BigInt(msg.id) > BigInt(newestMsgId)) {
+          newestMsgId = msg.id;
+        }
         
         // 生成作者+内容的唯一标识（用于去重）
         const author = msg.author?.global_name || msg.author?.username || '未知用户';
@@ -944,9 +987,18 @@ async function collectFromDiscord() {
         }
       }
       
+      // 更新游标：记住这个频道追到哪了
+      if (newestMsgId && validCount > 0) {
+        const oldTotal = cursor ? cursor.total_collected : 0;
+        db.updateCollectionCursor(channel.id, 'TC', channel.name, newestMsgId, oldTotal + validCount);
+        console.log(`         📌 游标已更新: ${newestMsgId}（累计 ${oldTotal + validCount} 条）`);
+      }
+      
       console.log(`         有效消息: ${validCount} 条`);
     } else if (!messages) {
       console.log(`        ❌ 频道 ${channel.name} 采集失败（已重试）`);
+    } else if (messages.length === 0 && cursor) {
+      console.log(`        ✅ 没有新消息（游标已是最新）`);
     }
   }
   
@@ -1003,7 +1055,13 @@ async function saveSentimentRecord(record, enableAI = false) {
   
   // 噪音过滤 + 质量评分 + 话题分类
   const valuable = isMessageValuable(record.content, record.platform);
-  const isNoise = valuable ? 0 : 1;
+  
+  // 乱码检测：入库前检查，乱码数据直接不收（比喻：仓库门口质检员）
+  const contentBuf = Buffer.from(record.content || '');
+  const replacementChars = (contentBuf.toString('hex').match(/efbfbd/g) || []).length;
+  const isGarbled = replacementChars >= 3;
+  
+  const isNoise = (valuable && !isGarbled) ? 0 : 1;
   const contentQuality = scoreContentQuality(record.content, record.platform);
   const topicTag = classifyGameTopic(record.content);
   
@@ -1014,41 +1072,39 @@ async function saveSentimentRecord(record, enableAI = false) {
   if (category === 'complaint') priority += 1;
   if (keywords.some(k => ['BUG', '崩溃', '无法登录'].includes(k))) priority += 1;
   
-  // 只要包含日文字符就翻译（Twitter 日服、Discord 日服等）
+  // 翻译和 AI 分析：噪音记录跳过，节省 API 调用
   let translatedContent = null;
-  if (translator.hasJapaneseCharacters(record.content)) {
-    try {
-      translatedContent = await translator.translateJapaneseToChinese(record.content);
-      if (translatedContent !== record.content) {
-        console.log(`   ✅ 翻译成功 (${record.content.length}字符)`);
-      }
-    } catch (e) {
-      console.warn('⚠️ 翻译失败，跳过翻译:', e.message);
-    }
-  }
-  
-  // AI 分析（可选，避免频繁调用 API）
   let aiSentiment = null;
   let aiConfidence = null;
   let aiReason = null;
   let aiCategory = null;
   
-  if (enableAI) {
-    try {
-      // 根据实际内容语言而非平台判断
-      const contentLang = translator.hasJapaneseCharacters(record.content) ? 'ja' : 'zh';
-      const aiResult = await aiAnalyzer.aiAnalyzeSentiment(
-        record.content,
-        contentLang
-      );
-      aiSentiment = aiResult.sentiment;
-      aiConfidence = aiResult.confidence;
-      aiReason = aiResult.reason;
-      
-      const aiCat = await aiAnalyzer.aiClassifyFeedback(record.content);
-      aiCategory = aiCat;
-    } catch (e) {
-      console.warn('⚠️ AI 分析失败，跳过:', e.message);
+  if (!isNoise) {
+    // 只要包含日文字符就翻译（Twitter 日服、Discord 日服等）
+    if (translator.hasJapaneseCharacters(record.content)) {
+      try {
+        translatedContent = await translator.translateJapaneseToChinese(record.content);
+        if (translatedContent !== record.content) {
+          console.log(`   ✅ 翻译成功 (${record.content.length}字符)`);
+        }
+      } catch (e) {
+        console.warn('⚠️ 翻译失败，跳过翻译:', e.message);
+      }
+    }
+    
+    // AI 分析（可选，避免频繁调用 API）
+    if (enableAI) {
+      try {
+        const contentLang = translator.hasJapaneseCharacters(record.content) ? 'ja' : 'zh';
+        const aiResult = await aiAnalyzer.aiAnalyzeSentiment(record.content, contentLang);
+        aiSentiment = aiResult.sentiment;
+        aiConfidence = aiResult.confidence;
+        aiReason = aiResult.reason;
+        const aiCat = await aiAnalyzer.aiClassifyFeedback(record.content);
+        aiCategory = aiCat;
+      } catch (e) {
+        console.warn('⚠️ AI 分析失败，跳过:', e.message);
+      }
     }
   }
   
@@ -1057,8 +1113,8 @@ async function saveSentimentRecord(record, enableAI = false) {
     (platform, source_id, content, translated_content, author, channel_name, 
      sentiment, ai_sentiment, ai_confidence, ai_reason, ai_category, 
      keywords, category, priority, created_at, is_noise, content_quality, topic_tag,
-     time_text, url, has_media)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     time_text, url, has_media, region)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   
   // 处理时间字段：优先使用record中的created_at或timestamp（已经是CST格式），否则使用当前CST时间
@@ -1103,7 +1159,8 @@ async function saveSentimentRecord(record, enableAI = false) {
     topicTag,
     record.time_text || null,  // Yahoo页面显示的时间文本
     record.url || null,        // Twitter原帖链接（清理后）
-    record.has_media ? 1 : 0   // 是否带图/视频
+    record.has_media ? 1 : 0,  // 是否带图/视频
+    record.region || 'tc'      // 服务器区域
   ];
   
   try {
@@ -1134,20 +1191,8 @@ async function batchSaveRecords(records, enableAI = false) {
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
     
-    // 检查是否已存在（避免重复）
-    const existing = db.queryOne(
-      'SELECT id FROM sentiment_records WHERE platform = ? AND source_id = ?',
-      [record.platform, record.source_id]
-    );
-    
-    if (existing) {
-      console.log(`   ⏸️  跳过重复: source_id=${record.source_id}, 作者=${record.author}`);
-      skipped++;
-      continue; // 跳过已存在的记录
-    }
-    
-    // 只对前 maxAIRecords 条启用 AI 分析
-    const useAI = enableAI && i < maxAIRecords;
+    // 去重检查已由 saveSentimentRecord 内部完成，不在此重复查询
+    const useAI = enableAI;
     
     const result = await saveSentimentRecord(record, useAI);
     if (result.skipped) {
@@ -1294,24 +1339,24 @@ function getStatistics(period = 'week') {
     [startDate, endDate]
   );
   
-  // 提取热门话题（按关键词分组）
+  // 提取热门话题（按 topic_tag 分组，比 keywords 更准确）
   const twitterTopics = db.queryAll(
-    `SELECT keywords, COUNT(*) as cnt FROM sentiment_records 
-     WHERE platform = 'twitter' 
+    `SELECT topic_tag, COUNT(*) as cnt FROM sentiment_records 
+     WHERE platform = 'twitter' AND is_noise = 0
      AND created_at >= ? AND created_at <= ?
-     AND keywords != ''
-     GROUP BY keywords
+     AND topic_tag IS NOT NULL AND topic_tag != 'general'
+     GROUP BY topic_tag
      ORDER BY cnt DESC
      LIMIT 8`,
     [startDate, endDate]
   );
   
   const discordTopics = db.queryAll(
-    `SELECT keywords, COUNT(*) as cnt FROM sentiment_records 
-     WHERE platform = 'discord' 
+    `SELECT topic_tag, COUNT(*) as cnt FROM sentiment_records 
+     WHERE platform = 'discord' AND is_noise = 0
      AND created_at >= ? AND created_at <= ?
-     AND keywords != ''
-     GROUP BY keywords
+     AND topic_tag IS NOT NULL AND topic_tag != 'general'
+     GROUP BY topic_tag
      ORDER BY cnt DESC
      LIMIT 8`,
     [startDate, endDate]
@@ -1355,11 +1400,13 @@ function getStatistics(period = 'week') {
       negative: discordSentiment.find(r => r.sentiment === 'negative')?.cnt || 0
     },
     twitter_topics: twitterTopics.map(r => ({
-      name: r.keywords.split(',')[0] || '其他',
+      name: getTopicTagLabel(r.topic_tag),
+      tag: r.topic_tag,
       count: r.cnt
     })),
     discord_topics: discordTopics.map(r => ({
-      name: r.keywords.split(',')[0] || '其他',
+      name: getTopicTagLabel(r.topic_tag),
+      tag: r.topic_tag,
       count: r.cnt
     }))
   };
@@ -1367,7 +1414,7 @@ function getStatistics(period = 'week') {
 
 // ===== 获取最新反馈列表 =====
 function getRecentFeedback(limit = 50, filters = {}) {
-  const conditions = [];
+  const conditions = ['is_noise = 0'];
   const params = [];
   
   if (filters.platform) {
@@ -1376,7 +1423,7 @@ function getRecentFeedback(limit = 50, filters = {}) {
   }
   
   if (filters.sentiment) {
-    conditions.push('sentiment = ?');
+    conditions.push('COALESCE(ai_sentiment, sentiment) = ?');
     params.push(filters.sentiment);
   }
   
@@ -1468,9 +1515,14 @@ function getSentimentTrendAnalysis(platform = null, days = 7) {
   const startStr = fmtLocalDate(startDate);
   
   // 基础统计
-  const baseConditions = platform ? ['platform = ?'] : [];
-  const baseParams = platform ? [platform] : [];
-  baseParams.push(startStr);
+  const baseConditions = ['is_noise = 0', 'created_at >= ?'];
+  const baseParams = [startStr];
+  if (platform) {
+    baseConditions.push('platform = ?');
+    baseParams.push(platform);
+  }
+  
+  const whereSQL = baseConditions.join(' AND ');
   
   const totalStats = db.queryOne(
     `SELECT COUNT(*) as total,
@@ -1478,7 +1530,7 @@ function getSentimentTrendAnalysis(platform = null, days = 7) {
             SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'negative' THEN 1 ELSE 0 END) as negative,
             SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'neutral' THEN 1 ELSE 0 END) as neutral
      FROM sentiment_records 
-     WHERE is_noise = 0 AND created_at >= ? ${platform ? 'AND platform = ?' : ''}`,
+     WHERE ${whereSQL}`,
     [...baseParams]
   );
   
@@ -1489,7 +1541,7 @@ function getSentimentTrendAnalysis(platform = null, days = 7) {
             SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'positive' THEN 1 ELSE 0 END) as positive,
             SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'negative' THEN 1 ELSE 0 END) as negative
      FROM sentiment_records 
-     WHERE is_noise = 0 AND created_at >= ? ${platform ? 'AND platform = ?' : ''}
+     WHERE ${whereSQL}
      GROUP BY DATE(created_at)
      ORDER BY date DESC`,
     [...baseParams]
@@ -1499,8 +1551,7 @@ function getSentimentTrendAnalysis(platform = null, days = 7) {
   const negativeKeywords = db.queryAll(
     `SELECT topic_tag, COUNT(*) as cnt FROM sentiment_records 
      WHERE COALESCE(ai_sentiment, sentiment) = 'negative'
-     AND is_noise = 0
-     AND created_at >= ? ${platform ? 'AND platform = ?' : ''}
+     AND ${whereSQL}
      AND topic_tag IS NOT NULL
      GROUP BY topic_tag
      ORDER BY cnt DESC
@@ -1984,7 +2035,7 @@ async function saveDailySnapshot(dateStr = null) {
         }
       } catch (_) {}
       console.log('   ⚠️ 该日期快照已存在，更新中...');
-      db.getDb().run('DELETE FROM daily_snapshots WHERE snapshot_date = ?', [dateKey]);
+      // 不再 DELETE，后面用 INSERT OR REPLACE 直接覆盖
     }
     
     // ★ 读取当天已有的 AI 热门话题分析结果（只读取，不重新调用 AI）
@@ -2046,9 +2097,10 @@ async function saveDailySnapshot(dateStr = null) {
     const aiTopicsJson = JSON.stringify(aiTopics, null, 2);
     
     // ★ 核心改动：保存快照（只存统计信息和AI话题，不存原始记录JSON）
+    // ★ 使用 INSERT OR REPLACE 防止并发问题（snapshot_date 有 UNIQUE 约束）
     db.getDb().run(
-      'INSERT INTO daily_snapshots (snapshot_date, data_json, record_count, ai_topics_json) VALUES (?, ?, ?, ?)',
-      [dateKey, '{}', recordCount, aiTopicsJson]  // data_json 设为空对象，因为不需要存原始记录
+      'INSERT OR REPLACE INTO daily_snapshots (snapshot_date, data_json, record_count, ai_topics_json) VALUES (?, ?, ?, ?)',
+      [dateKey, '{}', recordCount, aiTopicsJson]
     );
     db.saveDb();
     

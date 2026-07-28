@@ -52,12 +52,17 @@ app.use('/', require('./routes/dc'));
 app.use('/', require('./routes/sentiment'));
 app.use('/', require('./routes/admin'));
 app.use('/', require('./routes/feedback'));
+app.use('/', require('./routes/terminology'));  // 术语搜索/校对 API
+
+// 初始化术语模块（后台加载10万条术语，供翻译功能使用）
+const terminology = require('./terminology');
 
 // ===== 启动 =====
 let server = null;
 
 async function start() {
   await db.initDb();
+  terminology.init();  // 加载术语库
 
   // 初始化舆情监控数据库表
   try {

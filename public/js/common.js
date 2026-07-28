@@ -83,18 +83,45 @@ function highlightNav() {
   });
 }
 
-// ===== 统一导航栏 HTML 生成 =====
-function renderNav(currentPage) {
+// ===== 统一导航栏渲染（所有页面共用，改这一处就行）=====
+function renderNav() {
+  const path = window.location.pathname;
   const pages = [
-    { path: '/', label: '🚀 DC发布', id: 'home' },
-    { path: '/sentiment', label: '📊 舆情监控', id: 'sentiment' },
-    { path: '/reports', label: '📋 周报管理', id: 'reports' },
-    { path: '/sentiment-history', label: '📚 历史数据', id: 'history' },
-    { path: '/admin', label: '🔐 权限管理', id: 'admin' },
+    { path: '/', label: '🚀 DC发布', match: p => p === '/' },
+    { path: '/sentiment', label: '📊 舆情监控', match: p => p.startsWith('/sentiment') && !p.includes('history') },
+    { path: '/reports', label: '📋 周报管理', match: p => p.startsWith('/reports') },
+    { path: '/sentiment-history', label: '📚 历史数据', match: p => p.includes('sentiment-history') },
+    { path: '/admin', label: '🔐 权限管理', match: p => p === '/admin' },
+    { path: '/terminology', label: '📖 术语校对', match: p => p.startsWith('/terminology') },
   ];
-  return pages.map(p =>
-    `<a href="${p.path}" class="nav-link${currentPage === p.id ? ' active' : ''}">${p.label}</a>`
-  ).join('');
+  
+  let linksHtml = pages.map(p => {
+    const isActive = p.match(path);
+    const activeClass = isActive ? ' active' : '';
+    return `<a href="${p.path}" class="nav-link${activeClass}">${p.label}</a>`;
+  }).join('');
+  
+  linksHtml += '<div class="nav-divider"></div>';
+  linksHtml += '<button class="nav-dark-toggle" onclick="DarkMode.toggle(); toggleNavMenu();">🌙 切换暗黑模式</button>';
+  
+  const html = `
+    <button class="hamburger-btn" onclick="toggleNavMenu()" title="菜单">☰</button>
+    <div class="nav-dropdown" id="navDropdown">
+      ${linksHtml}
+    </div>
+  `;
+  
+  const navEl = document.getElementById('mainNav');
+  if (navEl) {
+    navEl.innerHTML = html;
+  }
+}
+
+function toggleNavMenu() {
+  const dropdown = document.getElementById('navDropdown');
+  if (dropdown) {
+    dropdown.classList.toggle('open');
+  }
 }
 
 // ===== 暗黑模式 =====
@@ -264,7 +291,16 @@ const FeedbackBtn = {
 // ===== 初始化 =====
 document.addEventListener('DOMContentLoaded', () => {
   DarkMode.init();
-  highlightNav();
-  applyNavPermissions();
+  renderNav();           // 统一渲染导航栏
+  applyNavPermissions(); // 普通用户隐藏 admin-only
   FeedbackBtn.init();
+  
+  // 点击外部关闭汉堡菜单
+  document.addEventListener('click', (e) => {
+    const nav = document.getElementById('mainNav');
+    const dropdown = document.getElementById('navDropdown');
+    if (nav && dropdown && dropdown.classList.contains('open') && !nav.contains(e.target)) {
+      dropdown.classList.remove('open');
+    }
+  });
 });

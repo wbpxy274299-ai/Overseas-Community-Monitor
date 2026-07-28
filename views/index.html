@@ -56,13 +56,16 @@
 
 <!-- ===== 主界面 ===== -->
 <div id="mainApp" style="display:none;">
+  <header class="app-header">
+    <div class="header-left">
+      <h1>🚀 DC 发布管理系统</h1>
+      <p>Discord 多服务器消息发布与任务管理</p>
+    </div>
+    <nav class="header-nav" id="mainNav"></nav>
+  </header>
+
   <div class="identity-bar">
-    <h1>DC 发布管理系统</h1>
     <div class="identity-info">
-      <button class="btn btn-small" id="themeToggle" title="切换暗黑模式">🌙</button>
-      <a href="/sentiment" class="btn btn-small admin-only" title="打开舆情监控面板">📊 舆情监控</a>
-      <a href="/reports" class="btn btn-small admin-only" title="打开周报管理">📋 周报管理</a>
-      <a href="/admin" class="btn btn-small admin-only" title="打开权限管理">🔐 权限管理</a>
       <span class="identity-label">操作人:</span>
       <span class="identity-name" id="currentOperator">—</span>
       <button class="btn btn-small btn-logout" id="logoutBtn">退出登录</button>
@@ -211,6 +214,7 @@
   </div>
 </div>
 
+<script src="/static/js/common.js"></script>
 <script src="/static/js/home.js"></script>
 </body>
 </html>

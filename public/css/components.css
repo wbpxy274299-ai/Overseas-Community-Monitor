@@ -12,7 +12,7 @@
   justify-content: space-between;
   align-items: center;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .app-header::before {
@@ -38,39 +38,95 @@
   opacity: 0.95;
 }
 
-/* ===== 导航栏 ===== */
+/* ===== 汉堡菜单导航 ===== */
 .header-nav {
-  display: flex;
-  gap: var(--space-sm);
   position: relative;
-  z-index: 1;
-  flex-wrap: wrap;
+  z-index: 100;
 }
 
-.nav-link {
+.hamburger-btn {
   background: rgba(255,255,255,0.15);
   backdrop-filter: blur(10px);
   border: 2px solid rgba(255,255,255,0.25);
   color: white;
-  padding: 10px 20px;
+  font-size: 22px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-md);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: var(--font-size-sm);
-  transition: var(--transition-normal);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-normal);
+}
+.hamburger-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.nav-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.16);
+  min-width: 210px;
+  padding: 8px;
+  z-index: 1000;
+  animation: navFadeIn 0.2s ease;
+}
+.nav-dropdown.open {
+  display: block;
+}
+
+@keyframes navFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nav-link {
+  display: block;
+  color: #333;
+  padding: 12px 16px;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.15s;
   white-space: nowrap;
 }
 .nav-link:hover {
-  background: rgba(255,255,255,0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(255,255,255,0.3);
+  background: #f0f4ff;
   text-decoration: none;
+  color: #667eea;
 }
 .nav-link.active {
-  background: rgba(255,255,255,0.35);
-  border-color: rgba(255,255,255,0.5);
-  box-shadow: 0 4px 16px rgba(255,255,255,0.2);
+  background: #667eea;
+  color: white;
+}
+
+.nav-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 6px 0;
+}
+
+.nav-dark-toggle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #666;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.nav-dark-toggle:hover {
+  background: #f3f4f6;
 }
 
 /* ===== 卡片 ===== */
@@ -253,6 +309,15 @@ td {
 }
 tr:hover td { background: #f8f9ff; }
 [data-theme="dark"] tr:hover td { background: #374151; }
+
+/* 暗黑模式 — 导航下拉菜单 */
+[data-theme="dark"] .nav-dropdown { background: #2a2a3e; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+[data-theme="dark"] .nav-link { color: #d1d5db; }
+[data-theme="dark"] .nav-link:hover { background: #374151; color: #93c5fd; }
+[data-theme="dark"] .nav-link.active { background: #667eea; color: white; }
+[data-theme="dark"] .nav-divider { background: #4b5563; }
+[data-theme="dark"] .nav-dark-toggle { color: #9ca3af; }
+[data-theme="dark"] .nav-dark-toggle:hover { background: #374151; }
 
 /* ===== 徽章 ===== */
 .badge {
@@ -611,10 +676,11 @@ textarea { resize: vertical; min-height: 80px; }
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
   .app-header { flex-direction: column; gap: var(--space-md); text-align: center; }
-  .header-nav { justify-content: center; }
+  .header-nav { align-self: center; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .action-bar { flex-direction: column; align-items: stretch; }
 }
 @media (max-width: 480px) {
   .stats-grid { grid-template-columns: 1fr; }
+  .nav-dropdown { right: -20px; min-width: 180px; }
 }

@@ -494,8 +494,10 @@ function renderPlayerMessages(messages, platform) {
   
   let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
   for (const msg of messages) {
-    const content = msg.translated_content || msg.content || '';
-    const original = msg.translated_content && msg.content ? msg.content : '';
+    // Discord 繁中不需要翻译，直接显示原文；Twitter 日文才显示翻译
+    const isDiscord = platform === 'discord';
+    const content = isDiscord ? (msg.content || '') : (msg.translated_content || msg.content || '');
+    const original = (!isDiscord && msg.translated_content && msg.content) ? msg.content : '';
     const sColor = sentimentColor(msg.sentiment);
     const sIcon = sentimentIcon(msg.sentiment);
     const author = msg.author || '匿名';
@@ -585,88 +587,6 @@ async function restartSystem() {
     }, 5000);
   } catch (e) {
     alert('重启请求失败: ' + e.message);
-  }
-}
-
-// ===== 手动上传 =====
-function toggleUploadPanel() {
-  const panel = document.getElementById('uploadPanel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-}
-
-function switchUploadTab(type) {
-  const twBtn = document.getElementById('uploadTabTwitter');
-  const dcBtn = document.getElementById('uploadTabDiscord');
-  const twDiv = document.getElementById('uploadTwitter');
-  const dcDiv = document.getElementById('uploadDiscord');
-  if (type === 'twitter') {
-    twBtn.className = 'btn btn-primary btn-sm';
-    dcBtn.className = 'btn btn-secondary btn-sm';
-    twDiv.style.display = 'block';
-    dcDiv.style.display = 'none';
-  } else {
-    twBtn.className = 'btn btn-secondary btn-sm';
-    dcBtn.className = 'btn btn-primary btn-sm';
-    twDiv.style.display = 'none';
-    dcDiv.style.display = 'block';
-  }
-  document.getElementById('uploadResult').innerHTML = '';
-}
-
-async function uploadTwitterCSV() {
-  const fileInput = document.getElementById('twitterCsvFile');
-  const resultDiv = document.getElementById('uploadResult');
-  if (!fileInput.files.length) {
-    resultDiv.innerHTML = '<span style="color:#ef4444;">请先选择 CSV 文件</span>';
-    return;
-  }
-  resultDiv.innerHTML = '<span style="color:#3b82f6;">读取文件中...</span>';
-  try {
-    const file = fileInput.files[0];
-    const text = await file.text();
-    resultDiv.innerHTML = '<span style="color:#3b82f6;">上传处理中...</span>';
-    const res = await fetch('/api/sentiment/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform: 'twitter', data: text })
-    });
-    const result = await res.json();
-    if (result.ok) {
-      resultDiv.innerHTML = `<span style="color:#059669;">✅ 上传成功：解析 ${result.parsed} 条，保存 ${result.saved} 条，跳过 ${result.skipped} 条</span>`;
-      setTimeout(() => { loadStatistics(); loadDailyFeedback(); loadAITopics(); loadPlayerMessages('twitter'); }, 2000);
-    } else {
-      resultDiv.innerHTML = `<span style="color:#ef4444;">❌ ${result.message || result.error}</span>`;
-    }
-  } catch (e) {
-    resultDiv.innerHTML = `<span style="color:#ef4444;">❌ 上传失败: ${e.message}</span>`;
-  }
-}
-
-async function uploadDiscordText() {
-  const textInput = document.getElementById('discordTextInput');
-  const resultDiv = document.getElementById('uploadResult');
-  const text = textInput.value.trim();
-  if (!text) {
-    resultDiv.innerHTML = '<span style="color:#ef4444;">请先粘贴 Discord 聊天记录</span>';
-    return;
-  }
-  resultDiv.innerHTML = '<span style="color:#3b82f6;">上传处理中...</span>';
-  try {
-    const res = await fetch('/api/sentiment/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform: 'discord', data: text })
-    });
-    const result = await res.json();
-    if (result.ok) {
-      resultDiv.innerHTML = `<span style="color:#059669;">✅ 上传成功：解析 ${result.parsed} 条，保存 ${result.saved} 条，跳过 ${result.skipped} 条</span>`;
-      textInput.value = '';
-      setTimeout(() => { loadStatistics(); loadDailyFeedback(); loadAITopics(); loadPlayerMessages('discord'); }, 2000);
-    } else {
-      resultDiv.innerHTML = `<span style="color:#ef4444;">❌ ${result.message || result.error}</span>`;
-    }
-  } catch (e) {
-    resultDiv.innerHTML = `<span style="color:#ef4444;">❌ 上传失败: ${e.message}</span>`;
   }
 }
 

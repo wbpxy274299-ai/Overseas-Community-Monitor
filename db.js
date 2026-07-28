@@ -132,6 +132,19 @@ async function initDb() {
   db.run('CREATE INDEX IF NOT EXISTS idx_feedbacks_status ON feedbacks(status)');
   db.run('CREATE INDEX IF NOT EXISTS idx_feedbacks_created ON feedbacks(created_at DESC)');
 
+  // DC 采集游标表（记住每个频道追到哪条消息了，实现增量采集）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS dc_collection_cursor (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      channel_id      TEXT NOT NULL UNIQUE,
+      channel_name    TEXT,
+      server          TEXT NOT NULL DEFAULT 'TC',
+      last_message_id TEXT NOT NULL,
+      total_collected INTEGER DEFAULT 0,
+      updated_at      TEXT NOT NULL DEFAULT (datetime('now','+8 hours'))
+    )
+  `);
+
   saveDb();
   console.log('✅ 数据库初始化完成');
 }
@@ -363,6 +376,32 @@ function countTasks(status) {
 
 function getDb() { return db; }
 
+// ===== DC 采集游标：记住每个频道追到哪了 =====
+function getCollectionCursor(channelId, server) {
+  const row = queryOne(
+    'SELECT last_message_id, total_collected FROM dc_collection_cursor WHERE channel_id = ? AND server = ?',
+    [channelId, server]
+  );
+  return row;
+}
+
+function updateCollectionCursor(channelId, server, channelName, messageId, totalCollected) {
+  const now = nowStr();
+  const existing = queryOne('SELECT id FROM dc_collection_cursor WHERE channel_id = ? AND server = ?', [channelId, server]);
+  if (existing) {
+    db.run(
+      'UPDATE dc_collection_cursor SET last_message_id = ?, channel_name = ?, total_collected = ?, updated_at = ? WHERE channel_id = ? AND server = ?',
+      [messageId, channelName, totalCollected, now, channelId, server]
+    );
+  } else {
+    db.run(
+      'INSERT INTO dc_collection_cursor (channel_id, channel_name, server, last_message_id, total_collected, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [channelId, channelName, server, messageId, totalCollected, now]
+    );
+  }
+  saveDb();
+}
+
 module.exports = {
   initDb, saveDb, queryAll, queryOne,
   createUser, verifyUser, userExists,
@@ -372,4 +411,5 @@ module.exports = {
   getPendingTasks, countTasks,
   getDb, nowStr,
   execute, // 添加 execute 方法
+  getCollectionCursor, updateCollectionCursor,
 };

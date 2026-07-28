@@ -35,6 +35,11 @@ router.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'admin.html'));
 });
 
+// 术语校对页面
+router.get('/terminology', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'views', 'terminology.html'));
+});
+
 // Google SSO 登录页面
 router.get('/google-login', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'google-login.html'));

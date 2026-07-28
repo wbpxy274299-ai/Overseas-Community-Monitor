@@ -92,7 +92,7 @@ router.post('/verify', async (req, res) => {
   }
   
   try {
-    const { authCache } = require('./auth');
+    const { authCache } = require('../middleware/auth');
     const cacheKey = `session:${token}`;
     const session = authCache.get(cacheKey);
     

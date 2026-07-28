@@ -45,25 +45,18 @@ async function getWeeklyData() {
   console.log('📊 查询上周舆情数据...');
 
   try {
-    const sentiment = require('./sentiment');
-    const allRecords = sentiment.getRecentFeedback(10000);
-    console.log(`   📦 从数据库读取到 ${allRecords.length} 条记录`);
-
-    if (allRecords.length === 0) {
-      console.warn('   ⚠️ 无数据');
-      return { dateRange: null, stats: null, totalRecords: 0 };
-    }
-
     // 使用上周时间范围（周一~周日）
     const dateRange = getLastWeekRange();
     console.log(`   📅 上周范围: ${dateRange.start.substring(0,10)} 至 ${dateRange.end.substring(0,10)}`);
 
-    // 只取上周范围内的记录
-    const weeklyRecords = allRecords.filter(r => {
-      const d = new Date(r.created_at);
-      return d >= dateRange.startDate && d <= dateRange.endDate;
-    });
-    console.log(`   📋 上周记录: ${weeklyRecords.length} 条`);
+    // 直接用带日期条件的 SQL 查询，不再加载全量数据到内存
+    const weeklyRecords = db.queryAll(`
+      SELECT * FROM sentiment_records 
+      WHERE is_noise = 0 
+        AND created_at >= ? AND created_at <= ?
+      ORDER BY created_at DESC
+    `, [dateRange.start, dateRange.end]);
+    console.log(`   📦 从数据库读取到 ${weeklyRecords.length} 条上周记录`);
 
     if (weeklyRecords.length === 0) {
       console.warn('   ⚠️ 上周无数据');
@@ -112,7 +105,7 @@ const TAG_LABELS = {
   server: '服务器/网络', general: '其他讨论'
 };
 
-function extractTopicsByTag(records, topN = 5) {
+function extractTopicsByTag(records, topN = 5, dateRange = null) {
   const tagCounts = {};
   for (const record of records) {
     const tag = record.topic_tag || 'general';
@@ -129,14 +122,12 @@ function extractTopicsByTag(records, topN = 5) {
     else if (record.sentiment === 'negative') tagCounts[tag].negatives++;
     else tagCounts[tag].neutrals++;
     
-    // 收集样本发言(优先有翻译的)
+    // 收集样本发言(优先有翻译的，只保留翻译和链接)
     if (tagCounts[tag].samples.length < 3) {
       const text = record.translated_content || record.content || '';
       if (text && text.length > 10) {
         tagCounts[tag].samples.push({
-          original: (record.content || '').substring(0, 200),
           translation: text.substring(0, 200),
-          author: record.author || '匿名',
           url: record.url || '#',
           sentiment: record.sentiment || 'neutral',
           created_at: record.created_at
@@ -167,6 +158,37 @@ function extractTopicsByTag(records, topN = 5) {
       else if (posRatio > 0.3) emotionDesc = '🙂 略偏正面 - 正面声音稍多';
       else emotionDesc = '😐 情绪分化 - 正负面观点并存';
       
+      // 从 topic_history 获取 AI 生成的摘要
+      // 优先查上周日期范围，查不到就放宽到最近可用记录
+      let summary = '';
+      if (dateRange) {
+        try {
+          let rows = db.queryAll(
+            `SELECT summary FROM topic_history WHERE topic_tag = ? AND created_at >= ? AND created_at <= ? AND summary IS NOT NULL AND summary != '' ORDER BY id DESC LIMIT 1`,
+            [tag, dateRange.start, dateRange.end]
+          );
+          if (rows.length === 0) {
+            // 上周没有 → 查最近 30 天内该话题的最新摘要
+            rows = db.queryAll(
+              `SELECT summary FROM topic_history WHERE topic_tag = ? AND summary IS NOT NULL AND summary != '' ORDER BY id DESC LIMIT 1`,
+              [tag]
+            );
+          }
+          if (rows.length > 0) summary = rows[0].summary;
+        } catch (_) {}
+      }
+      
+      // 如果 topic_history 里完全没有摘要，从实际记录中自动生成
+      if (!summary && data.samples.length > 0) {
+        const sampleTexts = data.samples.map(s => s.translation).filter(t => t && t.length > 5);
+        if (sampleTexts.length > 0) {
+          const first = sampleTexts[0].substring(0, 80);
+          summary = sampleTexts.length > 1
+            ? `玩家讨论如「${first}...」等 ${data.count} 条相关发言`
+            : `玩家提及「${first}...」`;
+        }
+      }
+      
       return {
         tag,
         label: TAG_LABELS[tag] || tag,
@@ -175,7 +197,8 @@ function extractTopicsByTag(records, topN = 5) {
         negatives: data.negatives,
         neutrals: data.neutrals,
         emotion_desc: emotionDesc,
-        samples: data.samples.slice(0, 2) // 只保留前2条作为代表
+        summary: summary || '',
+        samples: data.samples.slice(0, 2)
       };
     });
 }
@@ -228,88 +251,26 @@ function assessRiskLevel(stats) {
 function formatTopicsTable(topics) {
   if (topics.length === 0) return '暂无数据';
   let lines = [
-    '| 排名 | 话题 | 讨论人数 | 情绪分布 | 情绪风向 |',
-    '|:---:|------|:---:|:---:|--------|'
+    '| 排名 | 话题 | 讨论人数 | 内容概述 | 情绪分布 | 情绪风向 |',
+    '|:---:|------|:---:|------|:---:|--------|'
   ];
   topics.forEach((t, i) => {
-    const emoji = t.negatives > t.positives ? '⚠️' : t.positives > t.negatives ? '✅' : '➖';
     const sentDist = `👍${t.positives} 😐${t.neutrals} 👎${t.negatives}`;
-    lines.push(`| ${i + 1} | **${t.label}** | ${t.count} 人 | ${sentDist} | ${t.emotion_desc} |`);
+    const desc = t.summary || '—';
+    lines.push(`| ${i + 1} | **${t.label}** | ${t.count} 人 | ${desc} | ${sentDist} | ${t.emotion_desc} |`);
   });
   return lines.join('\n');
 }
 
 function formatTopicSamples(topic) {
-  if (topic.samples.length === 0) return '> 暂无典型发言';
+  if (topic.samples.length === 0) return '> 暂无代表性发言';
   
   let md = '';
   topic.samples.forEach((sample, idx) => {
     const sentEmoji = sample.sentiment === 'positive' ? '👍' : sample.sentiment === 'negative' ? '👎' : '💬';
-    md += `**${sentEmoji} 玩家原声 #${idx + 1}**\n\n`;
-    md += `> **原文**: ${sample.original}\n\n`;
-    md += `> **翻译**: ${sample.translation}\n\n`;
-    md += `> — ${sample.author} · [查看原帖](${sample.url}) · ${new Date(sample.created_at).toLocaleDateString('zh-CN')}\n\n`;
+    md += `> ${sentEmoji} ${sample.translation}\n`;
+    md += `> [查看原帖](${sample.url}) · ${new Date(sample.created_at).toLocaleDateString('zh-CN')}\n\n`;
   });
-  
-  return md.trim();
-}
-
-function formatRecordsTable(records, count, platform) {
-  if (records.length === 0) return '> 暂无典型发言';
-  const platformLabel = platform === 'twitter' ? '🐦' : '💬';
-  
-  // 智能筛选：正面/负面/中性各取一些
-  const positive = records.filter(r => r.sentiment === 'positive');
-  const negative = records.filter(r => r.sentiment === 'negative');
-  const neutral = records.filter(r => r.sentiment === 'neutral');
-  
-  const pickFrom = (arr, n) => {
-    const withTrans = arr.filter(r => r.translated_content && r.translated_content.length > 10);
-    const pool = withTrans.length >= n ? withTrans : arr;
-    return pool.slice(0, n);
-  };
-  
-  const posPicks = pickFrom(positive, 2);
-  const negPicks = pickFrom(negative, 1);
-  const neuPicks = pickFrom(neutral, 2);
-  
-  // 如果凑不够，补充剩余
-  const allSelected = [...posPicks, ...negPicks, ...neuPicks];
-  if (allSelected.length < count) {
-    const usedIds = new Set(allSelected.map(r => r.id));
-    const remaining = records.filter(r => !usedIds.has(r.id));
-    allSelected.push(...pickFrom(remaining, count - allSelected.length));
-  }
-  
-  const final = allSelected.slice(0, count);
-  
-  // 按情绪分组展示
-  let md = '';
-  const posGroup = final.filter(r => r.sentiment === 'positive');
-  const negGroup = final.filter(r => r.sentiment === 'negative');
-  const neuGroup = final.filter(r => r.sentiment === 'neutral' || !r.sentiment);
-  
-  if (posGroup.length > 0) {
-    md += `**😊 正面评价**\n\n`;
-    posGroup.forEach(r => {
-      const text = (r.translated_content || r.content || '').substring(0, 150);
-      md += `> 👍 ${text}\n> — ${r.author || '匿名'}（${platformLabel} · ${new Date(r.created_at).toLocaleDateString('zh-CN')}）\n\n`;
-    });
-  }
-  if (negGroup.length > 0) {
-    md += `**😟 负面反馈**\n\n`;
-    negGroup.forEach(r => {
-      const text = (r.translated_content || r.content || '').substring(0, 150);
-      md += `> 👎 ${text}\n> — ${r.author || '匿名'}（${platformLabel} · ${new Date(r.created_at).toLocaleDateString('zh-CN')}）\n\n`;
-    });
-  }
-  if (neuGroup.length > 0) {
-    md += `**😐 中性讨论**\n\n`;
-    neuGroup.forEach(r => {
-      const text = (r.translated_content || r.content || '').substring(0, 150);
-      md += `> 💬 ${text}\n> — ${r.author || '匿名'}（${platformLabel} · ${new Date(r.created_at).toLocaleDateString('zh-CN')}）\n\n`;
-    });
-  }
   
   return md.trim();
 }
@@ -355,20 +316,36 @@ function generateSummary(stats, totalRecords, riskLevel) {
 | **合计** | **${totalRecords}** | **${totalPos}** | **${totalNeu}** | **${totalNeg}** |`;
 }
 
+// ===== 社区发言概况（用大白话总结每个平台在聊什么）=====
+function generatePlatformSummary(records, platformLabel, topTopics) {
+  if (records.length === 0) return `**${platformLabel}**：本周无玩家发言。`;
+  
+  const topTags = topTopics.slice(0, 3).map(t => t.label).join('、');
+  const summaries = topTopics.filter(t => t.summary).slice(0, 2).map(t => t.summary);
+  
+  let text = `**${platformLabel}**（${records.length} 条发言）：`;
+  text += `玩家主要讨论 ${topTags}。`;
+  if (summaries.length > 0) {
+    text += '\n' + summaries.map(s => `- ${s}`).join('\n');
+  }
+  return text;
+}
+
 // ===== 主报告生成 =====
 
 async function generateReport(weeklyData) {
   const { dateRange, stats, totalRecords } = weeklyData;
 
-  const twitterTopics = extractTopicsByTag(stats.twitter.records, 5);
-  const tcTopics = extractTopicsByTag(stats.discord_tc.records, 5);
+  // 传 dateRange 给 extractTopicsByTag，让它能查 topic_history 获取话题概述
+  const twitterTopics = extractTopicsByTag(stats.twitter.records, 5, dateRange);
+  const tcTopics = extractTopicsByTag(stats.discord_tc.records, 5, dateRange);
 
   const twRatio = calcRatio(stats.twitter.positive, stats.twitter.neutral, stats.twitter.negative);
   const tcRatio = calcRatio(stats.discord_tc.positive, stats.discord_tc.neutral, stats.discord_tc.negative);
   const riskLevel = assessRiskLevel(stats);
   const summary = generateSummary(stats, totalRecords, riskLevel);
 
-  // AI 深度分析：调用 Gemini/Groq 生成智能总结
+  // AI 智能分析（合并到总览中）
   let aiAnalysis = '';
   try {
     const aiStats = {
@@ -395,6 +372,29 @@ async function generateReport(weeklyData) {
     aiAnalysis = '本周舆情整体平稳，建议持续关注玩家反馈。';
   }
 
+  // 各平台社区发言概况
+  const twSummary = generatePlatformSummary(stats.twitter.records, '🐦 Twitter（日服）', twitterTopics);
+  const dcSummary = generatePlatformSummary(stats.discord_tc.records, '💬 Discord（繁中服）', tcTopics);
+
+  // 话题详情渲染辅助函数
+  const renderTopicDetails = (topics) => {
+    if (topics.length === 0) return '';
+    return topics.map((topic, idx) => `
+#### 话题 #${idx + 1}: ${topic.label}
+
+**📊 讨论人数**: ${topic.count} 人
+
+**📈 情绪分布**: 👍 正面 ${topic.positives} | 😐 中性 ${topic.neutrals} | 👎 负面 ${topic.negatives}
+
+**🎯 情绪风向**: ${topic.emotion_desc}
+
+${topic.summary ? `**📝 讨论概述**: ${topic.summary}\n` : ''}
+**💬 代表性发言**:
+
+${formatTopicSamples(topic)}
+`).join('\n\n---\n\n');
+  };
+
   const report = `# 🎮 M2G 舆情监测周报
 
 > 📅 报告周期：${dateRange.start.substring(0, 10)} ~ ${dateRange.end.substring(0, 10)}
@@ -408,6 +408,16 @@ async function generateReport(weeklyData) {
 ${summary}
 
 **风险等级**：${riskLevel}
+
+### 🏘️ 社区发言概况
+
+${twSummary}
+
+${dcSummary}
+
+### 🤖 AI 智能分析
+
+${aiAnalysis}
 
 ---
 
@@ -425,23 +435,7 @@ ${summary}
 
 ${formatTopicsTable(twitterTopics)}
 
-${twitterTopics.map((topic, idx) => `
-#### 话题 #${idx + 1}: ${topic.label}
-
-**📊 讨论人数**: ${topic.count} 人
-
-**📈 情绪分布**: 👍 正面 ${topic.positives} | 😐 中性 ${topic.neutrals} | 👎 负面 ${topic.negatives}
-
-**🎯 情绪风向**: ${topic.emotion_desc}
-
-**💬 玩家原声**:
-
-${formatTopicSamples(topic)}
-`).join('\n\n---\n\n')}
-
-### 💬 典型发言
-
-${formatRecordsTable(stats.twitter.records, 5, 'twitter')}
+${renderTopicDetails(twitterTopics)}
 
 ---
 
@@ -459,23 +453,7 @@ ${formatRecordsTable(stats.twitter.records, 5, 'twitter')}
 
 ${formatTopicsTable(tcTopics)}
 
-${tcTopics.map((topic, idx) => `
-#### 话题 #${idx + 1}: ${topic.label}
-
-**📊 讨论人数**: ${topic.count} 人
-
-**📈 情绪分布**: 👍 正面 ${topic.positives} | 😐 中性 ${topic.neutrals} | 👎 负面 ${topic.negatives}
-
-**🎯 情绪风向**: ${topic.emotion_desc}
-
-**💬 玩家原声**:
-
-${formatTopicSamples(topic)}
-`).join('\n\n---\n\n')}
-
-### 💬 典型发言
-
-${formatRecordsTable(stats.discord_tc.records, 5, 'discord')}
+${renderTopicDetails(tcTopics)}
 
 ---
 
@@ -492,12 +470,6 @@ ${riskLevel.includes('高') ? '⚠️ 负面情绪占比过高，建议立即排
 ## 📝 五、运营建议
 
 ${generateSuggestions(stats, riskLevel)}
-
----
-
-## 🤖 六、AI 智能分析
-
-${aiAnalysis}
 
 ---
 
