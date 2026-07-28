@@ -1,35 +1,32 @@
 @echo off
-chcp 65001 >nul 2>nul
+chcp 936 >nul 2>nul
 echo ==========================================
-echo   一键部署：GitHub + Vultr 服务器
+echo   Deploy: GitHub + Vultr Server
 echo ==========================================
 echo.
 
 cd /d "%~dp0"
 
-:: ===== 服务器配置 =====
+:: ===== Server Config =====
 set SERVER_IP=198.13.60.172
 set SERVER_USER=root
 set SERVER_DIR=/dc-publish
 set PM2_NAME=dc-publish
 
-:: ===== 第一步：推送代码到 GitHub =====
-echo [第一步] 推送到 GitHub...
+:: ===== Step 1: Push to GitHub =====
+echo [Step 1] Push to GitHub...
 echo.
 
-:: 检查 git
 where git >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [错误] 没找到 git！
+    echo [ERROR] git not found!
     pause
     exit /b
 )
 
-:: 设置 git 身份
 git config user.email "wbpxy274299@users.noreply.github.com"
 git config user.name "wbpxy274299-ai"
 
-:: 检查 remote
 git remote get-url origin >nul 2>nul
 if %errorlevel% neq 0 (
     git init
@@ -37,62 +34,59 @@ if %errorlevel% neq 0 (
     git branch -M main
 )
 
-:: 检查改动
 git add .
 git diff --cached --quiet
 if %errorlevel% equ 0 (
-    echo [跳过] 没有新改动，直接同步服务器...
+    echo [SKIP] No changes, sync server directly...
     goto :deploy
 )
 
-:: 统计文件数
 for /f %%i in ('git diff --cached --name-only ^| find /c /v ""') do set FILE_COUNT=%%i
 
-:: 生成 commit 信息
 for /f "tokens=2 delims==" %%a in ('wmic os get localdatetime /value') do set DT=%%a
 set COMMIT_DATE=%DT:~0,4%-%DT:~4,2%-%DT:~6,2%
 set COMMIT_MSG=deploy %COMMIT_DATE% (%FILE_COUNT% files)
 
-echo 提交 %FILE_COUNT% 个文件...
+echo Committing %FILE_COUNT% files...
 git commit -m "%COMMIT_MSG%"
 if %errorlevel% neq 0 (
-    echo [错误] 提交失败！
+    echo [ERROR] Commit failed!
     pause
     exit /b
 )
 
 git push origin main
 if %errorlevel% neq 0 (
-    echo 普通推送失败，尝试强制推送...
+    echo Force pushing...
     git push origin main --force
     if %errorlevel% neq 0 (
-        echo [错误] GitHub 推送失败！
+        echo [ERROR] Push failed! Check network or GitHub credentials.
         pause
         exit /b
     )
 )
 
-echo [OK] GitHub 推送完成
+echo [OK] GitHub push complete
 echo.
 
-:: ===== 第二步：同步到 Vultr 服务器 =====
+:: ===== Step 2: Sync to Vultr =====
 :deploy
-echo [第二步] 同步到 Vultr 服务器...
+echo [Step 2] Sync to Vultr server...
 echo.
-echo 正在连接服务器 %SERVER_IP%...
+echo Connecting to %SERVER_IP%...
 echo.
 
-ssh %SERVER_USER%@%SERVER_IP% "cd %SERVER_DIR% && echo '--- 拉取最新代码 ---' && git pull origin main && echo '--- 重启服务 ---' && pm2 restart %PM2_NAME% && echo '' && echo '=== 部署完成 ===' && pm2 status"
+ssh %SERVER_USER%@%SERVER_IP% "cd %SERVER_DIR% && echo '--- git pull ---' && git pull origin main && echo '--- restart pm2 ---' && pm2 restart %PM2_NAME% && echo '' && echo '=== Deploy done ===' && pm2 status"
 
 if %errorlevel% neq 0 (
     echo.
-    echo [错误] 服务器同步失败！
+    echo [ERROR] Server sync failed!
     echo.
-    echo   1. SSH 密钥失效（运行 ssh-keygen -R %SERVER_IP% 后重试）
-    echo   2. 网络连不上（检查代理或 VPN）
-    echo   3. 服务器密码错误或连接超时
+    echo Fix: run this on your PC:
+    echo   ssh-keygen -R %SERVER_IP%
+    echo Then run deploy.bat again and type yes
     echo.
-    echo 手动 SSH 登录后执行：
+    echo Or SSH manually and run:
     echo   cd %SERVER_DIR% ^&^& git pull origin main ^&^& pm2 restart %PM2_NAME%
     echo.
     pause
@@ -101,7 +95,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo ==========================================
-echo   部署完成！代码已同步到 Vultr 服务器
-echo   访问：http://test-posting.xyz
+echo   Deploy done! Vultr server updated.
+echo   Visit: https://test-posting.xyz
 echo ==========================================
 pause
