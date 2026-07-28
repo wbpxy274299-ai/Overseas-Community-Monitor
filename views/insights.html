@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>🔍 M2G 玩家洞察</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/pages/insights.css">
+  <script src="/static/js/common.js"></script>
+</head>
+<body>
+  <header class="app-header">
+  <div class="app-header-inner">
+    <div class="header-left">
+      <h1>🔍 玩家洞察</h1>
+      <p>AI 驱动的玩家需求分析报告（上周五 ~ 本周四）</p>
+    </div>
+    <nav class="header-nav" id="mainNav"></nav>
+  </div>
+  </header>
+
+  <div class="container">
+    <!-- 控制面板 -->
+    <div class="insights-control">
+      <div class="control-left">
+        <span class="period-label" id="periodLabel">分析周期：加载中...</span>
+      </div>
+      <div class="control-right">
+        <button class="btn-generate" id="btnGenerate" onclick="generateInsights()">
+          🤖 生成洞察报告
+        </button>
+      </div>
+    </div>
+
+    <!-- 统计概览 -->
+    <div class="insights-stats" id="statsBar" style="display:none;">
+      <div class="stat-item">
+        <span class="stat-number" id="statTotal">0</span>
+        <span class="stat-label">总发言数</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-number" id="statTwitter">0</span>
+        <span class="stat-label">🇯🇵 Twitter</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-number" id="statDiscord">0</span>
+        <span class="stat-label">🇹🇼 Discord</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-number" id="statPeriod">-</span>
+        <span class="stat-label">分析周期</span>
+      </div>
+    </div>
+
+    <!-- 报告区域 -->
+    <div class="insights-report" id="reportArea">
+      <div class="empty-state-big">
+        <div class="empty-icon">🔍</div>
+        <h3>还没有洞察报告</h3>
+        <p>点击「生成洞察报告」，AI 将分析上周五到本周四的玩家发言，为你输出专业的分析报告</p>
+      </div>
+    </div>
+
+    <!-- 历史报告存档 -->
+    <div class="insights-history" id="historySection">
+      <h2 class="history-title">📂 历史报告存档</h2>
+      <div id="historyList" class="history-list">
+        <div class="loading">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/insights.js"></script>
+</body>
+</html>

@@ -36,7 +36,271 @@
 .action-result.success { background: var(--color-success-light); color: #276749; }
 .action-result.error { background: var(--color-danger-light); color: #c53030; }
 
-/* 暗黑模式 */
+/* ===== Tab 切换 ===== */
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--color-border, #e5e7eb);
+  padding-bottom: 0;
+}
+.admin-tab {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary, #6b7280);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+  border-radius: 8px 8px 0 0;
+}
+.admin-tab:hover { color: var(--color-primary, #3b82f6); background: rgba(59,130,246,0.05); }
+.admin-tab.active {
+  color: var(--color-primary, #3b82f6);
+  border-bottom-color: var(--color-primary, #3b82f6);
+  background: rgba(59,130,246,0.06);
+}
+.admin-tab-content { display: none; animation: fadeInUp 0.3s; }
+.admin-tab-content.active { display: block; }
+
+.admin-section-header {
+  margin-bottom: 20px;
+}
+.admin-section-header h2 {
+  font-size: 18px;
+  margin: 0 0 4px;
+  color: var(--color-text, #111);
+}
+.admin-section-header p {
+  font-size: 13px;
+  color: var(--color-text-muted, #888);
+  margin: 0;
+}
+
+/* ===== Token 卡片 ===== */
+.token-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.token-card {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 16px;
+  transition: box-shadow 0.2s;
+}
+.token-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.token-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.token-server-badge {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--color-text, #111);
+}
+.token-status { font-size: 12px; font-weight: 600; }
+.token-status.status-ok { color: #16a34a; }
+.token-status.status-empty { color: #dc2626; }
+.token-card-body {
+  margin-bottom: 12px;
+}
+.token-masked {
+  background: var(--color-bg-muted, #f3f4f6);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 13px;
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+.token-masked code { font-size: 13px; }
+.token-card-body small { color: var(--color-text-muted, #888); font-size: 11px; }
+.token-test-result {
+  margin-top: 8px;
+  font-size: 13px;
+  min-height: 20px;
+}
+.token-test-result .testing { color: #d97706; }
+.token-test-result .test-ok { color: #16a34a; }
+.token-test-result .test-warn { color: #d97706; }
+.token-test-result .test-fail { color: #dc2626; }
+.token-card-actions {
+  display: flex;
+  gap: 8px;
+}
+.btn-token-test, .btn-token-edit {
+  flex: 1;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--color-border, #d1d5db);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #333);
+  transition: all 0.2s;
+}
+.btn-token-test:hover { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.btn-token-edit:hover { background: #8b5cf6; color: #fff; border-color: #8b5cf6; }
+.btn-token-test:disabled, .btn-token-edit:disabled { opacity: 0.5; cursor: not-allowed; }
+.token-edit-form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
+.token-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 8px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #111);
+  box-sizing: border-box;
+}
+.token-input:focus { outline: none; border-color: #3b82f6; }
+.token-edit-btns { display: flex; gap: 8px; }
+.btn-token-save {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-token-save:hover { background: #15803d; }
+.btn-token-cancel {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--color-text-secondary, #6b7280);
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* ===== DC 频道管理 ===== */
+.channel-form-card {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.channel-form-card h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--color-text, #111);
+}
+.channel-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ch-input {
+  flex: 1;
+  min-width: 150px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #111);
+}
+.ch-input:focus { outline: none; border-color: #3b82f6; }
+.ch-select {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 6px;
+  font-size: 13px;
+  min-width: 140px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #111);
+}
+.btn-add-channel {
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-add-channel:hover { background: #2563eb; }
+
+.channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.channel-group {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 16px;
+}
+.channel-group-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--color-primary, #3b82f6);
+}
+.channel-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.channel-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--color-bg-muted, #f9fafb);
+  transition: background 0.15s;
+}
+.channel-item:hover { background: var(--color-bg-hover, #f3f4f6); }
+.channel-item-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.channel-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #111);
+}
+.channel-id {
+  font-size: 11px;
+  color: var(--color-text-muted, #888);
+  font-family: monospace;
+}
+.btn-channel-del {
+  padding: 4px 10px;
+  font-size: 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.btn-channel-del:hover { background: #fee2e2; }
+
+/* ===== 暗黑模式 ===== */
 [data-theme="dark"] .warning-box {
   background: linear-gradient(135deg, #422006, #451a03);
   border-left-color: #d97706;
@@ -48,3 +312,31 @@
 }
 [data-theme="dark"] .action-result.success { background: #064e3b; color: #6ee7b7; }
 [data-theme="dark"] .action-result.error { background: #7f1d1d; color: #fca5a5; }
+
+[data-theme="dark"] .admin-tab {
+  color: #9ca3af;
+}
+[data-theme="dark"] .admin-tab:hover { color: #60a5fa; background: rgba(96,165,250,0.08); }
+[data-theme="dark"] .admin-tab.active {
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
+  background: rgba(96,165,250,0.1);
+}
+[data-theme="dark"] .admin-tabs { border-bottom-color: #374151; }
+
+[data-theme="dark"] .token-card {
+  background: #1e1e2e;
+  border-color: #374151;
+}
+[data-theme="dark"] .token-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+[data-theme="dark"] .token-masked { background: #11111b; color: #cdd6f4; }
+[data-theme="dark"] .token-input { background: #1e1e2e; border-color: #45475a; color: #cdd6f4; }
+[data-theme="dark"] .btn-token-test,
+[data-theme="dark"] .btn-token-edit { background: #1e1e2e; border-color: #45475a; color: #cdd6f4; }
+
+[data-theme="dark"] .channel-form-card { background: #1e1e2e; border-color: #374151; }
+[data-theme="dark"] .channel-group { background: #1e1e2e; border-color: #374151; }
+[data-theme="dark"] .channel-item { background: #11111b; }
+[data-theme="dark"] .channel-item:hover { background: #181825; }
+[data-theme="dark"] .ch-input { background: #1e1e2e; border-color: #45475a; color: #cdd6f4; }
+[data-theme="dark"] .ch-select { background: #1e1e2e; border-color: #45475a; color: #cdd6f4; }

@@ -128,6 +128,193 @@ async function changeRole(username, newRole, selectEl) {
   }
 }
 
+// ===== Tab 切换 =====
+function switchTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+  // 切换时加载数据
+  if (tab === 'tokens') loadTokens();
+  if (tab === 'channels') loadChannels();
+}
+
+// ===== Token 管理 =====
+async function loadTokens() {
+  try {
+    const res = await fetch('/api/admin/tokens', { credentials: 'same-origin' });
+    const data = await res.json();
+    if (data.ok) renderTokenCards(data.data);
+    else Toast.error('加载 Token 失败');
+  } catch (e) { Toast.error('网络错误'); }
+}
+
+function renderTokenCards(tokens) {
+  const container = document.getElementById('tokenCards');
+  container.innerHTML = tokens.map(t => `
+    <div class="token-card" id="token-card-${t.server}">
+      <div class="token-card-header">
+        <span class="token-server-badge">${t.label}</span>
+        <span class="token-status ${t.has ? 'status-ok' : 'status-empty'}">${t.has ? '✅ 已配置' : '❌ 未配置'}</span>
+      </div>
+      <div class="token-card-body">
+        <div class="token-masked"><code>${t.masked}</code></div>
+        ${t.length ? `<small>Token 长度: ${t.length}</small>` : ''}
+        <div class="token-test-result" id="token-result-${t.server}"></div>
+      </div>
+      <div class="token-card-actions">
+        <button class="btn-token-test" onclick="testToken('${t.server}')">🔍 测试健康度</button>
+        <button class="btn-token-edit" onclick="showTokenEdit('${t.server}')">✏️ 更新 Token</button>
+      </div>
+      <div class="token-edit-form" id="token-edit-${t.server}" style="display:none;">
+        <input type="password" id="token-input-${t.server}" placeholder="粘贴新的 Token" class="token-input">
+        <div class="token-edit-btns">
+          <button class="btn-token-save" onclick="saveToken('${t.server}')">💾 保存</button>
+          <button class="btn-token-cancel" onclick="hideTokenEdit('${t.server}')">取消</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function testToken(server) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '⏳ 测试中...';
+  const resultEl = document.getElementById('token-result-' + server);
+  resultEl.innerHTML = '<span class="testing">正在连接 Discord API...</span>';
+  try {
+    const res = await fetch('/api/admin/tokens/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ server }),
+      credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok && data.status === 'healthy') {
+      resultEl.innerHTML = `<span class="test-ok">✅ ${data.message}</span>`;
+    } else if (data.ok && data.status === 'identity_only') {
+      resultEl.innerHTML = `<span class="test-warn">⚠️ ${data.message}</span>`;
+    } else {
+      resultEl.innerHTML = `<span class="test-fail">❌ ${data.message}</span>`;
+    }
+  } catch (e) {
+    resultEl.innerHTML = `<span class="test-fail">❌ 网络错误</span>`;
+  }
+  btn.disabled = false;
+  btn.textContent = '🔍 测试健康度';
+}
+
+function showTokenEdit(server) {
+  document.getElementById('token-edit-' + server).style.display = 'block';
+  document.getElementById('token-input-' + server).focus();
+}
+function hideTokenEdit(server) {
+  document.getElementById('token-edit-' + server).style.display = 'none';
+  document.getElementById('token-input-' + server).value = '';
+}
+
+async function saveToken(server) {
+  const input = document.getElementById('token-input-' + server);
+  const token = input.value.trim();
+  if (!token || token.length < 20) { Toast.warning('Token 格式不正确'); return; }
+  if (!confirm('确定要更新 ' + server + ' 的 Token？')) return;
+  try {
+    const res = await fetch('/api/admin/tokens/' + server, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+      credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      Toast.success(data.message);
+      hideTokenEdit(server);
+      loadTokens();
+    } else {
+      Toast.error(data.error);
+    }
+  } catch (e) { Toast.error('网络错误'); }
+}
+
+// ===== DC 频道管理 =====
+async function loadChannels() {
+  try {
+    const res = await fetch('/api/admin/channels', { credentials: 'same-origin' });
+    const data = await res.json();
+    if (data.ok) renderChannelList(data.data);
+    else Toast.error('加载频道失败');
+  } catch (e) { Toast.error('网络错误'); }
+}
+
+function renderChannelList(channels) {
+  const container = document.getElementById('channelList');
+  if (!channels.length) { container.innerHTML = '<div class="empty-state">暂无频道</div>'; return; }
+  // 按 Bot 分组
+  const groups = {};
+  for (const ch of channels) {
+    if (!groups[ch.bot]) groups[ch.bot] = [];
+    groups[ch.bot].push(ch);
+  }
+  const botLabels = { TC: '繁中服', JP: '日服', SEA: '东南亚服', KR: '韩服' };
+  let html = '';
+  for (const [bot, list] of Object.entries(groups)) {
+    html += `<div class="channel-group">
+      <h3 class="channel-group-title">${botLabels[bot] || bot} (${list.length})</h3>
+      <div class="channel-group-list">`;
+    for (const ch of list) {
+      html += `<div class="channel-item">
+        <div class="channel-item-info">
+          <span class="channel-name">${escapeHtml(ch.name)}</span>
+          <code class="channel-id">${ch.channel_id}</code>
+        </div>
+        <button class="btn-channel-del" onclick="deleteChannel('${encodeURIComponent(ch.name)}')" title="删除">🗑️</button>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+  container.innerHTML = html;
+}
+
+async function addChannel() {
+  const name = document.getElementById('newChName').value.trim();
+  const bot = document.getElementById('newChBot').value;
+  const channel_id = document.getElementById('newChId').value.trim();
+  if (!name || !bot || !channel_id) { Toast.warning('请填写所有字段'); return; }
+  if (!/^\d{15,20}$/.test(channel_id)) { Toast.warning('频道 ID 格式不正确，应为15-20位数字'); return; }
+  try {
+    const res = await fetch('/api/admin/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, bot, channel_id }),
+      credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      Toast.success('频道已添加');
+      document.getElementById('newChName').value = '';
+      document.getElementById('newChId').value = '';
+      document.getElementById('newChBot').value = '';
+      loadChannels();
+    } else {
+      Toast.error(data.error);
+    }
+  } catch (e) { Toast.error('网络错误'); }
+}
+
+async function deleteChannel(encodedName) {
+  if (!confirm('确定要删除这个频道吗？')) return;
+  try {
+    const res = await fetch('/api/admin/channels/' + encodedName, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) { Toast.success('频道已删除'); loadChannels(); }
+    else Toast.error(data.error);
+  } catch (e) { Toast.error('网络错误'); }
+}
+
 // 页面加载时初始化
 window.addEventListener('DOMContentLoaded', () => {
   const user = getCurrentUser();

@@ -88,6 +88,7 @@ function renderNav() {
     { path: '/reports', label: '📋 周报管理', match: p => p.startsWith('/reports'), minRole: 'operator' },
     { path: '/sentiment-history', label: '📚 历史数据', match: p => p.includes('sentiment-history'), minRole: 'operator' },
     { path: '/admin', label: '🔐 权限管理', match: p => p === '/admin', minRole: 'admin' },
+    { path: '/insights', label: '🔍 玩家洞察', match: p => p === '/insights', minRole: 'admin' },
     { path: '/terminology', label: '📖 术语校对', match: p => p.startsWith('/terminology'), minRole: 'viewer' },
   ];
   

@@ -27,22 +27,70 @@
       此页面仅对管理员开放。请谨慎分配管理员权限，确保只有信任的用户才能获得完整功能访问权。
     </div>
 
-    <!-- 用户列表 -->
-    <div class="card">
-      <table>
-        <thead>
-          <tr>
-            <th>用户名</th>
-            <th>当前角色</th>
-            <th>权限说明</th>
-            <th>注册时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="userTableBody">
-          <tr><td colspan="5" class="loading">加载中...</td></tr>
-        </tbody>
-      </table>
+    <!-- ===== Tab 切换 ===== -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="switchTab('users')">👥 用户权限</button>
+      <button class="admin-tab" onclick="switchTab('tokens')">🔑 Token 管理</button>
+      <button class="admin-tab" onclick="switchTab('channels')">📡 DC 频道编辑</button>
+    </div>
+
+    <!-- Tab: 用户权限 -->
+    <div class="admin-tab-content active" id="tab-users">
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>用户名</th>
+              <th>当前角色</th>
+              <th>权限说明</th>
+              <th>注册时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody">
+            <tr><td colspan="5" class="loading">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: Token 管理 -->
+    <div class="admin-tab-content" id="tab-tokens">
+      <div class="admin-section-header">
+        <h2>🔑 Discord Bot Token 管理</h2>
+        <p>查看、测试、更新各地区的 Bot Token</p>
+      </div>
+      <div id="tokenCards" class="token-cards-grid">
+        <div class="loading">加载中...</div>
+      </div>
+    </div>
+
+    <!-- Tab: DC 频道编辑 -->
+    <div class="admin-tab-content" id="tab-channels">
+      <div class="admin-section-header">
+        <h2>📡 DC 发布频道管理</h2>
+        <p>新增、删除发布目标频道</p>
+      </div>
+      <!-- 新增频道表单 -->
+      <div class="channel-form-card">
+        <h3>➕ 新增频道</h3>
+        <div class="channel-form-row">
+          <input type="text" id="newChName" placeholder="频道名称（如：日服-活动频道）" class="ch-input">
+          <select id="newChBot" class="ch-select">
+            <option value="">选择 Bot</option>
+            <option value="TC">繁中服 TC</option>
+            <option value="JP">日服 JP</option>
+            <option value="SEA">东南亚服 SEA</option>
+            <option value="KR">韩服 KR</option>
+          </select>
+          <input type="text" id="newChId" placeholder="频道 ID" class="ch-input">
+          <button class="btn-add-channel" onclick="addChannel()">➕ 添加</button>
+        </div>
+      </div>
+      <!-- 频道列表 -->
+      <div id="channelList" class="channel-list">
+        <div class="loading">加载中...</div>
+      </div>
     </div>
   </div>
 

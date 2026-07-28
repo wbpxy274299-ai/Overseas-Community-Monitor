@@ -63,6 +63,14 @@ router.get('/admin', ensureLoggedIn, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'admin.html'));
 });
 
+// ===== 玩家洞察（仅 admin）=====
+router.get('/insights', ensureLoggedIn, (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).send(FORBIDDEN_PAGE);
+  }
+  res.sendFile(path.join(__dirname, '..', 'views', 'insights.html'));
+});
+
 // ===== 术语校对页面（所有角色）=====
 router.get('/terminology', ensureLoggedIn, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'terminology.html'));
