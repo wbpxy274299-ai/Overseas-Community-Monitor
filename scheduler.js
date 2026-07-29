@@ -54,6 +54,7 @@ let lastRunDates = loadState();
 // 重试节流：失败后每 30 分钟才重试一次，避免代理挂的时候每分钟刷屏
 let lastAnalysisRetryTime = 0;
 const RETRY_INTERVAL_MS = 30 * 60 * 1000; // 30 分钟
+let analysisRetryCount = 0; // 当日重试计数器
 
 // 采集锁卡死检测：记录发现锁住的时间，超过 30 分钟自动解锁
 let collectLockDetectedAt = null;
@@ -284,28 +285,62 @@ function checkScheduledJobs() {
   // ★ 修复：先干活，成功了再打卡；失败了下一轮还能重试
   // ★ 节流：失败后每 30 分钟重试一次，不刷屏
   if (lastRunDates.dailyAnalysis !== today) {
+    // 新的一天，重置重试计数器
+    if (analysisRetryCount > 0) { analysisRetryCount = 0; }
     const timeSinceLastRetry = Date.now() - lastAnalysisRetryTime;
     const canRetry = lastAnalysisRetryTime === 0 || timeSinceLastRetry >= RETRY_INTERVAL_MS;
     if ((currentHour > 8 || (currentHour === 8 && currentMinute >= 30)) && canRetry) {
       lastAnalysisRetryTime = Date.now();
       console.log('⏰ 触发每日热门话题分析（补跑/定时）');
       dailyAnalysisTask().then((result) => {
-        // 只有成功了（有话题产生）才标记“今天已跑”
-        if (result && result.success && ((result.twitter || 0) + (result.discord || 0) > 0)) {
+        const topicCount = (result.twitter || 0) + (result.discord || 0);
+        if (result.success && topicCount > 0) {
+          // 有话题产生 → 标记完成
           lastRunDates.dailyAnalysis = today;
           saveState();
-          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: true, message: '完成' };
-          console.log('✅ 每日分析成功，已标记完成');
+          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: true, message: `${topicCount} 个话题` };
+          console.log(`✅ 每日分析成功: ${topicCount} 个话题，已标记完成`);
+        } else if (result.success && result.message === '无数据') {
+          // 时间窗口内没有高质量数据 → 也标记完成，别死循环
+          lastRunDates.dailyAnalysis = today;
+          saveState();
+          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: '时间窗口内无高质量数据' };
+          console.log('⚠️ 每日分析: 时间窗口内无高质量数据(content_quality≥2)，已标记完成不再重试');
+          console.log('   💡 提示: 检查 sentiment_records 表中 created_at 在昨日8:30~今日8:30 之间且 content_quality≥2 的记录数');
+        } else if (result.success && topicCount === 0) {
+          // AI 分析完成但没产出话题（AI 返回空结果）→ 重试次数+1，超过3次就放弃
+          analysisRetryCount++;
+          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: `AI返回0话题(重试${analysisRetryCount}/3)` };
+          if (analysisRetryCount >= 3) {
+            lastRunDates.dailyAnalysis = today;
+            saveState();
+            console.log('⚠️ 每日分析: AI连续3次返回0话题，今日不再重试');
+          } else {
+            console.log(`⚠️ 每日分析: AI返回0话题，30分钟后重试(${analysisRetryCount}/3)`);
+          }
         } else {
-          // 失败了不标记，下一轮定时检查会重试
-          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: result?.message || '无话题产生' };
-          console.log('⚠️ 每日分析未产生话题，不标记完成，稍后重试');
+          // 真正的失败（采集异常、AI API报错等）→ 允许重试
+          analysisRetryCount++;
+          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: result?.message || '未知错误' };
+          if (analysisRetryCount >= 5) {
+            lastRunDates.dailyAnalysis = today;
+            saveState();
+            console.log(`❌ 每日分析: 连续失败${analysisRetryCount}次，今日放弃: ${result?.message}`);
+          } else {
+            console.log(`❌ 每日分析失败(重试${analysisRetryCount}/5)，30分钟后再试: ${result?.message}`);
+          }
         }
       }).catch(e => {
-        // 异常也不标记，允许重试
+        analysisRetryCount++;
         taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: e.message };
         sentiment.recordError('调度器-每日分析', e.message);
-        console.error('❌ 每日分析失败（不标记，稍后重试）:', e.message);
+        if (analysisRetryCount >= 5) {
+          lastRunDates.dailyAnalysis = today;
+          saveState();
+          console.error(`❌ 每日分析异常${analysisRetryCount}次，今日放弃:`, e.message);
+        } else {
+          console.error(`❌ 每日分析异常(重试${analysisRetryCount}/5):`, e.message);
+        }
       });
     }
   }

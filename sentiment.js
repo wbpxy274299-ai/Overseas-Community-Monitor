@@ -1933,6 +1933,23 @@ async function runDailyHotTopicsAnalysis() {
   console.log(`   数据: Twitter ${twCount} 条, Discord ${dcCount} 条`);
   
   if (twCount === 0 && dcCount === 0) {
+    // 诊断日志：为什么没有数据？
+    try {
+      const totalInRange = db.queryOne(
+        `SELECT COUNT(*) as cnt FROM sentiment_records WHERE created_at >= ? AND created_at <= ? AND is_noise = 0`,
+        [startDate, endDate]
+      );
+      const totalQuality = db.queryOne(
+        `SELECT COUNT(*) as cnt FROM sentiment_records WHERE created_at >= ? AND created_at <= ? AND is_noise = 0 AND content_quality >= 2`,
+        [startDate, endDate]
+      );
+      console.log(`   📋 诊断: 时间窗口内共 ${totalInRange?.cnt || 0} 条(is_noise=0), 其中 quality≥2 的 ${totalQuality?.cnt || 0} 条`);
+      if ((totalInRange?.cnt || 0) > 0 && (totalQuality?.cnt || 0) === 0) {
+        console.log('   💡 原因: 有数据但质量分都<2，检查 content_quality 字段');
+      } else if ((totalInRange?.cnt || 0) === 0) {
+        console.log('   💡 原因: 时间窗口内根本没有数据，检查采集任务是否正常运行');
+      }
+    } catch (_) {}
     console.log('   ⚠️ 无数据，跳过分析');
     return { success: true, message: '无数据' };
   }
@@ -1951,6 +1968,9 @@ async function runDailyHotTopicsAnalysis() {
   }
   
   console.log(`✅ 每日分析完成: Twitter ${result.twitter_topics.length} 个话题, Discord ${result.discord_topics.length} 个话题`);
+  if (result.twitter_topics.length === 0 && result.discord_topics.length === 0) {
+    console.log('   ⚠️ AI 返回了 0 个话题，可能原因: AI API 超时/返回空结果/解析失败');
+  }
   
   // ★ 第三步：AI 哨兵 — 从 general 桶探测新话题
   try {
