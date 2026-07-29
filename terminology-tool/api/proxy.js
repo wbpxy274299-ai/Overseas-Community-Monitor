@@ -1,4 +1,232 @@
 // Vercel Serverless Function - API Proxy
+// Supports both DeepSeek API and AI Studio API
+
+const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/v1/chat/completions';
+
+export default async function handler(request, response) {
+  // Handle CORS preflight
+  if (request.method === 'OPTIONS') {
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    return response.status(200).end();
+  }
+
+  // Only accept POST
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { type, question, system, code, version, apiKey } = request.body;
+
+    if (type === 'deepseek') {
+      // Call DeepSeek API
+      const deepseekApiKey = process.env.DEEPSEEK_API_KEY || '';
+      const model = 'deepseek-chat';
+      
+      if (!deepseekApiKey) {
+        return response.status(500).json({ 
+          success: false, 
+          errorMsg: 'DeepSeek API Key not configured. Set DEEPSEEK_API_KEY in Vercel environment variables.' 
+        });
+      }
+
+      // 构建消息数组
+      const messages = [];
+      if (system) {
+        messages.push({ role: 'system', content: system });
+      }
+      messages.push({ role: 'user', content: question });
+
+      const dsResponse = await fetch(DEEPSEEK_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${deepseekApiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages,
+          temperature: 0.7
+        })
+      });
+
+      const data = await dsResponse.json();
+      const text = data.choices?.[0]?.message?.content || '';
+      
+      response.setHeader('Access-Control-Allow-Origin', '*');
+      response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      return response.status(200).json({
+        success: true,
+        data: { content: text }
+      });
+
+    } else if (type === 'aistudio') {
+      // Call AI Studio API
+      const aiStudioAK = process.env.AI_STUDIO_AK || '';
+      
+      if (!aiStudioAK) {
+        return response.status(500).json({ 
+          success: false, 
+          errorMsg: 'AI Studio AK not configured. Set AI_STUDIO_AK in Vercel environment variables.' 
+        });
+      }
+
+      if (!code || !question) {
+        return response.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const url = `https://aistudio.alibaba-inc.com/api/aiapp/run/${code}/${version || '1.0.0'}`;
+
+      const aiResponse = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-AK': aiStudioAK,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          empId: '000000',
+          question: question,
+          sessionId: 'vf-' + Date.now(),
+          stream: false
+        })
+      });
+
+      const data = await aiResponse.json();
+
+      response.setHeader('Access-Control-Allow-Origin', '*');
+      response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      return response.status(200).json(data);
+    } else {
+      return response.status(400).json({ error: 'Invalid type. Use "deepseek" or "aistudio"' });
+    }
+
+  } catch (error) {
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    return response.status(500).json({
+      success: false,
+      errorMsg: error.message || 'Proxy error'
+    });
+  }
+}
+// Vercel Serverless Function - API Proxy
+// Supports both DeepSeek API and AI Studio API
+
+const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/v1/chat/completions';
+
+export default async function handler(request, response) {
+  // Handle CORS preflight
+  if (request.method === 'OPTIONS') {
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    return response.status(200).end();
+  }
+
+  // Only accept POST
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { type, question, system, code, version, apiKey } = request.body;
+
+    if (type === 'deepseek') {
+      // Call DeepSeek API
+      const deepseekApiKey = process.env.DEEPSEEK_API_KEY || '';
+      const model = 'deepseek-chat';
+      
+      if (!deepseekApiKey) {
+        return response.status(500).json({ 
+          success: false, 
+          errorMsg: 'DeepSeek API Key not configured. Set DEEPSEEK_API_KEY in Vercel environment variables.' 
+        });
+      }
+
+      // 构建消息数组
+      const messages = [];
+      if (system) {
+        messages.push({ role: 'system', content: system });
+      }
+      messages.push({ role: 'user', content: question });
+
+      const dsResponse = await fetch(DEEPSEEK_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${deepseekApiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages,
+          temperature: 0.7
+        })
+      });
+
+      const data = await dsResponse.json();
+      const text = data.choices?.[0]?.message?.content || '';
+      
+      response.setHeader('Access-Control-Allow-Origin', '*');
+      response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      return response.status(200).json({
+        success: true,
+        data: { content: text }
+      });
+
+    } else if (type === 'aistudio') {
+      // Call AI Studio API
+      const aiStudioAK = process.env.AI_STUDIO_AK || '';
+      
+      if (!aiStudioAK) {
+        return response.status(500).json({ 
+          success: false, 
+          errorMsg: 'AI Studio AK not configured. Set AI_STUDIO_AK in Vercel environment variables.' 
+        });
+      }
+
+      if (!code || !question) {
+        return response.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const url = `https://aistudio.alibaba-inc.com/api/aiapp/run/${code}/${version || '1.0.0'}`;
+
+      const aiResponse = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-AK': aiStudioAK,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          empId: '000000',
+          question: question,
+          sessionId: 'vf-' + Date.now(),
+          stream: false
+        })
+      });
+
+      const data = await aiResponse.json();
+
+      response.setHeader('Access-Control-Allow-Origin', '*');
+      response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      return response.status(200).json(data);
+    } else {
+      return response.status(400).json({ error: 'Invalid type. Use "deepseek" or "aistudio"' });
+    }
+
+  } catch (error) {
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    return response.status(500).json({
+      success: false,
+      errorMsg: error.message || 'Proxy error'
+    });
+  }
+}
+// Vercel Serverless Function - API Proxy
 // Supports both Gemini API and AI Studio API
 
 const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';

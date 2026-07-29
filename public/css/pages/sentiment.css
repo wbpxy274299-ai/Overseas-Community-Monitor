@@ -2,6 +2,13 @@
  * 舆情监控面板 — 页面专用样式
  */
 
+/* 页面宽度约束：内容不随屏幕无限拉伸 */
+.page-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
 /* 图表区域 */
 .charts-grid {
   display: grid;

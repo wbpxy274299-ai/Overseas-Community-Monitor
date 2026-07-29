@@ -1,7 +1,7 @@
 /* Post Assistant Module - Chinese UI */
 
 var POST_CONFIG = {
-  type: 'gemini', // 'gemini' or 'aistudio'
+  type: 'deepseek', // 'deepseek' or 'aistudio'
   a: { code: 'vAKIOhyPlmw', ver: '1.0.0' },
   b: { code: 'KLsOezRanUZ', ver: '1.1.0' },
   key: '5c406f762ebb2b38aba46d5511ea4ff8'
@@ -71,13 +71,7 @@ var TRANSLATE_SYSTEM_PROMPT = `# 角色：游戏多语言翻译专家
 （泰语翻译）`;
 
 async function callAI(question, systemPrompt, imageData = null) {
-  var fullQuestion = systemPrompt ? systemPrompt + '\n\n---\n\n' + question : question;
-  var payload = { type: 'gemini', question: fullQuestion };
-  
-  // 如果有图片，添加到请求中
-  if (imageData) {
-    payload.image = imageData;
-  }
+  var payload = { type: 'deepseek', question: question, system: systemPrompt || '' };
   
   var r = await fetch('/api/proxy', {
     method: 'POST',
@@ -235,7 +229,7 @@ function handleImageUpload(event) {
     return;
   }
   
-  // 检查文件大小（限制 4MB，Gemini API 限制）
+  // 检查文件大小（限制 4MB）
   if (file.size > 4 * 1024 * 1024) {
     alert('\u56fe\u7247\u592a\u5927\uff0c\u8bf7\u9009\u62e9 4MB \u4ee5\u5185\u7684\u56fe\u7247');
     return;

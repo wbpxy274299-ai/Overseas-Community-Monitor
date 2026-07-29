@@ -1,6 +1,6 @@
 /**
  * 本地代理服务器 - Node.js 版本
- * 绕过 CORS 限制，转发 API 请求到 AI Studio
+ * 调用 DeepSeek API
  * 运行方式: node server.js
  * 然后访问: http://localhost:8080
  */
@@ -13,7 +13,7 @@ const url = require('url');
 
 const PORT = 8080;
 const AI_STUDIO_BASE = "https://aistudio.alibaba-inc.com/api/aiapp/run";
-const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions";
 
 // 从 config.json 读取 API Key
 let config = {};
@@ -59,55 +59,46 @@ function serveStaticFile(res, filePath) {
 function handleProxy(req, res, body) {
   try {
     const data = JSON.parse(body);
-    const type = data.type || 'gemini'; // 'gemini' 或 'aistudio'
+    const type = data.type || 'deepseek'; // 'deepseek' 或 'aistudio'
     const question = data.question || '';
+    const systemPrompt = data.system || '';
 
-    if (type === 'gemini') {
-      // 调用 Gemini API
-      const apiKey = config.gemini?.apiKey || '';
-      const model = config.gemini?.model || 'gemini-pro';
+    if (type === 'deepseek') {
+      // 调用 DeepSeek API
+      const apiKey = config.deepseek?.apiKey || '';
+      const model = config.deepseek?.model || 'deepseek-chat';
       
-      if (!apiKey) {
+      if (!apiKey || apiKey === 'YOUR_DEEPSEEK_API_KEY_HERE') {
         res.writeHead(500, {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         });
-        res.end(JSON.stringify({ error: 'Gemini API Key not configured' }));
+        res.end(JSON.stringify({ error: 'DeepSeek API Key not configured. Set it in config.json' }));
         return;
       }
 
-      const apiUrl = `${GEMINI_ENDPOINT}/${model}:generateContent?key=${apiKey}`;
-      
-      // 构建请求内容，支持图片和文本
-      const parts = [];
-      
-      // 如果有图片，添加图片数据
-      if (data.image && data.image.data) {
-        parts.push({
-          inline_data: {
-            mime_type: data.image.mimeType || 'image/jpeg',
-            data: data.image.data
-          }
-        });
+      // 构建消息数组
+      const messages = [];
+      if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
       }
-      
-      // 添加文本
-      parts.push({ text: question });
-      
+      messages.push({ role: 'user', content: question });
+
       const payload = JSON.stringify({
-        contents: [{
-          parts: parts
-        }]
+        model: model,
+        messages: messages,
+        temperature: 0.7
       });
 
-      const parsedUrl = new URL(apiUrl);
+      const parsedUrl = new URL(DEEPSEEK_ENDPOINT);
       const options = {
         hostname: parsedUrl.hostname,
         port: 443,
-        path: parsedUrl.pathname + parsedUrl.search,
+        path: parsedUrl.pathname,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Length': Buffer.byteLength(payload)
         }
       };
@@ -117,8 +108,8 @@ function handleProxy(req, res, body) {
         apiRes.on('data', (chunk) => { result += chunk; });
         apiRes.on('end', () => {
           try {
-            const geminiResponse = JSON.parse(result);
-            const text = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const dsResponse = JSON.parse(result);
+            const text = dsResponse.choices?.[0]?.message?.content || '';
             res.writeHead(200, {
               'Content-Type': 'application/json',
               'Access-Control-Allow-Origin': '*'
@@ -132,7 +123,7 @@ function handleProxy(req, res, body) {
               'Content-Type': 'application/json',
               'Access-Control-Allow-Origin': '*'
             });
-            res.end(JSON.stringify({ error: 'Failed to parse Gemini response' }));
+            res.end(JSON.stringify({ error: 'Failed to parse DeepSeek response: ' + result.substring(0, 200) }));
           }
         });
       });
@@ -149,7 +140,7 @@ function handleProxy(req, res, body) {
       apiReq.end();
 
     } else {
-      // 调用 AI Studio API
+      // 调用 AI Studio API（保持不变）
       const code = data.code || '';
       const version = data.version || '1.0.0';
       const ak = data.apiKey || '';
@@ -246,7 +237,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   const serverUrl = `http://localhost:${PORT}`;
   console.log('='.repeat(50));
-  console.log('  Game Terminology Tool + Post Assistant');
+  console.log('  Game Terminology Tool + Post Assistant (DeepSeek)');
   console.log(`  Open: ${serverUrl}`);
   console.log('  Press Ctrl+C to stop');
   console.log('='.repeat(50));

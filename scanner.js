@@ -33,26 +33,7 @@ function formatCst(d) {
 
 // ===== Discord API（使用 Node.js 原生 discord_client）=====
 
-async function discordSend(channelId, token, content, { imageUrls = [], localFiles = [] } = {}) {
-  // 收集本地图片路径
-  const imagePaths = [];
-  for (const fpath of localFiles) {
-    if (!fpath) continue;
-    const fullPath = path.isAbsolute(fpath) ? fpath : path.join(UPLOAD_DIR, fpath);
-    
-    // 验证路径是否在允许目录内
-    const normalizedPath = path.normalize(fullPath);
-    if (!normalizedPath.startsWith(path.normalize(UPLOAD_DIR))) {
-      throw new Error(`非法文件路径: ${fpath}`);
-    }
-    
-    if (fs.existsSync(normalizedPath)) {
-      imagePaths.push(normalizedPath);
-    } else {
-      console.warn(`  ⚠️ 本地图片不存在: ${normalizedPath}`);
-    }
-  }
-
+async function discordSend(channelId, token, content, { imageUrls = [], localFiles = [], channelName = '' } = {}) {
   // 根据 channelId 查找对应的 server
   let server = 'TC'; // 默认
   for (const [name, info] of Object.entries(CHANNELS)) {
@@ -62,7 +43,11 @@ async function discordSend(channelId, token, content, { imageUrls = [], localFil
     }
   }
 
-  const result = await discordClient.sendMessage(channelId, server, content || '', imageUrls);
+  const result = await discordClient.sendMessage(channelId, server, content || '', {
+    imageUrls,
+    localFiles,
+    channelName,
+  });
   if (!result.ok) throw new Error(result.error || '发送失败');
   return result.message_id;
 }
@@ -155,6 +140,7 @@ async function sendRecord(task) {
     const msgId = await discordSend(channelId, token, content, {
       imageUrls: allNetUrls,
       localFiles,
+      channelName,
     });
     if (msgId) {
       db.updateTask(taskId, {

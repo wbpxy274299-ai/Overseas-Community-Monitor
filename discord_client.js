@@ -4,7 +4,9 @@
  * 支持 TC/JP/SEA/KR 多 Bot Token
  */
 const axios = require('axios');
-const { getDiscordToken, getProxyConfig } = require('./config');
+const fs = require('fs');
+const path = require('path');
+const { getDiscordToken, getProxyConfig, UPLOAD_DIR } = require('./config');
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 
@@ -80,15 +82,59 @@ async function fetchMessages(channelId, server = 'TC', limit = 100) {
   }
 }
 
+// ===== 辅助：下载图片 URL 为 Buffer =====
+async function downloadImageBuffer(url) {
+  const resp = await axios.get(url, {
+    responseType: 'arraybuffer',
+    timeout: 15000,
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+  });
+  return Buffer.from(resp.data);
+}
+
+function extFromUrl(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    const ext = path.extname(pathname).toLowerCase();
+    return ['.png','.jpg','.jpeg','.gif','.webp','.bmp','.svg'].includes(ext) ? ext : '.png';
+  } catch { return '.png'; }
+}
+
+// ===== 辅助：分割超长内容为 txt 文件 =====
+function splitLongContent(content, channelName) {
+  const MAX = 1950; // Discord 2000 字限制，留安全余量
+  if (!content || content.length <= MAX) return { text: content, file: null };
+
+  // 日本公告频道特殊：第一行保留为文字，其余行打包成 txt
+  if (channelName === '日服-公告发布频道') {
+    const nlIdx = content.indexOf('\n');
+    if (nlIdx > 0 && nlIdx <= MAX) {
+      return {
+        text: content.substring(0, nlIdx),
+        file: { name: 'message.txt', content: content.substring(nlIdx + 1) }
+      };
+    }
+    // 单行超长，全部打包
+    return { text: '', file: { name: 'message.txt', content } };
+  }
+
+  // 其他频道：全部打包成 txt
+  return { text: '', file: { name: 'message.txt', content } };
+}
+
 /**
- * 发送消息到频道
+ * 发送消息到频道（支持文字 + 图片文件 + txt 附件）
  * @param {string} channelId - Discord 频道 ID
  * @param {string} server - 服务器标识
  * @param {string} content - 消息文本
- * @param {string[]} imageUrls - 图片 URL 列表（暂不支持，预留）
+ * @param {Object} options
+ * @param {string[]} options.imageUrls - 网络图片 URL
+ * @param {string[]} options.localFiles - 本地文件名（在 UPLOAD_DIR 中）
+ * @param {string} options.channelName - 频道名称（用于特殊规则）
  * @returns {Promise<{ok: boolean, message_id?: string, error?: string}>}
  */
-async function sendMessage(channelId, server = 'TC', content = '', imageUrls = []) {
+async function sendMessage(channelId, server = 'TC', content = '', options = {}) {
+  const { imageUrls = [], localFiles = [], channelName = '' } = options;
   const token = getDiscordToken(server);
   if (!token) {
     return { ok: false, error: `${server} Bot Token 未配置` };
@@ -96,17 +142,74 @@ async function sendMessage(channelId, server = 'TC', content = '', imageUrls = [
 
   try {
     const proxyConfig = getProxyConfig();
+
+    // 收集所有文件附件
+    const files = [];
+    let fileIdx = 0;
+
+    // 1. 超长文本 → txt 附件
+    const split = splitLongContent(content, channelName);
+    if (split.file) {
+      files.push({ name: `files[${fileIdx}]`, filename: split.file.name, data: Buffer.from(split.file.content, 'utf-8') });
+      fileIdx++;
+    }
+    const sendContent = split.text || '';
+
+    // 2. 本地上传图片
+    for (const fname of localFiles) {
+      if (!fname) continue;
+      const fullPath = path.isAbsolute(fname) ? fname : path.join(UPLOAD_DIR, fname);
+      if (fs.existsSync(fullPath)) {
+        const data = fs.readFileSync(fullPath);
+        const filename = path.basename(fullPath);
+        files.push({ name: `files[${fileIdx}]`, filename, data });
+        fileIdx++;
+      } else {
+        console.warn(`  ⚠️ 本地图片不存在: ${fullPath}`);
+      }
+    }
+
+    // 3. 网络图片 URL → 下载后上传
+    for (const url of imageUrls) {
+      if (!url) continue;
+      try {
+        const data = await downloadImageBuffer(url);
+        const filename = `image_${fileIdx}${extFromUrl(url)}`;
+        files.push({ name: `files[${fileIdx}]`, filename, data });
+        fileIdx++;
+      } catch (e) {
+        console.warn(`  ⚠️ 图片下载失败: ${url} - ${e.message}`);
+      }
+    }
+
+    const axiosOpts = {
+      timeout: 30000,
+      proxy: proxyConfig,
+      headers: { 'Authorization': `Bot ${token}` },
+    };
+
+    let apiBody;
+    if (files.length > 0) {
+      // multipart/form-data（有附件时必须用这个格式）
+      const FormData = require('form-data');
+      const form = new FormData();
+      const msgPayload = { content: sendContent || undefined };
+      form.append('payload_json', JSON.stringify(msgPayload), { contentType: 'application/json' });
+      for (const f of files) {
+        form.append(f.name, f.data, { filename: f.filename });
+      }
+      apiBody = form;
+      Object.assign(axiosOpts.headers, form.getHeaders());
+    } else {
+      // 纯文本 JSON
+      apiBody = { content: sendContent };
+      axiosOpts.headers['Content-Type'] = 'application/json';
+    }
+
     const response = await axios.post(
       `${DISCORD_API_BASE}/channels/${channelId}/messages`,
-      { content },
-      {
-        headers: {
-          'Authorization': `Bot ${token}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
-        proxy: proxyConfig,
-      }
+      apiBody,
+      axiosOpts
     );
 
     if (response.data?.id) {
@@ -114,7 +217,9 @@ async function sendMessage(channelId, server = 'TC', content = '', imageUrls = [
     }
     return { ok: false, error: '发送成功但未获得 message_id' };
   } catch (e) {
-    return { ok: false, error: e.message };
+    const errData = e.response?.data;
+    const errMsg = errData ? `${e.message}: ${JSON.stringify(errData).substring(0, 300)}` : e.message;
+    return { ok: false, error: errMsg };
   }
 }
 

@@ -351,7 +351,7 @@ function calculateHeat(count, sentiment, tag) {
 
 /**
  * 将记录按 topic_tag 分组，格式化为 AI 可读的文本
- * @param {boolean} truncate - 是否截断每条内容（Groq兑底时用）
+ * @param {boolean} truncate - 是否截断每条内容
  */
 function groupRecordsByTag(records, prefix = '', truncate = false) {
   const groups = {};
@@ -670,7 +670,7 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
     return result;
   }
   
-  // 双平台：1 次 AI 调用（发完整内容给 Gemini）
+  // 双平台：1 次 AI 调用（发完整内容给 DeepSeek）
   console.log(`🤖 AI 双平台分析：Twitter ${twitterRecords.length} 条 + Discord ${discordRecords.length} 条`);
   
   const twitterContent = groupRecordsByTag(twitterRecords.slice(0, 15), 'T', false);
