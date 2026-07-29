@@ -157,11 +157,16 @@ function requireAuth(req, res, next) {
 /**
  * requireRole(...roles)——检查用户角色是否在允许列表中
  * 必须先经过 requireAuth
+ * super_admin 自动通过所有检查（最高权限不受限制）
  */
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: '未授权', message: '请先登录', code: 'UNAUTHORIZED' });
+    }
+    // super_admin 自动通过所有权限检查
+    if (req.user.role === 'super_admin') {
+      return next();
     }
     if (!roles.includes(req.user.role)) {
       log.warn(`[权限拒绝] 用户: ${req.user.username}, 角色: ${req.user.role}, 需要: ${roles.join(',')}`);
