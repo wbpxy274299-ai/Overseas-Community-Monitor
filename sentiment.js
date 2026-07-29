@@ -916,7 +916,8 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
 async function collectFromDiscord() {
   console.log('💬 开始从 Discord 采集数据...');
   
-  // 繁中服 Discord 频道配置
+  // 繁中服 Discord 频道（使用 JP Bot Token 读取，因 TC Bot 未开启 MESSAGE_CONTENT Intent）
+  const DISCORD_SERVER = 'JP';
   const tcChannels = [
     { id: '1236867556355346484', name: '💬日常閒聊' },
     { id: '1320748853732970556', name: '👂八卦吃瓜' },
@@ -933,7 +934,7 @@ async function collectFromDiscord() {
     const maxRetries = 2;
     
     // 查看这个频道上次追到哪条消息了
-    const cursor = db.getCollectionCursor(channel.id, 'TC');
+    const cursor = db.getCollectionCursor(channel.id, DISCORD_SERVER);
     const isBackfill = !cursor;
     const fetchLimit = isBackfill ? 2000 : 2000; // 回填和增量都设2000，确保不遗漏
     
@@ -948,10 +949,10 @@ async function collectFromDiscord() {
         let result;
         if (cursor) {
           // 有游标：只取游标之后的新消息
-          result = await fetchMessagesAfter(channel.id, 'TC', cursor.last_message_id, fetchLimit);
+          result = await fetchMessagesAfter(channel.id, DISCORD_SERVER, cursor.last_message_id, fetchLimit);
         } else {
           // 无游标：首次采集，取最近2000条回填历史
-          result = await fetchMessages(channel.id, 'TC', fetchLimit);
+          result = await fetchMessages(channel.id, DISCORD_SERVER, fetchLimit);
         }
         
         if (Array.isArray(result)) {
@@ -966,7 +967,7 @@ async function collectFromDiscord() {
       } catch (e) {
         const errMsg = `Discord频道${channel.name}采集失败: ${e.message}`;
         if (e.response?.status === 401) {
-          recordError('Discord采集', `TC Bot Token无效或已过期！${e.message}`);
+          recordError('Discord采集', `${DISCORD_SERVER} Bot Token无效或已过期！${e.message}`);
         } else if (retries === 0) {
           console.log(`        ❌ ${e.message}，5秒后重试...`);
           await new Promise(r => setTimeout(r, 5000));
@@ -985,6 +986,19 @@ async function collectFromDiscord() {
       if (messages.length > 0) {
         const sample = messages[0];
         console.log(`        📋 样本: content="${(sample.content||'').substring(0,50)}", author=${sample.author?.username}, bot=${sample.author?.bot}`);
+        // 详细诊断：打印完整消息结构，排查 content 为空的原因
+        const keys = Object.keys(sample);
+        console.log(`        🔬 消息字段: [${keys.join(', ')}]`);
+        console.log(`        🔬 type=${sample.type}, flags=${sample.flags}, pinned=${sample.pinned}`);
+        if (sample.embeds?.length) console.log(`        🔬 embeds: ${sample.embeds.length} 个`);
+        if (sample.components?.length) console.log(`        🔬 components: ${sample.components.length} 个`);
+        // 找一条有内容的消息看看
+        const withContent = messages.find(m => m.content && m.content.trim());
+        if (withContent) {
+          console.log(`        ✅ 有内容的消息: "${withContent.content.substring(0,80)}"`);
+        } else {
+          console.log(`        ❌ 2000条消息全部 content 为空！可能原因：Bot 未开启 MESSAGE_CONTENT Intent`);
+        }
       }
       
       let validCount = 0;

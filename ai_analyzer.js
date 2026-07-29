@@ -387,6 +387,24 @@ function groupRecordsByTag(records, prefix = '', truncate = false) {
 }
 
 /**
+ * 运营内容安全过滤：判断话题是否涉及运营团队
+ * 用于兜底删除 AI 可能遗漏的运营相关话题
+ */
+function isOperationsTopic(topic) {
+  if (!topic) return false;
+  const text = `${topic.title || ''} ${topic.summary || ''} ${topic.detail || ''} ${topic.action || ''}`.toLowerCase();
+  // 运营相关关键词（中/日/繁中）
+  const opsKeywords = [
+    '运营', '營運', '運営', '客服', 'gm', '官方态度', '官方信用', '官方回应',
+    '官方溝通', '官方溝通', '运营团队', '運營團隊', '运营信用', '營運信用',
+    '运营不作为', '運營不作為', '运营失信', '營運失信', '官方失信',
+    '客服态度', '客服態度', '客服回应', '客服回應', '官方回应', '官方回應',
+    '运营团队', '運營團隊', '运营策略', '運營策略'
+  ];
+  return opsKeywords.some(kw => text.includes(kw));
+}
+
+/**
  * AI 热门话题总结（单平台，基于预分类数据）
  */
 async function aiSummarizeHotTopics(records) {
@@ -432,9 +450,14 @@ async function aiSummarizeHotTopics(records) {
 
 6. **情绪判断**：positive(赞美/期待) / neutral(讨论/询问) / negative(抱怨/批评)
 
-7. **过滤搜索词**：“ツリネバ”是游戏名称/Yahoo搜索词，每条都有，不要作为热门话题。同理“TOSN”“TOSNeverland”也不算。
+7. **过滤搜索词**："ツリネバ"是游戏名称/Yahoo搜索词，每条都有，不要作为热门话题。同理"TOSN""TOSNeverland"也不算。
 
-8. **❗❗ tag 必须从以下固定列表中选择（不允许自定义）**：
+8. **❗❗ 运营相关内容必须跳过（不生成话题）**：
+   如果玩家讨论的核心是关于"运营/營運/運営/客服/官方态度/官方信用/官方回应/GM管理"等运营团队相关内容，**直接跳过，不要生成这个话题**。
+   判断标准：话题的核心诉求是针对运营团队的行为、态度、信用、沟通方式的批评或不满。
+   注意：如果是纯粹的游戏机制问题（如bug、数值平衡），即使玩家提到了"官方"，也不算运营话题，正常生成即可。
+
+9. **❗❗ tag 必须从以下固定列表中选择（不允许自定义）**：
    - bug_report (Bug/问题反馈)
    - gacha (抽卡/ガチャ)
    - knight_order (骑士团/公会)
@@ -475,7 +498,12 @@ async function aiSummarizeHotTopics(records) {
       if (m) parsed = safeJsonParse(m[0], '热门话题-提取');
     }
     if (Array.isArray(parsed)) {
-      return deduplicateTopics(parsed.map(t => ({
+      // 运营内容安全过滤：兜底删除 AI 可能遗漏的运营相关话题
+      const filtered = parsed.filter(t => !isOperationsTopic(t));
+      if (filtered.length < parsed.length) {
+        console.log(`🔒 运营内容过滤: 删除了 ${parsed.length - filtered.length} 个运营相关话题`);
+      }
+      return deduplicateTopics(filtered.map(t => ({
         title: t.title || '未命名',
         summary: t.summary || '',
         detail: t.detail || '',
@@ -683,9 +711,14 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
 
 6. **情绪判断**：positive(赞美/期待) / neutral(讨论/询问) / negative(抱怨/批评)
 
-7. **过滤搜索词**：“ツリネバ”是游戏名称/Yahoo搜索词，每条都有，不要作为热门话题。同理“TOSN”“TOSNeverland”也不算。
+7. **过滤搜索词**："ツリネバ"是游戏名称/Yahoo搜索词，每条都有，不要作为热门话题。同理"TOSN""TOSNeverland"也不算。
 
-8. **❗❗ tag 必须从以下固定列表中选择（不允许自定义）**：
+8. **❗❗ 运营相关内容必须跳过（不生成话题）**：
+   如果玩家讨论的核心是关于"运营/營運/運営/客服/官方态度/官方信用/官方回应/GM管理"等运营团队相关内容，**直接跳过，不要生成这个话题**。
+   判断标准：话题的核心诉求是针对运营团队的行为、态度、信用、沟通方式的批评或不满。
+   注意：如果是纯粹的游戏机制问题（如bug、数值平衡），即使玩家提到了"官方"，也不算运营话题，正常生成即可。
+
+9. **❗❗ tag 必须从以下固定列表中选择（不允许自定义）**：
    - bug_report (Bug/问题反馈)
    - gacha (抽卡/ガチャ)
    - knight_order (骑士团/公会)
@@ -762,9 +795,10 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
         return { ...t, count: realCount, heat: calculateHeat(realCount, t.sentiment, t.tag) };
       });
       
+      const filterOps = (topics) => topics.filter(t => !isOperationsTopic(t));
       const finalResult = {
-        twitter_topics: applyRealCounts(deduplicateTopics((parsed.twitter_topics || []).map(mapTopic))),
-        discord_topics: applyRealCounts(deduplicateTopics((parsed.discord_topics || []).map(mapTopic)))
+        twitter_topics: filterOps(applyRealCounts(deduplicateTopics((parsed.twitter_topics || []).map(mapTopic)))),
+        discord_topics: filterOps(applyRealCounts(deduplicateTopics((parsed.discord_topics || []).map(mapTopic))))
       };
       cacheIfHasTopics(finalResult);
       return finalResult;
