@@ -1,7 +1,7 @@
 /**
  * 权限管理 — 页面逻辑
  * 使用 JWT Cookie 认证，服务端校验角色
- * 支持 3 级角色: viewer / operator / admin
+ * 支持 5 级角色: pending / viewer / operator / admin / super_admin
  */
 const API_BASE = '/api/admin';
 
@@ -60,7 +60,14 @@ function renderUserTable(users) {
   for (const user of users) {
     const role = user.role || 'operator';
     const roleInfo = ROLE_LABELS[role] || ROLE_LABELS.operator;
-    const roleBadge = `<span class="badge badge-${role === 'admin' ? 'admin' : role === 'viewer' ? 'info' : 'success'}">${roleInfo.icon} ${roleInfo.name}</span>`;
+    const roleBadgeClass = {
+      super_admin: 'badge-danger',
+      admin: 'badge-admin',
+      operator: 'badge-success',
+      viewer: 'badge-info',
+      pending: 'badge-muted',
+    }[role] || 'badge-info';
+    const roleBadge = `<span class="badge ${roleBadgeClass}">${roleInfo.icon} ${roleInfo.name}</span>`;
 
     // 构建角色选择器（排除当前角色）
     const isSelf = currentUser && user.username === currentUser.name;
@@ -122,7 +129,7 @@ async function changeRole(username, newRole, selectEl) {
     return;
   }
   try {
-    const response = await fetch(`${API_BASE}/users/${username}/role`, {
+    const response = await fetch(`${API_BASE}/users/${encodeURIComponent(username)}/role`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: newRole }),

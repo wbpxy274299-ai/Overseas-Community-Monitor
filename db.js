@@ -61,7 +61,7 @@ async function initDb() {
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       username      TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
-      role          TEXT NOT NULL DEFAULT 'operator',  -- 角色: viewer/operator/admin
+      role          TEXT NOT NULL DEFAULT 'operator',  -- 角色: pending/viewer/operator/admin/super_admin
       email         TEXT,                           -- Google 邮箱
       google_id     TEXT UNIQUE,                    -- Google ID (SSO)
       picture       TEXT,                           -- 头像 URL

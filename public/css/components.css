@@ -385,6 +385,7 @@ tr:hover td { background: #f8f9ff; }
 .badge-danger { background: var(--color-danger-light); color: #c53030; }
 .badge-warning { background: var(--color-warning-light); color: #92400e; }
 .badge-info { background: var(--color-info-light); color: #2c5282; }
+.badge-muted { background: #f3f4f6; color: #6b7280; }
 .badge-twitter { background: #e0f2fe; color: #0369a1; }
 .badge-discord { background: #ddd6fe; color: #6b21a8; }
 
