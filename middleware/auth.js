@@ -143,6 +143,13 @@ function requireAuth(req, res, next) {
       code: 'UNAUTHORIZED',
     });
   }
+  // 实时从数据库刷新角色（防止 JWT 缓存旧角色，和 ensureLoggedIn 保持一致）
+  try {
+    const currentRole = db.getUserRole(user.username);
+    if (currentRole && currentRole !== user.role) {
+      user.role = currentRole;
+    }
+  } catch (_) {}
   req.user = user;
   next();
 }
