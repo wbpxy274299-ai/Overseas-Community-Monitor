@@ -381,3 +381,64 @@
 
 [data-theme="dark"] .perm-toggle { background: rgba(99, 102, 241, 0.15); }
 [data-theme="dark"] .region-check { background: rgba(16, 185, 129, 0.15); }
+
+/* ===== 意见反馈列表（超管专属） ===== */
+.feedback-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.feedback-admin-item {
+  background: var(--color-card-bg, var(--color-surface));
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-sm, 8px);
+  padding: 14px 18px;
+  transition: box-shadow 0.2s;
+}
+.feedback-admin-item:hover {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+.feedback-admin-item.unread {
+  border-left: 4px solid var(--color-primary, #667eea);
+  background: rgba(102, 126, 234, 0.03);
+}
+.fai-header { margin-bottom: 8px; }
+.fai-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.fai-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.fai-status {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.fai-meta {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--color-text-muted, #888);
+  margin-top: 4px;
+}
+.fai-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary, #555);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 10px 12px;
+  background: var(--color-bg-alt, #f9fafb);
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+.fai-actions {
+  display: flex;
+  gap: 8px;
+}

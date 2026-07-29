@@ -84,35 +84,57 @@ function renderNav() {
   const role = getUserRole();
   const roleLevel = ROLE_LEVEL[role] || 0;
   
-  // 导航链接配置：minRole 为最低可见角色
-  const pages = [
-    { path: '/', label: '🚀 DC发布', match: p => p === '/', minRole: 'operator' },
-    { path: '/sentiment', label: '📊 舆情监控', match: p => p.startsWith('/sentiment') && !p.includes('history'), minRole: 'viewer' },
-    { path: '/reports', label: '📋 周报管理', match: p => p.startsWith('/reports'), minRole: 'operator' },
-    { path: '/sentiment-history', label: '📚 历史数据', match: p => p.includes('sentiment-history'), minRole: 'operator' },
-    { path: '/admin', label: '🔐 权限管理', match: p => p === '/admin', minRole: 'admin' },
-    { path: '/insights', label: '🔍 玩家洞察', match: p => p === '/insights', minRole: 'super_admin', superOnly: true },
-    { path: '/terminology', label: '📖 术语校对', match: p => p.startsWith('/terminology'), minRole: 'viewer' },
+  // 分组导航配置：每组包含分组标题和页面列表
+  const groups = [
+    { label: '舆情监控', items: [
+      { path: '/sentiment', label: '📊 舆情日报', match: p => p.startsWith('/sentiment') && !p.includes('history'), minRole: 'viewer' },
+      { path: '/reports', label: '📋 周报管理', match: p => p.startsWith('/reports'), minRole: 'operator' },
+      { path: '/sentiment-history', label: '📚 历史数据', match: p => p.includes('sentiment-history'), minRole: 'operator' },
+      { path: '/insights', label: '🔍 玩家洞察', match: p => p === '/insights', minRole: 'super_admin', superOnly: true },
+    ]},
+    { label: '内容管理', items: [
+      { path: '/', label: '🚀 DC发布', match: p => p === '/', minRole: 'operator' },
+      { path: '/post-assistant', label: '✍️ 贴文助手', match: p => p.startsWith('/post-assistant'), minRole: 'operator', permKey: 'postAssistant' },
+      { path: '/terminology', label: '📖 术语校对', match: p => p.startsWith('/terminology'), minRole: 'viewer' },
+    ]},
+    { label: '权限管理', items: [
+      { path: '/admin', label: '🔐 权限管理', match: p => p === '/admin', minRole: 'admin' },
+    ]},
   ];
   
   let linksHtml = '';
-  for (const p of pages) {
-    // 玩家洞察：非 super_admin 完全不可见
-    if (p.superOnly && role !== 'super_admin') continue;
-    
-    const minLevel = ROLE_LEVEL[p.minRole] || 0;
-    const hasAccess = roleLevel >= minLevel;
-    const isActive = p.match(path);
-    
-    if (hasAccess) {
-      // 有权限：正常链接
-      const activeClass = isActive ? ' active' : '';
-      linksHtml += `<a href="${p.path}" class="nav-link${activeClass}">${p.label}</a>`;
-    } else {
-      // 无权限：置灰不可点击
-      linksHtml += `<span class="nav-link nav-disabled" title="权限不足，需要 ${p.minRole} 角色" onclick="Toast.warning('权限不足，无法访问此页面')">${p.label}</span>`;
+  groups.forEach((group, gi) => {
+    // 过滤掉不可见的页面
+    const visibleItems = group.items.filter(p => {
+      if (p.superOnly && role !== 'super_admin') return false;
+      return true;
+    });
+    if (!visibleItems.length) return;
+
+    // 分组标题（除了第一组）
+    if (gi > 0) {
+      linksHtml += '<div class="nav-group-divider"></div>';
     }
-  }
+    linksHtml += `<div class="nav-group-label">${group.label}</div>`;
+
+    for (const p of visibleItems) {
+      const minLevel = ROLE_LEVEL[p.minRole] || 0;
+      const hasRoleAccess = roleLevel >= minLevel;
+      // 细粒度权限检查（如 postAssistant）
+      const hasPerm = hasRoleAccess && _hasUserPerm(p.permKey);
+      const isActive = p.match(path);
+      
+      if (hasRoleAccess && hasPerm) {
+        const activeClass = isActive ? ' active' : '';
+        linksHtml += `<a href="${p.path}" class="nav-link${activeClass}">${p.label}</a>`;
+      } else if (hasRoleAccess && !hasPerm) {
+        // 角色够但没有细粒度权限，置灰
+        linksHtml += `<span class="nav-link nav-disabled" title="管理员已关闭此功能的权限" onclick="Toast.warning('管理员已关闭你的贴文助手权限，请联系管理员开通')">${p.label}</span>`;
+      } else {
+        linksHtml += `<span class="nav-link nav-disabled" title="权限不足，需要 ${p.minRole} 角色" onclick="Toast.warning('权限不足，无法访问此页面')">${p.label}</span>`;
+      }
+    }
+  });
   
   linksHtml += '<div class="nav-divider"></div>';
   // 暗黑模式切换按钮
@@ -196,10 +218,30 @@ function getUser() {
 
 // ===== 角色层次 =====
 const ROLE_LEVEL = { pending: 0, viewer: 1, operator: 2, admin: 3, super_admin: 4 };
+const ROLE_LABEL_MAP = {
+  pending: '⏳ 待审批', viewer: '👁️ 查看者', operator: '⚙️ 运营员',
+  admin: '👑 管理员', super_admin: '🌟 超级管理员'
+};
 
 function getUserRole() {
   const user = getUser();
   return user && user.role ? user.role : 'viewer';
+}
+
+function getUserPerms() {
+  const user = getUser();
+  return user && user.perms ? user.perms : {};
+}
+
+// 检查细粒度权限（如 postAssistant）
+function _hasUserPerm(permKey) {
+  if (!permKey) return true;
+  const role = getUserRole();
+  // admin/super_admin 默认全权限
+  if (role === 'admin' || role === 'super_admin') return true;
+  const perms = getUserPerms();
+  if (permKey === 'postAssistant') return perms.postAssistant !== false;
+  return !!perms[permKey];
 }
 
 function getRoleLevel() {
@@ -220,6 +262,29 @@ function isOperatorOrAbove() {
 }
 
 // ===== 导航栏权限过滤 =====
+
+// ===== 顶部 banner 注入用户名和角色 =====
+function renderUserInfo() {
+  const user = getUser();
+  if (!user || !user.name) return;
+  const headerInner = document.querySelector('.app-header-inner');
+  if (!headerInner) return;
+  const role = getUserRole();
+  const roleLabel = ROLE_LABEL_MAP[role] || role;
+  const roleClass = 'hui-role-' + role;
+  // 真实头像 or emoji 兜底
+  const avatarHtml = user.picture
+    ? `<span class="hui-avatar"><img src="${escapeHtml(user.picture)}" alt="" /></span>`
+    : `<span class="hui-avatar">👤</span>`;
+  const infoHtml = `
+    <div class="header-user-info">
+      ${avatarHtml}
+      <span class="hui-name">${escapeHtml(user.name)}</span>
+      <span class="hui-role ${roleClass}">${roleLabel}</span>
+    </div>`;
+  const nav = headerInner.querySelector('.header-nav');
+  if (nav) nav.insertAdjacentHTML('beforebegin', infoHtml);
+}
 // pending 用户隐藏所有操作按钮
 // 非 admin 隐藏 admin-only
 // 非 operator 隐藏 operator-only
@@ -406,12 +471,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           role: data.user.role,
           email: data.user.email,
           picture: data.user.picture,
+          perms: data.permissions || {},
         }));
       }
     }
   } catch (_) {}
   
   renderNav();           // 统一渲染导航栏
+  renderUserInfo();       // 在顶部 banner 注入用户名和角色
   applyNavPermissions(); // 非管理员隐藏 admin-only
   applyReadOnlyMode();   // operator 隐藏写入按钮
   FeedbackBtn.init();

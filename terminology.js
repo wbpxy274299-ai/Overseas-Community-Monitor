@@ -1,5 +1,5 @@
 /**
- * 游戏术语模块 — 加载、索引、搜索、文本术语提取
+ * 游戏术语模块 — 加载、索引、搜索、文本术语提取、批量校对、术语更新
  * 数据来自 terminology-tool/data/terms.json（10万+条）
  * 每条格式: [中文, 日语, 英语, 韩语, 繁中, 越南语, 印尼语, 泰语, 分类, 子分类1, 子分类2]
  */
@@ -8,12 +8,16 @@ const fs = require('fs');
 const path = require('path');
 
 const LANG_KEYS = ['jp', 'en', 'kr', 'tw', 'vn', 'id', 'th'];
+const LANG_LABELS = { jp: '日语', en: '英语', kr: '韩语', tw: '繁中', vn: '越南语', id: '印尼语', th: '泰语' };
 const TERMS_FILE = path.join(__dirname, 'terminology-tool', 'data', 'terms.json');
 const VERSION_FILE = path.join(__dirname, 'terminology-tool', 'data', 'version.json');
 
 let TERMS = [];
 let INDEX = {};       // 搜索索引: normalized_text -> Set<term_index>
 let VERSION_INFO = null;
+
+// 缓存：按语言分组的术语列表（避免每次校对都重建+排序）
+let LANG_TERMS_CACHE = {};  // { jp: [{text, cn, idx}], ... }
 
 // ===== 初始化：加载数据 + 建索引 =====
 function init() {
@@ -39,19 +43,35 @@ function normalize(s) {
 
 function buildIndex() {
   INDEX = {};
+  LANG_TERMS_CACHE = {};
   for (let i = 0; i < TERMS.length; i++) {
     const t = TERMS[i];
     // 中文建索引
     addIdx(t[0], i, true);
-    // 7种语言建索引
+    // 7种语言建索引 + 缓存
     for (let li = 0; li < LANG_KEYS.length; li++) {
+      const langKey = LANG_KEYS[li];
       const text = t[li + 1];
       if (text) {
-        text.split(' | ').forEach(p => addIdx(p.trim(), i, false));
+        text.split(' | ').forEach(p => {
+          const trimmed = p.trim();
+          addIdx(trimmed, i, false);
+          // 为每种语言缓存术语列表（校对用）
+          if (trimmed.length >= 2) {
+            if (!LANG_TERMS_CACHE[langKey]) LANG_TERMS_CACHE[langKey] = [];
+            LANG_TERMS_CACHE[langKey].push({ text: trimmed, cn: t[0], idx: i });
+          }
+        });
       }
     }
   }
-  console.log(`📖 术语索引建好: ${Object.keys(INDEX).length} 个索引键`);
+  // 按术语长度从长到短排序（长术语优先匹配，避免短词误命中）
+  for (const lang of LANG_KEYS) {
+    if (LANG_TERMS_CACHE[lang]) {
+      LANG_TERMS_CACHE[lang].sort((a, b) => b.text.length - a.text.length);
+    }
+  }
+  console.log(`📖 术语索引建好: ${Object.keys(INDEX).length} 个索引键, 语言缓存: ${Object.keys(LANG_TERMS_CACHE).map(k => k + '=' + LANG_TERMS_CACHE[k].length).join(', ')}`);
 }
 
 function addIdx(text, idx, isCn) {
@@ -117,34 +137,124 @@ function searchTerms(query, limit = 50) {
   }));
 }
 
-// ===== 从日语文本中提取命中的术语（给翻译用）=====
-// 返回 [{jp: "日语原文", cn: "中文译法"}, ...]
-function findTermsInText(text, maxTerms = 30) {
+// ===== 从文本中提取命中的术语（校对用）=====
+// lang: 'jp'/'en'/'kr' 等，或 'auto' 自动扫描所有语言
+function findTermsInText(text, maxTerms = 50, lang = 'auto') {
   if (!text || !TERMS.length) return [];
   const found = [];
   const seen = new Set();
 
-  // 按日语术语长度从长到短排序（优先匹配长术语，避免短术语误匹配）
-  const jpTerms = [];
-  for (let i = 0; i < TERMS.length; i++) {
-    const jp = TERMS[i][1];
-    if (jp && jp.length >= 2) {
-      jpTerms.push({ jp, cn: TERMS[i][0], idx: i });
-    }
+  // 决定要搜索哪些语言列表
+  let langsToSearch = [];
+  if (lang && lang !== 'auto' && LANG_TERMS_CACHE[lang]) {
+    langsToSearch = [lang];
+  } else {
+    // 自动模式：扫描所有语言
+    langsToSearch = LANG_KEYS;
   }
-  jpTerms.sort((a, b) => b.jp.length - a.jp.length);
 
-  for (const { jp, cn, idx } of jpTerms) {
+  for (const lk of langsToSearch) {
     if (found.length >= maxTerms) break;
-    if (seen.has(idx)) continue;
-    if (text.includes(jp)) {
-      seen.add(idx);
-      const t = TERMS[idx];
-      found.push({ ja: jp, zh: t[0], en: t[2] || '', ko: t[3] || '', 'zh-tw': t[4] || '' });
+    const langList = LANG_TERMS_CACHE[lk] || [];
+    for (const { text: termText, cn, idx } of langList) {
+      if (found.length >= maxTerms) break;
+      if (seen.has(idx)) continue;
+      if (text.includes(termText)) {
+        seen.add(idx);
+        const t = TERMS[idx];
+        const result = { matched: termText, zh: t[0] };
+        for (let li = 0; li < LANG_KEYS.length; li++) {
+          result[LANG_KEYS[li]] = t[li + 1] || '';
+        }
+        result.category = t[8] || '';
+        found.push(result);
+      }
     }
   }
 
+  // 按匹配术语长度从长到短排序（长术语更精准）
+  found.sort((a, b) => b.matched.length - a.matched.length);
   return found;
+}
+
+// ===== 批量校对：逐行检查术语命中 =====
+function batchCheck(lines, lang = 'jp') {
+  if (!lines || !lines.length || !TERMS.length) return [];
+  const langList = LANG_TERMS_CACHE[lang] || [];
+
+  return lines.map((line, i) => {
+    const hits = [];
+    const seen = new Set();
+    for (const { text: termText, cn, idx } of langList) {
+      if (seen.has(idx)) continue;
+      if (line.includes(termText)) {
+        seen.add(idx);
+        const t = TERMS[idx];
+        const hit = { matched: termText, zh: t[0], category: t[8] || '' };
+        for (let li = 0; li < LANG_KEYS.length; li++) {
+          hit[LANG_KEYS[li]] = t[li + 1] || '';
+        }
+        hits.push(hit);
+      }
+    }
+    return { line: i + 1, text: line.substring(0, 120), hits: hits.length, terms: hits.slice(0, 10) };
+  });
+}
+
+// ===== 合并更新术语（从前端解析的 Excel 数据）=====
+function mergeTerms(updates) {
+  // updates: [{ cn, jp, en, kr, tw, vn, id, th, category, key, note }]
+  let added = 0, updated = 0;
+  const cnIndex = {};
+  for (let i = 0; i < TERMS.length; i++) cnIndex[TERMS[i][0]] = i;
+
+  for (const u of updates) {
+    if (!u.cn || u.cn.length > 30) continue;
+    const existIdx = cnIndex[u.cn];
+    if (existIdx !== undefined) {
+      // 更新已有术语
+      const t = TERMS[existIdx];
+      for (let li = 0; li < LANG_KEYS.length; li++) {
+        const newVal = u[LANG_KEYS[li]];
+        if (newVal) {
+          const existing = t[li + 1] || '';
+          if (!existing.split(' | ').includes(newVal)) {
+            t[li + 1] = existing ? existing + ' | ' + newVal : newVal;
+          }
+        }
+      }
+      if (u.category) t[8] = u.category;
+      if (u.key) t[9] = u.key;
+      if (u.note) t[10] = u.note;
+      updated++;
+    } else {
+      // 新增术语
+      const row = [u.cn];
+      for (let li = 0; li < LANG_KEYS.length; li++) {
+        row.push(u[LANG_KEYS[li]] || '');
+      }
+      row.push(u.category || '', u.key || '', u.note || '');
+      TERMS.push(row);
+      cnIndex[u.cn] = TERMS.length - 1;
+      added++;
+    }
+  }
+
+  // 重建索引
+  buildIndex();
+  // 保存回文件
+  try {
+    fs.writeFileSync(TERMS_FILE, JSON.stringify(TERMS), 'utf8');
+    // 更新版本号
+    const now = new Date();
+    const ver = String(now.getFullYear()).slice(2) + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+    VERSION_INFO = { version: ver, count: TERMS.length, languages: LANG_KEYS };
+    fs.writeFileSync(VERSION_FILE, JSON.stringify(VERSION_INFO, null, 2), 'utf8');
+  } catch (e) {
+    console.error('术语保存失败:', e.message);
+  }
+
+  return { added, updated, total: TERMS.length };
 }
 
 // ===== 统计信息 =====
@@ -160,6 +270,9 @@ module.exports = {
   init,
   searchTerms,
   findTermsInText,
+  batchCheck,
+  mergeTerms,
   getStats,
   LANG_KEYS,
+  LANG_LABELS,
 };

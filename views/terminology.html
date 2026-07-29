@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/css/base.css">
   <link rel="stylesheet" href="/static/css/components.css">
   <link rel="stylesheet" href="/static/css/pages/terminology.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/static/js/common.js"></script>
 </head>
 <body>
@@ -24,11 +25,13 @@
     <div class="term-stats-bar" id="statsBar">加载中...</div>
 
     <div class="term-tabs">
-      <button class="term-tab active" onclick="switchTermTab('search')">🔍 搜索术语</button>
-      <button class="term-tab" onclick="switchTermTab('check')">📝 文案校对</button>
+      <button class="term-tab active" onclick="switchTermTab('search')">🔍 搜索</button>
+      <button class="term-tab" onclick="switchTermTab('check')">📝 校对</button>
+      <button class="term-tab" onclick="switchTermTab('batch')">📦 批量校对</button>
+      <button class="term-tab" onclick="switchTermTab('update')">🔄 术语更新</button>
     </div>
 
-    <!-- 搜索面板 -->
+    <!-- Tab 1: 搜索术语 -->
     <div class="term-panel active" id="panel-search">
       <div class="search-bar">
         <input type="text" id="termSearchInput" class="term-search-input" placeholder="输入中文、日语、英语等任意语言关键词..." autofocus>
@@ -39,12 +42,75 @@
       <div id="searchResults" class="search-results"></div>
     </div>
 
-    <!-- 校对面板 -->
+    <!-- Tab 2: 文案校对（自动检测语言） -->
     <div class="term-panel" id="panel-check">
-      <p class="search-hint" style="margin-bottom:8px;">粘贴日文文案，自动识别其中的游戏术语并显示对照表</p>
-      <textarea id="checkInput" class="check-textarea" placeholder="粘贴日文文案，例如：&#10;ツリネバの新イベントが始まりました！露米を使って攻略しましょう..."></textarea>
+      <p class="search-hint" style="margin-bottom:8px;">粘贴任意语言的文案，自动识别其中的游戏术语（支持 7 种语言）</p>
+      <textarea id="checkInput" class="check-textarea" placeholder="粘贴任意语言的文案，例如：&#10;ツリネバの新イベントが始まりました！&#10;The player can use Mount to explore the dungeon..."></textarea>
       <button class="btn btn-primary" onclick="doTermCheck()" style="margin-top:10px;">开始校对</button>
       <div id="checkResult" class="check-result"></div>
+    </div>
+
+    <!-- Tab 3: 批量校对 -->
+    <div class="term-panel" id="panel-batch">
+      <div class="check-lang-bar">
+        <span class="check-label">校对语言：</span>
+        <button class="lang-btn active" data-lang="jp" onclick="setBatchLang(this)">🇯🇵 日语</button>
+        <button class="lang-btn" data-lang="en" onclick="setBatchLang(this)">🇬🇧 英语</button>
+        <button class="lang-btn" data-lang="kr" onclick="setBatchLang(this)">🇰🇷 韩语</button>
+        <button class="lang-btn" data-lang="tw" onclick="setBatchLang(this)">🇭🇰 繁中</button>
+        <button class="lang-btn" data-lang="vn" onclick="setBatchLang(this)">🇻🇳 越南语</button>
+        <button class="lang-btn" data-lang="id" onclick="setBatchLang(this)">🇮🇩 印尼语</button>
+        <button class="lang-btn" data-lang="th" onclick="setBatchLang(this)">🇹🇭 泰语</button>
+      </div>
+      <div class="batch-upload-zone" id="batchDropZone" onclick="document.getElementById('batchFileInput').click()">
+        <div class="batch-upload-icon">📁</div>
+        <div>点击或拖拽上传文件</div>
+        <div class="batch-upload-hint">支持 .txt / .json / .csv（每行一条文案）</div>
+        <input type="file" id="batchFileInput" accept=".txt,.json,.csv" style="display:none" onchange="handleBatchFile(this.files[0])">
+      </div>
+      <div id="batchStatus" class="pa-status"></div>
+      <div id="batchResult"></div>
+    </div>
+
+    <!-- Tab 4: 术语更新 -->
+    <div class="term-panel" id="panel-update">
+      <div class="update-mode-bar">
+        <button class="lang-btn active" id="updateModeBatch" onclick="setUpdateMode('batch')">📦 批量导入（多语言 Excel）</button>
+        <button class="lang-btn" id="updateModeSingle" onclick="setUpdateMode('single')">📝 单语言更新</button>
+      </div>
+
+      <!-- 批量模式 -->
+      <div id="updateBatchPanel">
+        <div class="batch-upload-zone" onclick="document.getElementById('updateBatchInput').click()">
+          <div class="batch-upload-icon">📁</div>
+          <div>拖拽多个 Excel 文件到这里，或点击选择</div>
+          <div class="batch-upload-hint">同时拖入日/英/韩/繁中/越南/印尼/泰语 Excel，自动识别并合并</div>
+          <input type="file" id="updateBatchInput" accept=".xlsx,.xls" multiple style="display:none" onchange="handleUpdateBatch(this.files)">
+        </div>
+        <div id="updateBatchList" class="update-file-list"></div>
+      </div>
+
+      <!-- 单语言模式 -->
+      <div id="updateSinglePanel" style="display:none">
+        <div class="check-lang-bar">
+          <span class="check-label">目标语言：</span>
+          <button class="lang-btn active" data-lang="jp" onclick="setUpdateLang(this)">🇯🇵 日语</button>
+          <button class="lang-btn" data-lang="en" onclick="setUpdateLang(this)">🇬🇧 英语</button>
+          <button class="lang-btn" data-lang="kr" onclick="setUpdateLang(this)">🇰🇷 韩语</button>
+          <button class="lang-btn" data-lang="tw" onclick="setUpdateLang(this)">🇭🇰 繁中</button>
+          <button class="lang-btn" data-lang="vn" onclick="setUpdateLang(this)">🇻🇳 越南语</button>
+          <button class="lang-btn" data-lang="id" onclick="setUpdateLang(this)">🇮🇩 印尼语</button>
+          <button class="lang-btn" data-lang="th" onclick="setUpdateLang(this)">🇹🇭 泰语</button>
+        </div>
+        <div class="batch-upload-zone" onclick="document.getElementById('updateSingleInput').click()">
+          <div class="batch-upload-icon">📁</div>
+          <div>拖拽 Excel 文件到这里</div>
+          <input type="file" id="updateSingleInput" accept=".xlsx,.xls" style="display:none" onchange="handleUpdateSingle(this.files[0])">
+        </div>
+      </div>
+
+      <div id="updateStatus" class="pa-status"></div>
+      <div id="updateStats" class="update-stats"></div>
     </div>
   </div>
 

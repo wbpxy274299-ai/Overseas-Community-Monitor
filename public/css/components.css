@@ -46,6 +46,55 @@
   opacity: 0.95;
 }
 
+/* ===== 顶部用户名/角色信息 ===== */
+.header-user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 5px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 999px;
+  color: white;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.hui-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.25);
+  font-size: 13px;
+  line-height: 1;
+}
+.hui-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.hui-name {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1;
+}
+.hui-role {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  line-height: 1;
+}
+.hui-role-super_admin { background: #fbbf24; color: #78350f; }
+.hui-role-admin { background: #bfdbfe; color: #1e40af; }
+.hui-role-operator { background: #86efac; color: #14532d; }
+.hui-role-viewer { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.85); }
+.hui-role-pending { background: rgba(0,0,0,0.2); color: rgba(255,255,255,0.7); }
+
 /* ===== 汉堡菜单导航 ===== */
 .header-nav {
   position: relative;
@@ -122,6 +171,24 @@
   height: 1px;
   background: #e5e7eb;
   margin: 6px 0;
+}
+
+/* 导航分组标题 */
+.nav-group-label {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+/* 导航分组分隔线 */
+.nav-group-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 6px 8px;
 }
 
 .nav-dark-toggle {
@@ -345,6 +412,8 @@ tr:hover td { background: #f8f9ff; }
 [data-theme="dark"] .nav-link:hover { background: #374151; color: #93c5fd; }
 [data-theme="dark"] .nav-link.active { background: #667eea; color: white; }
 [data-theme="dark"] .nav-divider { background: #4b5563; }
+[data-theme="dark"] .nav-group-label { color: #6b7280; }
+[data-theme="dark"] .nav-group-divider { background: #4b5563; }
 [data-theme="dark"] .nav-dark-toggle { color: #9ca3af; }
 [data-theme="dark"] .nav-dark-toggle:hover { background: #374151; }
 [data-theme="dark"] .nav-logout-btn { color: #fc8181; }

@@ -304,9 +304,10 @@ function getRoleByEmail(email) {
 
 // ===== 用户扩展权限管理 =====
 // user_permissions 是一个 JSON 字符串，格式如：
-// {"upload": true, "regions": ["JP", "TC", "SEA", "KR"]}
+// {"upload": true, "regions": ["JP", "TC", "SEA", "KR"], "postAssistant": true}
 // - upload: operator 是否有上传数据权限（默认 false）
 // - regions: 可操作的地区列表（默认 null = 全地区，空数组 = 无地区）
+// - postAssistant: 是否可访问贴文助手（默认 true，外包运营可关闭）
 
 const ALL_REGIONS = ['JP', 'TC', 'SEA', 'KR'];
 
@@ -315,16 +316,17 @@ function getUserPermissions(username) {
   if (!row) return { upload: false, regions: ALL_REGIONS };
   // admin/super_admin 拥有全部权限
   if (row.role === 'admin' || row.role === 'super_admin') {
-    return { upload: true, regions: ALL_REGIONS };
+    return { upload: true, regions: ALL_REGIONS, postAssistant: true };
   }
   try {
     const perms = row.user_permissions ? JSON.parse(row.user_permissions) : {};
     return {
       upload: !!perms.upload,
       regions: perms.regions || ALL_REGIONS, // null 或 undefined 表示全地区
+      postAssistant: perms.postAssistant !== false, // 默认 true，只有明确关闭才为 false
     };
   } catch (_) {
-    return { upload: false, regions: ALL_REGIONS };
+    return { upload: false, regions: ALL_REGIONS, postAssistant: true };
   }
 }
 
@@ -336,6 +338,29 @@ function setUserPermissions(username, permissions) {
 
 function hasUploadPermission(username) {
   return getUserPermissions(username).upload;
+}
+
+// ===== 翻译用量统计（内存，每天 0 点自动重置）=====
+const DAILY_TRANSLATION_LIMIT = 15;
+const _translationUsage = new Map(); // key: "username|date", value: count
+
+function _usageKey(username) {
+  return `${username}|${new Date().toDateString()}`;
+}
+
+function getTranslationUsage(username) {
+  return _translationUsage.get(_usageKey(username)) || 0;
+}
+
+function incrementTranslationUsage(username) {
+  const key = _usageKey(username);
+  const current = _translationUsage.get(key) || 0;
+  _translationUsage.set(key, current + 1);
+  return current + 1;
+}
+
+function getTranslationRemaining(username) {
+  return Math.max(0, DAILY_TRANSLATION_LIMIT - getTranslationUsage(username));
 }
 
 function hasRegionAccess(username, server) {
@@ -485,6 +510,7 @@ module.exports = {
   getUserRole, isAdmin, setUserRole, getAllUsers, VALID_ROLES, SUPER_ADMIN_EMAILS,
   deleteUser, getRoleByEmail,
   getUserPermissions, setUserPermissions, hasUploadPermission, hasRegionAccess, ALL_REGIONS,
+  getTranslationUsage, incrementTranslationUsage, getTranslationRemaining, DAILY_TRANSLATION_LIMIT,
   getUserByGoogleId, getUserByEmail, createUserWithGoogle, updateUserGoogleInfo, setUserRoleByGoogleId,
   createTask, updateTask, getTask, listTasks,
   getPendingTasks, countTasks,

@@ -190,6 +190,7 @@ function buildPermissionsCell(user) {
   let perms = {};
   try { perms = user.user_permissions ? JSON.parse(user.user_permissions) : {}; } catch (_) {}
   const hasUpload = !!perms.upload;
+  const hasPostAssistant = perms.postAssistant !== false; // 默认 true
   const regions = perms.regions || ['JP', 'TC', 'SEA', 'KR']; // null = 全地区
   const username = escapeHtml(user.username);
 
@@ -198,6 +199,13 @@ function buildPermissionsCell(user) {
     <label class="perm-toggle" title="是否允许上传舆情数据">
       <input type="checkbox" ${hasUpload ? 'checked' : ''} onchange="togglePerm('${username}', 'upload', this.checked)">
       <span>📤 上传数据</span>
+    </label>`;
+
+  // 贴文助手开关
+  const postAssistantToggle = `
+    <label class="perm-toggle" title="是否允许访问贴文助手（外包运营可关闭）">
+      <input type="checkbox" ${hasPostAssistant ? 'checked' : ''} onchange="togglePerm('${username}', 'postAssistant', this.checked)">
+      <span>✍️ 贴文助手</span>
     </label>`;
 
   // 地区复选框
@@ -209,7 +217,7 @@ function buildPermissionsCell(user) {
     </label>`;
   }).join('');
 
-  return `<div class="perm-cell">${uploadToggle}<div class="region-row">${regionChecks}</div></div>`;
+  return `<div class="perm-cell">${uploadToggle}${postAssistantToggle}<div class="region-row">${regionChecks}</div></div>`;
 }
 
 // 切换权限
@@ -223,6 +231,8 @@ async function togglePerm(username, type, value) {
     const perms = data.data;
     if (type === 'upload') {
       perms.upload = value;
+    } else if (type === 'postAssistant') {
+      perms.postAssistant = value;
     } else if (type.startsWith('region_')) {
       const region = type.replace('region_', '');
       if (value) {
@@ -241,7 +251,7 @@ async function togglePerm(username, type, value) {
     });
     const saveData = await saveRes.json();
     if (saveData.ok) {
-      const label = type === 'upload' ? '上传权限' : type.replace('region_', '') + ' 地区';
+      const label = type === 'upload' ? '上传权限' : type === 'postAssistant' ? '贴文助手' : type.replace('region_', '') + ' 地区';
       Toast.success(`✅ ${username} 的 ${label} 已${value ? '开通' : '关闭'}`);
     } else {
       Toast.error('❌ 保存失败: ' + saveData.error);
@@ -262,6 +272,7 @@ function switchTab(tab) {
   // 切换时加载数据
   if (tab === 'tokens') loadTokens();
   if (tab === 'channels') loadChannels();
+  if (tab === 'feedback') loadFeedback();
 }
 
 // ===== Token 管理 =====
@@ -276,7 +287,14 @@ async function loadTokens() {
 
 function renderTokenCards(tokens) {
   const container = document.getElementById('tokenCards');
-  container.innerHTML = tokens.map(t => `
+  const user = getCurrentUser();
+  const isSuperAdmin = user && user.role === 'super_admin';
+  container.innerHTML = tokens.map(t => {
+    // 只有超管才能看到更新 Token 按钮
+    const editBtnHtml = isSuperAdmin
+      ? `<button class="btn-token-edit" onclick="showTokenEdit('${t.server}')">✏️ 更新 Token</button>`
+      : `<button class="btn-token-edit" disabled title="仅超级管理员可更新 Token" style="opacity:0.4;cursor:not-allowed;">✏️ 更新 Token</button>`;
+    return `
     <div class="token-card" id="token-card-${t.server}">
       <div class="token-card-header">
         <span class="token-server-badge">${t.label}</span>
@@ -289,7 +307,7 @@ function renderTokenCards(tokens) {
       </div>
       <div class="token-card-actions">
         <button class="btn-token-test" onclick="testToken('${t.server}')">🔍 测试健康度</button>
-        <button class="btn-token-edit" onclick="showTokenEdit('${t.server}')">✏️ 更新 Token</button>
+        ${editBtnHtml}
       </div>
       <div class="token-edit-form" id="token-edit-${t.server}" style="display:none;">
         <input type="password" id="token-input-${t.server}" placeholder="粘贴新的 Token" class="token-input">
@@ -298,8 +316,8 @@ function renderTokenCards(tokens) {
           <button class="btn-token-cancel" onclick="hideTokenEdit('${t.server}')">取消</button>
         </div>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 async function testToken(server) {
@@ -440,6 +458,76 @@ async function deleteChannel(encodedName) {
   } catch (e) { Toast.error('网络错误'); }
 }
 
+// ===== 意见反馈（仅超管） =====
+async function loadFeedback() {
+  const user = getCurrentUser();
+  if (!user || user.role !== 'super_admin') {
+    document.getElementById('feedbackList').innerHTML = '<div class="empty-state">权限不足</div>';
+    return;
+  }
+  try {
+    const res = await fetch('/api/feedback', { credentials: 'same-origin' });
+    const data = await res.json();
+    if (data.ok) renderFeedbackList(data.data);
+    else Toast.error('加载反馈失败');
+  } catch (e) { Toast.error('网络错误'); }
+}
+
+function renderFeedbackList(items) {
+  const container = document.getElementById('feedbackList');
+  if (!items || !items.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:32px;text-align:center;color:#888;">暂无反馈 ✨</div>';
+    return;
+  }
+  const statusLabels = { unread: '🆕 未读', read: '📧 已读', resolved: '✅ 已处理' };
+  container.innerHTML = items.map(item => {
+    const statusText = statusLabels[item.status] || item.status;
+    const date = item.created_at ? formatTimestamp(item.created_at) : '—';
+    return `
+    <div class="feedback-admin-item ${item.status === 'unread' ? 'unread' : ''}">
+      <div class="fai-header">
+        <div class="fai-title-row">
+          <span class="fai-title">${escapeHtml(item.title)}</span>
+          <span class="fai-status">${statusText}</span>
+        </div>
+        <div class="fai-meta">
+          <span>👤 ${escapeHtml(item.from_user || '匿名')}</span>
+          <span>📅 ${date}</span>
+        </div>
+      </div>
+      <div class="fai-content">${escapeHtml(item.content)}</div>
+      <div class="fai-actions">
+        ${item.status === 'unread' ? `<button class="btn btn-sm" onclick="markFeedbackRead(${item.id})">标为已读</button>` : ''}
+        ${item.status !== 'resolved' ? `<button class="btn btn-sm btn-success" onclick="markFeedbackResolved(${item.id})">标为已处理</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function markFeedbackRead(id) {
+  try {
+    const res = await fetch(`/api/feedback/${id}/status`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'read' }), credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) { Toast.success('已标为已读'); loadFeedback(); }
+    else Toast.error('操作失败');
+  } catch (e) { Toast.error('网络错误'); }
+}
+
+async function markFeedbackResolved(id) {
+  try {
+    const res = await fetch(`/api/feedback/${id}/status`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'resolved' }), credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) { Toast.success('已标为已处理'); loadFeedback(); }
+    else Toast.error('操作失败');
+  } catch (e) { Toast.error('网络错误'); }
+}
+
 // 页面加载时初始化
 window.addEventListener('DOMContentLoaded', () => {
   const user = getCurrentUser();
@@ -449,4 +537,9 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   console.log('🔐 权限管理页面 - 当前用户:', user.name, '角色:', user.role);
   loadUsers();
+  // 仅超管显示反馈 Tab
+  if (user.role === 'super_admin') {
+    const fbBtn = document.getElementById('feedbackTabBtn');
+    if (fbBtn) fbBtn.style.display = '';
+  }
 });

@@ -16,6 +16,7 @@ const express = require('express');
 const path = require('path');
 const router = express.Router();
 const { ensureLoggedIn } = require('../middleware/auth');
+const db = require('../db');
 
 // ===== 登录页（不检查认证，否则死循环）=====
 router.get('/login', (req, res) => {
@@ -63,6 +64,20 @@ router.get('/insights', ensureLoggedIn, (req, res) => {
 // ===== 术语校对页面（所有角色）=====
 router.get('/terminology', ensureLoggedIn, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'terminology.html'));
+});
+
+// ===== 贴文助手（operator + admin + super_admin，需有 postAssistant 权限）=====
+router.get('/post-assistant', ensureLoggedIn, (req, res) => {
+  // admin/super_admin 默认有权限
+  if (req.user.role === 'admin' || req.user.role === 'super_admin') {
+    return res.sendFile(path.join(__dirname, '..', 'views', 'post-assistant.html'));
+  }
+  // 检查 postAssistant 权限
+  const perms = db.getUserPermissions(req.user.username);
+  if (!perms.postAssistant) {
+    return res.redirect('/sentiment');
+  }
+  res.sendFile(path.join(__dirname, '..', 'views', 'post-assistant.html'));
 });
 
 // 兼容旧路径：/google-login → /login

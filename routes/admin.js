@@ -107,18 +107,19 @@ router.get('/api/admin/users/:username/permissions', requireRole('admin', 'super
   }
 });
 
-// 设置用户权限（上传权限 + 地区限制）
+// 设置用户权限（上传权限 + 地区限制 + 贴文助手）
 router.put('/api/admin/users/:username/permissions', requireRole('admin', 'super_admin'), (req, res) => {
   const { username } = req.params;
-  const { upload, regions } = req.body;
+  const { upload, regions, postAssistant } = req.body;
   try {
     const currentPerms = db.getUserPermissions(username);
     const newPerms = {
       upload: typeof upload === 'boolean' ? upload : currentPerms.upload,
       regions: Array.isArray(regions) ? regions : currentPerms.regions,
+      postAssistant: typeof postAssistant === 'boolean' ? postAssistant : currentPerms.postAssistant,
     };
     db.setUserPermissions(username, newPerms);
-    log.info(`[权限设置] ${req.user.username} 设置 ${username} 权限: upload=${newPerms.upload}, regions=${JSON.stringify(newPerms.regions)}`);
+    log.info(`[权限设置] ${req.user.username} 设置 ${username} 权限: upload=${newPerms.upload}, regions=${JSON.stringify(newPerms.regions)}, postAssistant=${newPerms.postAssistant}`);
     res.json({ ok: true, message: '权限更新成功', data: newPerms });
   } catch (e) {
     res.status(500).json({ error: e.message });

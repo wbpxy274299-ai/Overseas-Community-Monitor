@@ -32,6 +32,7 @@
       <button class="admin-tab active" onclick="switchTab('users')">👥 用户权限</button>
       <button class="admin-tab" onclick="switchTab('tokens')">🔑 Token 管理</button>
       <button class="admin-tab" onclick="switchTab('channels')">📡 DC 频道编辑</button>
+      <button class="admin-tab" id="feedbackTabBtn" onclick="switchTab('feedback')" style="display:none;">💬 意见反馈</button>
     </div>
 
     <!-- Tab: 用户权限 -->
@@ -90,6 +91,17 @@
       </div>
       <!-- 频道列表 -->
       <div id="channelList" class="channel-list">
+        <div class="loading">加载中...</div>
+      </div>
+    </div>
+
+    <!-- Tab: 意见反馈（仅超管） -->
+    <div class="admin-tab-content" id="tab-feedback">
+      <div class="admin-section-header">
+        <h2>💬 用户意见反馈</h2>
+        <p>查看用户提交的反馈和建议</p>
+      </div>
+      <div id="feedbackList" class="feedback-admin-list">
         <div class="loading">加载中...</div>
       </div>
     </div>

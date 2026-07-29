@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>✍️ 贴文助手 - M2G 用户运营后台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✍️</text></svg>">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/pages/post-assistant.css">
+  <script src="/static/js/common.js"></script>
+</head>
+<body>
+  <header class="app-header">
+  <div class="app-header-inner">
+    <div class="header-left">
+      <h1>✍️ 贴文助手</h1>
+      <p>左侧 AI 对话写贴文 · 右侧翻译校对一键搞定</p>
+    </div>
+    <nav class="header-nav" id="mainNav"></nav>
+  </div>
+  </header>
+
+  <div class="pa-container">
+    <!-- 左栏：AI Studio 聊天窗 -->
+    <div class="pa-chat-col">
+      <div class="pa-free-notice">
+        <span class="pa-free-icon">🆓</span>
+        <span>这是<strong>阿里 AI Studio</strong>，公司账号，<strong>不花钱、随便用</strong>！在这里让 AI 帮你写贴文初稿。</span>
+      </div>
+      <div class="pa-card pa-chat-card">
+        <div class="pa-step-header">
+          <span class="pa-step-badge">💬</span>
+          <span class="pa-step-title">AI Studio 对话</span>
+          <span class="pa-step-hint">需内网环境</span>
+        </div>
+        <div class="pa-chat-frame-wrap">
+          <iframe
+            id="paChatFrame"
+            src="https://aistudio.alibaba-inc.com/aiWorktable#/aistudio/webPage?appCode=vAKIOhyPlmw&showType=page&Iframe=1"
+            allow="clipboard-write"
+            frameborder="0">
+          </iframe>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右栏：编辑 + 翻译 + 校对 -->
+    <div class="pa-output-col">
+      <div class="pa-paid-notice">
+        <span class="pa-paid-icon">💰</span>
+        <span>右侧翻译 & 校对使用的是<strong>阿饱自费的 AI</strong>，每人每天 <strong>15 次</strong>，请注意不要浪费！</span>
+      </div>
+      <!-- 编辑区 -->
+      <div class="pa-card">
+        <div class="pa-step-header">
+          <span class="pa-step-badge">📝</span>
+          <span class="pa-step-title">贴文编辑</span>
+          <span class="pa-step-hint" id="pa-remaining-hint">加载中...</span>
+        </div>
+        <textarea class="pa-editor" id="pa-editor" placeholder="在这里粘贴或编辑贴文内容..."></textarea>
+        <div class="pa-btn-row">
+          <button class="btn btn-primary" id="pa-trans-btn" onclick="paTranslate()">🌐 翻译成 7 语言</button>
+          <button class="btn-success" id="pa-proof-btn" onclick="paProofread()">✅ 校对翻译</button>
+          <button class="btn-secondary" onclick="paClear()">清空</button>
+        </div>
+        <div id="pa-status" class="pa-status"></div>
+      </div>
+
+      <!-- 输出区（Tab 切换） -->
+      <div class="pa-card pa-output-card">
+        <div class="pa-tab-bar">
+          <button class="pa-tab active" data-tab="translate" onclick="paSwitchTab('translate')">🌐 翻译结果</button>
+          <button class="pa-tab" data-tab="proofread" onclick="paSwitchTab('proofread')">✅ 校对结果</button>
+        </div>
+        <div id="pa-tab-translate" class="pa-tab-content active">
+          <div id="pa-output">
+            <div class="pa-empty-hint">翻译结果会显示在这里 ✨</div>
+          </div>
+        </div>
+        <div id="pa-tab-proofread" class="pa-tab-content">
+          <div id="pa-proof-output">
+            <div class="pa-empty-hint">校对结果会显示在这里 📝</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/post-assistant.js"></script>
+</body>
+</html>

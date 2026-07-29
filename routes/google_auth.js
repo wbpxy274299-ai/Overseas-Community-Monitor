@@ -75,12 +75,14 @@ router.get('/verify', (req, res) => {
     return res.status(401).json({ valid: false, error: '会话已过期', code: 'SESSION_EXPIRED' });
   }
   // 实时从数据库刷新角色
+  let perms = null;
   try {
     const db = require('../db');
     const currentRole = db.getUserRole(user.username);
     if (currentRole && currentRole !== user.role) {
       user.role = currentRole;
     }
+    perms = db.getUserPermissions(user.username);
   } catch (_) {}
   res.json({
     valid: true,
@@ -91,6 +93,7 @@ router.get('/verify', (req, res) => {
       role: user.role,
       picture: user.picture,
     },
+    permissions: perms,
   });
 });
 
