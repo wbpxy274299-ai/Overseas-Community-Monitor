@@ -165,6 +165,33 @@ router.post('/api/tasks', validateInput({
   res.status(201).json({ id: taskId, message: '任务创建成功', mode: 'scheduled' });
 });
 
+// ===== 任务统计概览 =====
+router.get('/api/tasks/stats', (req, res) => {
+  const stats = {
+    total: db.countTasks(),
+    received: db.countTasks('received'),
+    scheduled: db.countTasks('scheduled'),
+    sent: db.countTasks('sent'),
+    failed: db.countTasks('failed'),
+    cancelled: db.countTasks('cancelled'),
+    recalled: db.countTasks('recalled'),
+  };
+  // 今日统计（按 created_at 前缀匹配）
+  const today = new Date().toISOString().slice(0, 10);
+  const todayRows = db.queryAll(
+    "SELECT status, COUNT(*) as cnt FROM tasks WHERE created_at LIKE ? GROUP BY status",
+    [today + '%']
+  );
+  stats.today = { total: 0, sent: 0, failed: 0, pending: 0 };
+  for (const r of todayRows) {
+    stats.today.total += r.cnt;
+    if (r.status === 'sent') stats.today.sent += r.cnt;
+    else if (r.status === 'failed') stats.today.failed += r.cnt;
+    else if (['received', 'scheduled'].includes(r.status)) stats.today.pending += r.cnt;
+  }
+  res.json(stats);
+});
+
 // 查询任务列表
 router.get('/api/tasks', (req, res) => {
   const status = req.query.status || undefined;

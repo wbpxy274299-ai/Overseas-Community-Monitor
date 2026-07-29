@@ -46,55 +46,123 @@
     </div>
   </div>
 
+  <!-- 统计概览 -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-mini stat-today">
+      <div class="stat-mini-icon">📤</div>
+      <div class="stat-mini-body">
+        <div class="stat-mini-value" id="statTodaySent">0</div>
+        <div class="stat-mini-label">今日已发</div>
+      </div>
+    </div>
+    <div class="stat-mini stat-pending">
+      <div class="stat-mini-icon">⏳</div>
+      <div class="stat-mini-body">
+        <div class="stat-mini-value" id="statTodayPending">0</div>
+        <div class="stat-mini-label">待发送</div>
+      </div>
+    </div>
+    <div class="stat-mini stat-failed">
+      <div class="stat-mini-icon">❌</div>
+      <div class="stat-mini-body">
+        <div class="stat-mini-value" id="statTodayFailed">0</div>
+        <div class="stat-mini-label">失败</div>
+      </div>
+    </div>
+    <div class="stat-mini stat-total">
+      <div class="stat-mini-icon">📊</div>
+      <div class="stat-mini-body">
+        <div class="stat-mini-value" id="statTotal">0</div>
+        <div class="stat-mini-label">总任务数</div>
+      </div>
+    </div>
+  </div>
+
   <div class="tabs">
-    <button class="tab-btn active" data-tab="submit">提交发送</button>
-    <button class="tab-btn" data-tab="list">任务列表</button>
+    <button class="tab-btn active" data-tab="submit">📝 提交发送</button>
+    <button class="tab-btn" data-tab="list">📋 任务列表</button>
   </div>
 
   <!-- Tab1: 提交发送 -->
   <div id="tab-submit" class="tab-panel active">
     <form id="sendForm">
-      <div class="form-group">
-        <label>发送模式 *</label>
-        <select id="sendMode">
-          <option value="now">立即发送</option>
-          <option value="schedule">定时发送</option>
-        </select>
+      <div class="form-section">
+        <div class="form-section-title">📍 发送设置</div>
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label>发送模式</label>
+            <div class="mode-switch">
+              <label class="mode-option selected" data-mode="now">
+                <input type="radio" name="sendMode" value="now" checked>
+                <span class="mode-icon">⚡</span>
+                <span class="mode-text">立即发送</span>
+              </label>
+              <label class="mode-option" data-mode="schedule">
+                <input type="radio" name="sendMode" value="schedule">
+                <span class="mode-icon">📅</span>
+                <span class="mode-text">定时发送</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-group" id="sendTimeGroup" style="display:none;">
+            <label>定时时间</label>
+            <input type="datetime-local" id="sendTime">
+          </div>
+          <div class="form-group">
+            <label>发送地区 *</label>
+            <select id="serverRegion" required>
+              <option value="">-- 请选择地区 --</option>
+              <option value="JP">🇯🇵 日服</option>
+              <option value="TC">🇹🇼 繁中服</option>
+              <option value="SEA">🌏 东南亚服</option>
+              <option value="KR">🇰🇷 韩服</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>频道 *</label>
+            <select id="channel" required disabled>
+              <option value="">-- 请先选择地区 --</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>发送人（根据频道自动填充）</label>
+          <input type="text" id="sender" readonly placeholder="选择频道后自动填充" class="readonly-field">
+        </div>
       </div>
-      <div class="form-group">
-        <label>发送地区 *</label>
-        <select id="serverRegion" required>
-          <option value="">-- 请选择地区 --</option>
-          <option value="JP">日服</option>
-          <option value="TC">繁中服</option>
-          <option value="SEA">东南亚服</option>
-          <option value="KR">韩服</option>
-        </select>
+
+      <div class="form-section">
+        <div class="form-section-title">✍️ 消息内容</div>
+        <div class="form-group">
+          <textarea id="content" placeholder="输入要发送的文字内容... 支持 Discord Markdown 格式（**粗体** *斜体* > 引用）"></textarea>
+          <div class="textarea-footer">
+            <span class="char-count" id="charCount">0 字</span>
+            <span class="format-hint">支持 **粗体** *斜体* ~~删除线~~ `代码`</span>
+          </div>
+        </div>
       </div>
-      <div class="form-group">
-        <label>频道 *</label>
-        <select id="channel" required disabled>
-          <option value="">-- 请先选择地区 --</option>
-        </select>
+
+      <div class="form-section">
+        <div class="form-section-title">🖼️ 附件图片</div>
+        <div class="form-group">
+          <div class="upload-dropzone" id="uploadDropzone">
+            <div class="upload-dropzone-inner">
+              <div class="upload-icon">📁</div>
+              <div class="upload-text">拖拽图片到这里，或 <span class="upload-link">点击选择文件</span></div>
+              <div class="upload-hint">支持 JPG / PNG / GIF，可多选</div>
+            </div>
+            <input type="file" id="imageFiles" multiple accept="image/*" class="upload-input">
+          </div>
+          <div id="imagePreview" class="image-preview"></div>
+        </div>
       </div>
-      <div class="form-group">
-        <label>发送人（根据频道自动填充）</label>
-        <input type="text" id="sender" readonly placeholder="选择频道后自动填充" class="readonly-field">
+
+      <div class="form-submit-row">
+        <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
+          <span class="btn-icon">⚡</span>
+          <span id="submitBtnText">立即发送</span>
+        </button>
       </div>
-      <div class="form-group">
-        <label>消息内容 *</label>
-        <textarea id="content" placeholder="输入要发送的文字内容..."></textarea>
-      </div>
-      <div class="form-group">
-        <label>上传图片（可多选）</label>
-        <input type="file" id="imageFiles" multiple accept="image/*">
-        <div id="imagePreview" class="image-preview"></div>
-      </div>
-      <div class="form-group" id="sendTimeGroup" style="display:none;">
-        <label>定时发送时间 *</label>
-        <input type="datetime-local" id="sendTime">
-      </div>
-      <button type="submit" class="btn btn-primary" id="submitBtn">立即发送</button>
     </form>
     <div id="sendMsg"></div>
   </div>

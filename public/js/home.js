@@ -144,7 +144,19 @@ function autoLogin() {
 // ===== 初始化 =====
 async function initMainApp() {
   await Promise.all([loadChannels(), loadSenders()]);
+  loadStats();
   loadTasks();
+}
+
+// ===== 统计概览 =====
+async function loadStats() {
+  try {
+    const { data } = await api('/api/tasks/stats');
+    $('statTodaySent').textContent = data.today?.sent || 0;
+    $('statTodayPending').textContent = data.today?.pending || 0;
+    $('statTodayFailed').textContent = data.today?.failed || 0;
+    $('statTotal').textContent = data.total || 0;
+  } catch (_) {}
 }
 
 async function loadChannels() {
@@ -217,17 +229,28 @@ function switchTab(name) {
 }
 
 // ===== 发送模式 =====
+function getSendMode() {
+  const checked = document.querySelector('input[name="sendMode"]:checked');
+  return checked ? checked.value : 'now';
+}
+
 function onSendModeChange() {
-  const mode = $('sendMode').value;
+  const mode = getSendMode();
   const timeGroup = $('sendTimeGroup');
-  const submitBtn = $('submitBtn');
+  const submitBtnText = $('submitBtnText');
+  // 更新选中样式
+  document.querySelectorAll('.mode-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.mode === mode);
+  });
   if (mode === 'schedule') {
     timeGroup.style.display = 'block';
-    submitBtn.textContent = '定时发送';
+    submitBtnText.textContent = '定时发送';
+    $('submitBtn').querySelector('.btn-icon').textContent = '📅';
     $('sendTime').value = '';
   } else {
     timeGroup.style.display = 'none';
-    submitBtn.textContent = '立即发送';
+    submitBtnText.textContent = '立即发送';
+    $('submitBtn').querySelector('.btn-icon').textContent = '⚡';
   }
 }
 
@@ -333,13 +356,21 @@ function handlePreviewClick(e) {
   }
 }
 
+// ===== 字数统计 =====
+function updateCharCount() {
+  const len = $('content').value.length;
+  const el = $('charCount');
+  el.textContent = `${len} 字`;
+  el.classList.toggle('char-warn', len > 1800);
+}
+
 // ===== 提交发送 =====
 async function submitSend(e) {
   e.preventDefault();
   const msgDiv = $('sendMsg');
   const channelVal = $('channel').value;
   const contentVal = $('content').value.trim();
-  const mode = $('sendMode').value;
+  const mode = getSendMode();
 
   // 前端验证
   if (!channelVal) { showMsg('sendMsg', '请选择频道'); return false; }
@@ -394,14 +425,17 @@ async function submitSend(e) {
     const { ok, data } = await api('/api/tasks', { method: 'POST', body: JSON.stringify(body) });
     if (ok) {
       const label = data.mode === 'immediate' ? '立即' : '定时';
-      showMsg('sendMsg', `${label}发送任务创建成功！ID: ${data.id}`, 'success');
+      showMsg('sendMsg', `✅ ${label}发送任务创建成功！ID: ${data.id}`, 'success');
       $('sendForm').reset();
-      $('sendMode').value = 'now';
+      // 恢复模式为“立即发送”
+      document.querySelector('input[name="sendMode"][value="now"]').checked = true;
       onSendModeChange();
       state.uploadedFilenames = [];
       state.imageFileList = [];
       $('imagePreview').innerHTML = '';
       $('sender').value = '';
+      updateCharCount();
+      loadStats();
       
       // 自动跳转到任务列表
       setTimeout(() => {
@@ -744,11 +778,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 发送表单
   $('sendForm').addEventListener('submit', submitSend);
-  $('sendMode').addEventListener('change', onSendModeChange);
-  $('serverRegion').addEventListener('change', onRegionChange); // 新增：地区变化联动
+  // 发送模式（radio 按钮）
+  document.querySelectorAll('input[name="sendMode"]').forEach(radio => {
+    radio.addEventListener('change', onSendModeChange);
+  });
+  // 模式选项点击
+  document.querySelectorAll('.mode-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      const radio = opt.querySelector('input[type="radio"]');
+      if (radio) { radio.checked = true; onSendModeChange(); }
+    });
+  });
+  $('serverRegion').addEventListener('change', onRegionChange);
   $('channel').addEventListener('change', onChannelChange);
   $('imageFiles').addEventListener('change', previewImages);
   $('imagePreview').addEventListener('click', handlePreviewClick);
+
+  // 字数统计
+  $('content').addEventListener('input', updateCharCount);
 
   // 搜索输入（防抖 300ms）
   let searchTimer;
@@ -812,6 +859,27 @@ document.addEventListener('DOMContentLoaded', () => {
       loadTasks();
     }
   }, 30000);
+
+  // 统计每60秒刷新
+  setInterval(() => {
+    if ($('mainApp').style.display !== 'none') loadStats();
+  }, 60000);
+
+  // 拖拽上传
+  const dropzone = $('uploadDropzone');
+  if (dropzone) {
+    ['dragenter', 'dragover'].forEach(evt => {
+      dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+      dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); });
+    });
+    dropzone.addEventListener('drop', (e) => {
+      const files = e.dataTransfer.files;
+      for (const f of files) state.imageFileList.push(f);
+      renderImagePreview();
+    });
+  }
 
   // 暗黑模式（已迁移到 common.js 统一管理）
   DarkMode.init();
