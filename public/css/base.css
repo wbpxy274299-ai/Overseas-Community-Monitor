@@ -167,3 +167,46 @@ h3 { font-size: 18px; }
   }
   .container { padding: var(--space-md); }
 }
+
+/* ===== Pending 待审批遮罩 ===== */
+#pending-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg, #f7f8fc);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pending-card {
+  text-align: center;
+  padding: 48px 40px;
+  max-width: 420px;
+}
+.pending-icon { font-size: 64px; margin-bottom: 20px; }
+.pending-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text, #1a202c);
+  margin-bottom: 12px;
+}
+.pending-desc {
+  font-size: 15px;
+  color: var(--color-text-muted, #718096);
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+.pending-actions .btn { min-width: 140px; }
+
+/* ===== 导航栏置灰链接 ===== */
+.nav-link.nav-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: auto;
+  text-decoration: none;
+  filter: grayscale(0.5);
+}
+.nav-link.nav-disabled:hover {
+  opacity: 0.6;
+  background: transparent;
+}

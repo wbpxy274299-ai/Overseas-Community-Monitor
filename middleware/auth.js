@@ -90,10 +90,8 @@ async function getGoogleUserInfo(accessToken) {
 
 // ===== 创建/查找本地用户并签发会话 =====
 
-// ===== 超级管理员邮箱列表（自动提升为 admin）=====
-const SUPER_ADMIN_EMAILS = [
-  'wbpxy274299@gmail.com',
-];
+// ===== 超级管理员邮箱列表（统一从 db.js 读取）=====
+const { SUPER_ADMIN_EMAILS } = require('../db');
 
 async function createSession(googleUserInfo) {
   let localUser = db.getUserByGoogleId(googleUserInfo.googleId);
@@ -102,20 +100,20 @@ async function createSession(googleUserInfo) {
   const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(googleUserInfo.email);
 
   if (!localUser) {
-    // 新用户自动注册
+    // 新用户自动注册 — 默认为 pending（等待审批）
     const username = googleUserInfo.name || googleUserInfo.email.split('@')[0];
     const defaultPassword = Math.random().toString(36).slice(-8);
-    const role = isSuperAdmin ? 'admin' : 'operator';
+    const role = isSuperAdmin ? 'super_admin' : 'pending';
     localUser = db.createUserWithGoogle(
       username, googleUserInfo.email, googleUserInfo.googleId, defaultPassword, role
     );
     log.info(`[新用户注册] ${username} (${googleUserInfo.email}) 角色: ${role}`);
   } else {
-    // 老用户登录：如果是超级管理员邮箱但还不是 admin，自动提升
-    if (isSuperAdmin && localUser.role !== 'admin') {
-      db.setUserRole(localUser.username, 'admin');
-      localUser.role = 'admin';
-      log.info(`[权限提升] ${localUser.username} (${googleUserInfo.email}) → admin`);
+    // 老用户登录：如果是超级管理员邮箱但还不是 super_admin，自动提升
+    if (isSuperAdmin && localUser.role !== 'super_admin') {
+      db.setUserRole(localUser.username, 'super_admin');
+      localUser.role = 'super_admin';
+      log.info(`[权限提升] ${localUser.username} (${googleUserInfo.email}) → super_admin`);
     }
     log.info(`[老用户登录] ${localUser.username} 角色: ${localUser.role}`);
   }
@@ -192,6 +190,13 @@ function ensureLoggedIn(req, res, next) {
     res.clearCookie(COOKIE_NAME);
     return res.redirect('/login');
   }
+  // 实时从数据库刷新角色（防止管理员改角色后 JWT 未更新）
+  try {
+    const currentRole = db.getUserRole(user.username);
+    if (currentRole && currentRole !== user.role) {
+      user.role = currentRole;
+    }
+  } catch (_) {}
   req.user = user;
   next();
 }
@@ -199,7 +204,7 @@ function ensureLoggedIn(req, res, next) {
 // ===== 辅助函数 =====
 
 // ===== 角色层次（数字越大权限越高）=====
-const ROLE_LEVEL = { viewer: 1, operator: 2, admin: 3 };
+const ROLE_LEVEL = { pending: 0, viewer: 1, operator: 2, admin: 3, super_admin: 4 };
 
 function hasMinRole(userRole, minRole) {
   return (ROLE_LEVEL[userRole] || 0) >= (ROLE_LEVEL[minRole] || 0);
@@ -212,6 +217,20 @@ function clearSession(res) {
 // 保留兼容旧代码的导出
 function clearUserCache() { /* JWT 无状态，无需清缓存 */ }
 function forceLogout(googleId) { /* 保留接口兼容 */ }
+
+/**
+ * requireNotPending——拒绝 pending 用户访问 API
+ */
+function requireNotPending(req, res, next) {
+  if (req.user && req.user.role === 'pending') {
+    return res.status(403).json({
+      error: '账号待审批',
+      message: '需要前往阿里钉@阿饱 开通相关权限方可进入',
+      code: 'PENDING_APPROVAL',
+    });
+  }
+  next();
+}
 
 module.exports = {
   // OAuth
@@ -227,6 +246,7 @@ module.exports = {
   requireRole,
   optionalAuth,
   ensureLoggedIn,
+  requireNotPending,
   // 角色工具
   ROLE_LEVEL,
   hasMinRole,

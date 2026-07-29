@@ -81,27 +81,41 @@ function highlightNav() {
 // ===== 统一导航栏渲染（所有页面共用，改这一处就行）=====
 function renderNav() {
   const path = window.location.pathname;
-  const roleLevel = getRoleLevel();
+  const role = getUserRole();
+  const roleLevel = ROLE_LEVEL[role] || 0;
+  
+  // 导航链接配置：minRole 为最低可见角色
   const pages = [
     { path: '/', label: '🚀 DC发布', match: p => p === '/', minRole: 'operator' },
     { path: '/sentiment', label: '📊 舆情监控', match: p => p.startsWith('/sentiment') && !p.includes('history'), minRole: 'viewer' },
     { path: '/reports', label: '📋 周报管理', match: p => p.startsWith('/reports'), minRole: 'operator' },
     { path: '/sentiment-history', label: '📚 历史数据', match: p => p.includes('sentiment-history'), minRole: 'operator' },
     { path: '/admin', label: '🔐 权限管理', match: p => p === '/admin', minRole: 'admin' },
-    { path: '/insights', label: '🔍 玩家洞察', match: p => p === '/insights', minRole: 'admin' },
+    { path: '/insights', label: '🔍 玩家洞察', match: p => p === '/insights', minRole: 'super_admin', superOnly: true },
     { path: '/terminology', label: '📖 术语校对', match: p => p.startsWith('/terminology'), minRole: 'viewer' },
   ];
   
-  let linksHtml = pages
-    .filter(p => roleLevel >= (ROLE_LEVEL[p.minRole] || 0)) // 按角色过滤可见页面
-    .map(p => {
-      const isActive = p.match(path);
+  let linksHtml = '';
+  for (const p of pages) {
+    // 玩家洞察：非 super_admin 完全不可见
+    if (p.superOnly && role !== 'super_admin') continue;
+    
+    const minLevel = ROLE_LEVEL[p.minRole] || 0;
+    const hasAccess = roleLevel >= minLevel;
+    const isActive = p.match(path);
+    
+    if (hasAccess) {
+      // 有权限：正常链接
       const activeClass = isActive ? ' active' : '';
-      return `<a href="${p.path}" class="nav-link${activeClass}">${p.label}</a>`;
-    }).join('');
+      linksHtml += `<a href="${p.path}" class="nav-link${activeClass}">${p.label}</a>`;
+    } else {
+      // 无权限：置灰不可点击
+      linksHtml += `<span class="nav-link nav-disabled" title="权限不足，需要 ${p.minRole} 角色" onclick="Toast.warning('权限不足，无法访问此页面')">${p.label}</span>`;
+    }
+  }
   
   linksHtml += '<div class="nav-divider"></div>';
-  // 暗黑模式切换按钮（文案根据当前主题动态变化）
+  // 暗黑模式切换按钮
   const darkBtnText = DarkMode.isDark() ? '☀️ 切换白昼模式' : '🌙 切换暗黑模式';
   linksHtml += `<button class="nav-dark-toggle" onclick="DarkMode.toggle(); toggleNavMenu();">${darkBtnText}</button>`;
   // 退出登录按钮
@@ -181,7 +195,7 @@ function getUser() {
 }
 
 // ===== 角色层次 =====
-const ROLE_LEVEL = { viewer: 1, operator: 2, admin: 3 };
+const ROLE_LEVEL = { pending: 0, viewer: 1, operator: 2, admin: 3, super_admin: 4 };
 
 function getUserRole() {
   const user = getUser();
@@ -193,7 +207,12 @@ function getRoleLevel() {
 }
 
 function isAdminUser() {
-  return getUserRole() === 'admin';
+  const role = getUserRole();
+  return role === 'admin' || role === 'super_admin';
+}
+
+function isSuperAdmin() {
+  return getUserRole() === 'super_admin';
 }
 
 function isOperatorOrAbove() {
@@ -201,10 +220,20 @@ function isOperatorOrAbove() {
 }
 
 // ===== 导航栏权限过滤 =====
-// 隐藏所有 .admin-only 元素（非管理员不可见）
-// 隐藏所有 .operator-only 元素（viewer不可见，operator+admin可见）
+// pending 用户隐藏所有操作按钮
+// 非 admin 隐藏 admin-only
+// 非 operator 隐藏 operator-only
+// 非 super_admin 隐藏 super-admin-only
 function applyNavPermissions() {
-  const roleLevel = getRoleLevel();
+  const role = getUserRole();
+  const roleLevel = ROLE_LEVEL[role] || 0;
+  
+  // pending 用户：显示待审批遮罩，隐藏所有内容
+  if (role === 'pending') {
+    showPendingOverlay();
+    return;
+  }
+  
   if (!isAdminUser()) {
     document.querySelectorAll('.admin-only').forEach(el => {
       el.style.display = 'none';
@@ -212,6 +241,11 @@ function applyNavPermissions() {
   }
   if (roleLevel < ROLE_LEVEL.operator) {
     document.querySelectorAll('.operator-only').forEach(el => {
+      el.style.display = 'none';
+    });
+  }
+  if (role !== 'super_admin') {
+    document.querySelectorAll('.super-admin-only').forEach(el => {
       el.style.display = 'none';
     });
   }
@@ -225,6 +259,28 @@ function applyReadOnlyMode() {
   document.querySelectorAll('.admin-write-only').forEach(el => {
     el.style.display = 'none';
   });
+}
+
+// ===== Pending 用户待审批遮罩 =====
+function showPendingOverlay() {
+  // 隐藏主内容
+  const mainContent = document.querySelector('.container') || document.querySelector('#mainApp') || document.querySelector('main');
+  if (mainContent) mainContent.style.display = 'none';
+  
+  // 创建全屏遮罩
+  const overlay = document.createElement('div');
+  overlay.id = 'pending-overlay';
+  overlay.innerHTML = `
+    <div class="pending-card">
+      <div class="pending-icon">⏳</div>
+      <h1 class="pending-title">账号待审批</h1>
+      <p class="pending-desc">需要前往阿里钉@阿饱 开通相关权限方可进入</p>
+      <div class="pending-actions">
+        <button class="btn btn-secondary" onclick="window.location.href='/api/auth/logout'">🚪 退出登录</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 }
 
 // ===== 公共工具函数 =====
@@ -336,8 +392,25 @@ const FeedbackBtn = {
 };
 
 // ===== 初始化 =====
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   DarkMode.init();
+  
+  // 同步服务器角色到 localStorage（确保 pending 用户被正确识别）
+  try {
+    const resp = await fetch('/api/auth/verify', { credentials: 'same-origin' });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.valid && data.user) {
+        localStorage.setItem('user', JSON.stringify({
+          name: data.user.username,
+          role: data.user.role,
+          email: data.user.email,
+          picture: data.user.picture,
+        }));
+      }
+    }
+  } catch (_) {}
+  
   renderNav();           // 统一渲染导航栏
   applyNavPermissions(); // 非管理员隐藏 admin-only
   applyReadOnlyMode();   // operator 隐藏写入按钮

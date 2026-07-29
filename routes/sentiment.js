@@ -169,7 +169,7 @@ let collectProgress = {
 };
 
 // ===== 手动采集（异步后台执行）=====
-router.post('/api/sentiment/collect', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/api/sentiment/collect', requireRole('super_admin'), async (req, res) => {
   // 防卡死：如果采集状态已持续超过 15 分钟，自动重置（正常采集不会这么久）
   const stuckThreshold = 15 * 60 * 1000;
   if (collectProgress.running && collectProgress.startTime && (Date.now() - collectProgress.startTime) > stuckThreshold) {
@@ -257,7 +257,7 @@ router.post('/api/sentiment/collect', requireRole('operator', 'admin'), async (r
 });
 
 // ===== 手动触发 AI 分析（绕过每日一次限制）=====
-router.post('/api/sentiment/force-analyze', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/api/sentiment/force-analyze', requireRole('super_admin'), async (req, res) => {
   try {
     // 清除分析锁和缓存，强制重新分析
     dailyAnalysisLock = { date: null, analyzing: false };
@@ -331,7 +331,7 @@ router.get('/api/sentiment/collect-progress', (req, res) => {
 });
 
 // ===== 手动保存每日快照（仅管理员）=====
-router.post('/api/sentiment/save-daily-snapshot', requireRole('admin'), async (req, res) => {
+router.post('/api/sentiment/save-daily-snapshot', requireRole('admin', 'super_admin'), async (req, res) => {
   try {
     const { date } = req.body;
     const result = await sentiment.saveDailySnapshot(date);
@@ -524,7 +524,7 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
 });
 
 // ===== 回溯标记（admin）=====
-router.post('/api/sentiment/backfill', requireRole('admin'), (req, res) => {
+router.post('/api/sentiment/backfill', requireRole('admin', 'super_admin'), (req, res) => {
   try {
     const result = sentiment.backfillExistingRecords();
     clearStatisticsCache();
@@ -533,7 +533,7 @@ router.post('/api/sentiment/backfill', requireRole('admin'), (req, res) => {
 });
 
 // ===== 历史去重（admin）=====
-router.post('/api/sentiment/dedup', requireRole('admin'), (req, res) => {
+router.post('/api/sentiment/dedup', requireRole('admin', 'super_admin'), (req, res) => {
   try {
     const result = sentiment.deduplicateHistoricalData();
     clearStatisticsCache();
@@ -612,7 +612,7 @@ router.post('/api/sentiment/generate-report', requireRole('admin'), async (req, 
 });
 
 // ===== 批量 AI 分析（admin）=====
-router.post('/api/sentiment/batch-ai-analyze', requireRole('admin'), async (req, res) => {
+router.post('/api/sentiment/batch-ai-analyze', requireRole('admin', 'super_admin'), async (req, res) => {
   try {
     const { limit = 50 } = req.body;
     console.log(`🤖 开始批量 AI 分析（最多 ${limit} 条）...`);

@@ -6,9 +6,11 @@
 const API_BASE = '/api/admin';
 
 const ROLE_LABELS = {
-  viewer:   { icon: '👁️', name: '查看者', desc: '只能查看舆情、术语、反馈' },
-  operator: { icon: '⚙️', name: '运营员', desc: 'DC发布 + 舆情/周报/历史(只读)' },
-  admin:    { icon: '👑', name: '管理员', desc: '全部权限' },
+  pending:     { icon: '⏳', name: '待审批', desc: '无权限，等待管理员审批' },
+  viewer:      { icon: '👁️', name: '查看者', desc: '只能查看舆情、术语、反馈' },
+  operator:    { icon: '⚙️', name: '运营员', desc: 'DC发布 + 舆情/周报/历史(只读)' },
+  admin:       { icon: '👑', name: '管理员', desc: '全部权限（除玩家洞察/删用户）' },
+  super_admin: { icon: '🌟', name: '超级管理员', desc: '最高权限，含删用户/玩家洞察' },
 };
 
 // 获取当前用户
@@ -62,7 +64,11 @@ function renderUserTable(users) {
 
     // 构建角色选择器（排除当前角色）
     const isSelf = currentUser && user.username === currentUser.name;
+    const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
     const roleSelector = buildRoleSelector(user.username, role, isSelf);
+    const deleteBtn = isSuperAdmin && !isSelf
+      ? `<button class="btn btn-sm" style="background:var(--color-danger,#f56565);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-top:4px;" onclick="deleteUser('${escapeHtml(user.username)}')">🗑️ 删除</button>`
+      : '';
 
     html += `
       <tr>
@@ -74,7 +80,7 @@ function renderUserTable(users) {
         <td>${roleBadge}</td>
         <td><small style="color:var(--color-text-secondary,#666);">${roleInfo.desc}</small></td>
         <td>${formatDate(user.created_at)}</td>
-        <td>${roleSelector}</td>
+        <td>${roleSelector}<br>${deleteBtn}</td>
       </tr>`;
   }
   tbody.innerHTML = html;
@@ -82,7 +88,12 @@ function renderUserTable(users) {
 
 // 构建角色选择下拉框
 function buildRoleSelector(username, currentRole, isSelf) {
-  const roles = ['viewer', 'operator', 'admin'];
+  const currentUser = getCurrentUser();
+  const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  // 非超管不能看到/设置 super_admin 角色
+  const roles = isSuperAdmin
+    ? ['pending', 'viewer', 'operator', 'admin', 'super_admin']
+    : ['pending', 'viewer', 'operator', 'admin'];
   let options = roles.map(r => {
     const info = ROLE_LABELS[r];
     const selected = r === currentRole ? 'selected' : '';
@@ -125,6 +136,26 @@ async function changeRole(username, newRole, selectEl) {
     console.error('修改角色失败:', error);
     Toast.error('❌ 网络错误');
     loadUsers();
+  }
+}
+
+// ===== 删除用户（仅超管）=====
+async function deleteUser(username) {
+  if (!confirm(`确定要删除用户「${username}」吗？此操作不可撤销！`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/users/${encodeURIComponent(username)}`, {
+      method: 'DELETE',
+      credentials: 'same-origin'
+    });
+    const data = await res.json();
+    if (data.ok) {
+      Toast.success(`✅ 已删除用户 ${username}`);
+      loadUsers();
+    } else {
+      Toast.error('❌ 删除失败: ' + data.error);
+    }
+  } catch (e) {
+    Toast.error('❌ 网络错误');
   }
 }
 

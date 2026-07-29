@@ -81,6 +81,17 @@ async function initDb() {
   try {
     db.run("UPDATE users SET role = 'operator' WHERE role = 'user'");
   } catch (_) {}
+  
+  // 数据迁移：将超级管理员邮箱对应的用户设为 super_admin
+  try {
+    for (const email of SUPER_ADMIN_EMAILS) {
+      const user = queryOne('SELECT id, role FROM users WHERE email = ?', [email]);
+      if (user && user.role !== 'super_admin') {
+        db.run('UPDATE users SET role = ? WHERE email = ?', ['super_admin', email]);
+        console.log(`✅ 超级管理员设置: ${email} → super_admin`);
+      }
+    }
+  } catch (_) {}
 
   // 设置默认管理员（阿饱）
   const adminExists = queryOne('SELECT id FROM users WHERE username = ?', ['阿饱']);
@@ -250,12 +261,15 @@ function userExists(username) {
 }
 
 // ===== 有效角色列表 =====
-const VALID_ROLES = ['viewer', 'operator', 'admin'];
+const VALID_ROLES = ['pending', 'viewer', 'operator', 'admin', 'super_admin'];
+
+// 超级管理员邮箱列表
+const SUPER_ADMIN_EMAILS = ['wbpxy274299@gmail.com'];
 
 // ===== 用户角色管理 =====
 function getUserRole(username) {
   const row = queryOne('SELECT role FROM users WHERE username = ?', [username]);
-  return row && VALID_ROLES.includes(row.role) ? row.role : 'operator';
+  return row && VALID_ROLES.includes(row.role) ? row.role : 'pending';
 }
 
 function isAdmin(username) {
@@ -274,6 +288,17 @@ function getAllUsers() {
   return queryAll('SELECT id, username, role, email, google_id, picture, created_at FROM users ORDER BY created_at DESC');
 }
 
+function deleteUser(username) {
+  db.run('DELETE FROM users WHERE username = ?', [username]);
+  saveDb();
+}
+
+// 根据邮箱获取角色（用于登录时实时检查）
+function getRoleByEmail(email) {
+  const row = queryOne('SELECT role FROM users WHERE email = ?', [email]);
+  return row ? row.role : null;
+}
+
 // ===== Google SSO 用户管理 =====
 function getUserByGoogleId(googleId) {
   return queryOne('SELECT * FROM users WHERE google_id = ?', [googleId]);
@@ -283,7 +308,7 @@ function getUserByEmail(email) {
   return queryOne('SELECT * FROM users WHERE email = ?', [email]);
 }
 
-function createUserWithGoogle(username, email, googleId, password, role = 'operator') {
+function createUserWithGoogle(username, email, googleId, password, role = 'pending') {
   try {
     db.run(
       'INSERT INTO users (username, password_hash, email, google_id, role) VALUES (?, ?, ?, ?, ?)',
@@ -413,7 +438,8 @@ function updateCollectionCursor(channelId, server, channelName, messageId, total
 module.exports = {
   initDb, saveDb, queryAll, queryOne,
   createUser, verifyUser, userExists,
-  getUserRole, isAdmin, setUserRole, getAllUsers, VALID_ROLES,
+  getUserRole, isAdmin, setUserRole, getAllUsers, VALID_ROLES, SUPER_ADMIN_EMAILS,
+  deleteUser, getRoleByEmail,
   getUserByGoogleId, getUserByEmail, createUserWithGoogle, updateUserGoogleInfo, setUserRoleByGoogleId,
   createTask, updateTask, getTask, listTasks,
   getPendingTasks, countTasks,

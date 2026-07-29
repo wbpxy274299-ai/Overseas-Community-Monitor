@@ -1,31 +1,29 @@
 /**
  * 页面渲染路由
  * - /login 无需认证
- * - 其他所有页面需要 ensureLoggedIn（未登录重定向到 /login）
- * - 按角色控制页面访问权限
+ * - pending 用户：所有页面显示"待审批"提示
+ * - 其他角色：正常加载页面，UI 层根据权限置灰/隐藏
+ * - 玩家洞察：仅 super_admin 可访问
  *
  * 角色权限表：
- *   viewer   → 舆情监控、术语校对、反馈
- *   operator → DC发布、舆情监控、周报(只读)、历史数据(只读)、术语校对、反馈
- *   admin    → 全部页面 + 权限管理
+ *   pending     → 无任何权限，显示待审批提示
+ *   viewer      → 舆情监控、术语校对、反馈
+ *   operator    → DC发布、舆情监控、周报(只读)、历史数据(只读)、术语校对、反馈
+ *   admin       → 全部页面(除玩家洞察) + 权限管理
+ *   super_admin → 全部页面 + 权限管理 + 玩家洞察 + 删除用户
  */
 const express = require('express');
 const path = require('path');
 const router = express.Router();
 const { ensureLoggedIn } = require('../middleware/auth');
 
-const FORBIDDEN_PAGE = '<h1>403 - 权限不足</h1><p>你没有权限访问此页面。<a href="/">返回首页</a></p>';
-
 // ===== 登录页（不检查认证，否则死循环）=====
 router.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'google-login.html'));
 });
 
-// ===== DC 发布主页（operator + admin）=====
+// ===== DC 发布主页（operator + admin + super_admin）=====
 router.get('/', ensureLoggedIn, (req, res) => {
-  if (!['operator', 'admin'].includes(req.user.role)) {
-    return res.status(403).send(FORBIDDEN_PAGE);
-  }
   res.sendFile(path.join(__dirname, '..', 'views', 'index.html'));
 });
 
@@ -34,11 +32,8 @@ router.get('/sentiment', ensureLoggedIn, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'sentiment.html'));
 });
 
-// ===== 舆情历史数据（operator 只读 + admin）=====
+// ===== 舆情历史数据（operator + admin + super_admin）=====
 router.get('/sentiment-history', ensureLoggedIn, (req, res) => {
-  if (!['operator', 'admin'].includes(req.user.role)) {
-    return res.status(403).send(FORBIDDEN_PAGE);
-  }
   res.sendFile(path.join(__dirname, '..', 'views', 'sentiment-history.html'));
 });
 
@@ -47,26 +42,20 @@ router.get('/weekly-report', (req, res) => {
   res.redirect('/reports');
 });
 
-// ===== 周报管理面板（operator 只读 + admin）=====
+// ===== 周报管理面板（operator 只读 + admin + super_admin）=====
 router.get('/reports', ensureLoggedIn, (req, res) => {
-  if (!['operator', 'admin'].includes(req.user.role)) {
-    return res.status(403).send(FORBIDDEN_PAGE);
-  }
   res.sendFile(path.join(__dirname, '..', 'views', 'reports.html'));
 });
 
-// ===== 权限管理面板（仅 admin）=====
+// ===== 权限管理面板（admin + super_admin）=====
 router.get('/admin', ensureLoggedIn, (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).send(FORBIDDEN_PAGE);
-  }
   res.sendFile(path.join(__dirname, '..', 'views', 'admin.html'));
 });
 
-// ===== 玩家洞察（仅 admin）=====
+// ===== 玩家洞察（仅 super_admin）=====
 router.get('/insights', ensureLoggedIn, (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).send(FORBIDDEN_PAGE);
+  if (req.user.role !== 'super_admin') {
+    return res.redirect('/sentiment');
   }
   res.sendFile(path.join(__dirname, '..', 'views', 'insights.html'));
 });

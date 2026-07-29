@@ -38,6 +38,7 @@
   font-size: var(--font-size-2xl);
   margin-bottom: 6px;
   font-weight: 700;
+  color: white;
   letter-spacing: -0.5px;
 }
 .header-left p {

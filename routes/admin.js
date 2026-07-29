@@ -1,6 +1,6 @@
 /**
  * 权限管理路由
- * 所有接口需要 requireAuth + requireRole('admin')
+ * 所有接口需要 requireAuth + requireRole('admin', 'super_admin')
  */
 const express = require('express');
 const router = express.Router();
@@ -54,12 +54,12 @@ function ensureInsightsTable() {
 }
 
 // 获取有效角色列表
-router.get('/api/admin/roles', requireRole('admin'), (req, res) => {
+router.get('/api/admin/roles', requireRole('admin', 'super_admin'), (req, res) => {
   res.json({ ok: true, data: db.VALID_ROLES });
 });
 
 // 获取所有用户列表（仅管理员）
-router.get('/api/admin/users', requireRole('admin'), (req, res) => {
+router.get('/api/admin/users', requireRole('admin', 'super_admin'), (req, res) => {
   try {
     const users = db.getAllUsers();
     res.json({ ok: true, data: users });
@@ -69,14 +69,18 @@ router.get('/api/admin/users', requireRole('admin'), (req, res) => {
   }
 });
 
-// 设置用户角色（仅管理员）
-router.put('/api/admin/users/:username/role', requireRole('admin'), (req, res) => {
+// 设置用户角色（admin + super_admin）
+router.put('/api/admin/users/:username/role', requireRole('admin', 'super_admin'), (req, res) => {
   const operator = req.user.username;
   try {
     const { username } = req.params;
     const { role } = req.body;
     if (!db.VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: '无效的角色，可选: ' + db.VALID_ROLES.join(', ') });
+    }
+    // admin 不能设置 super_admin 角色
+    if (role === 'super_admin' && req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: '只有超级管理员才能设置 super_admin 角色' });
     }
     if (!db.userExists(username)) {
       return res.status(404).json({ error: '用户不存在' });
@@ -90,10 +94,30 @@ router.put('/api/admin/users/:username/role', requireRole('admin'), (req, res) =
   }
 });
 
+// 删除用户（仅 super_admin）
+router.delete('/api/admin/users/:username', requireRole('super_admin'), (req, res) => {
+  const operator = req.user.username;
+  try {
+    const { username } = req.params;
+    if (username === operator) {
+      return res.status(400).json({ error: '不能删除自己' });
+    }
+    if (!db.userExists(username)) {
+      return res.status(404).json({ error: '用户不存在' });
+    }
+    db.deleteUser(username);
+    log.info(`超级管理员 ${operator} 删除了用户 ${username}`);
+    res.json({ ok: true, message: '用户已删除' });
+  } catch (e) {
+    log.error('删除用户失败', e.message);
+    res.status(500).json({ error: `删除失败: ${e.message}` });
+  }
+});
+
 // ===== Token 管理 API =====
 
 // 获取所有 Token（脱敏显示）
-router.get('/api/admin/tokens', requireRole('admin'), (req, res) => {
+router.get('/api/admin/tokens', requireRole('admin', 'super_admin'), (req, res) => {
   try {
     const tokens = SERVERS.map(s => {
       const token = getDiscordToken(s.key);
@@ -109,7 +133,7 @@ router.get('/api/admin/tokens', requireRole('admin'), (req, res) => {
 });
 
 // 测试单个 Token 健康度
-router.post('/api/admin/tokens/test', requireRole('admin'), async (req, res) => {
+router.post('/api/admin/tokens/test', requireRole('admin', 'super_admin'), async (req, res) => {
   const { server } = req.body;
   if (!SERVERS.find(s => s.key === server)) {
     return res.status(400).json({ error: '无效的服务器标识' });
@@ -162,7 +186,7 @@ router.post('/api/admin/tokens/test', requireRole('admin'), async (req, res) => 
 });
 
 // 更新 Token（写入 .env 文件）
-router.put('/api/admin/tokens/:server', requireRole('admin'), (req, res) => {
+router.put('/api/admin/tokens/:server', requireRole('admin', 'super_admin'), (req, res) => {
   const { server } = req.params;
   const serverInfo = SERVERS.find(s => s.key === server);
   if (!serverInfo) return res.status(400).json({ error: '无效的服务器标识' });
@@ -190,7 +214,7 @@ router.put('/api/admin/tokens/:server', requireRole('admin'), (req, res) => {
 // ===== DC 频道管理 API =====
 
 // 获取所有频道
-router.get('/api/admin/channels', requireRole('admin'), (req, res) => {
+router.get('/api/admin/channels', requireRole('admin', 'super_admin'), (req, res) => {
   try {
     const channels = loadChannels();
     const list = Object.entries(channels).map(([name, info]) => ({
@@ -203,7 +227,7 @@ router.get('/api/admin/channels', requireRole('admin'), (req, res) => {
 });
 
 // 新增频道
-router.post('/api/admin/channels', requireRole('admin'), (req, res) => {
+router.post('/api/admin/channels', requireRole('admin', 'super_admin'), (req, res) => {
   const { name, bot, channel_id } = req.body;
   if (!name || !bot || !channel_id) return res.status(400).json({ error: '频道名称、Bot 和频道ID 都必填' });
   if (!['TC', 'JP', 'SEA', 'KR'].includes(bot)) return res.status(400).json({ error: 'Bot 必须是 TC/JP/SEA/KR' });
@@ -224,7 +248,7 @@ router.post('/api/admin/channels', requireRole('admin'), (req, res) => {
 });
 
 // 删除频道
-router.delete('/api/admin/channels/:name', requireRole('admin'), (req, res) => {
+router.delete('/api/admin/channels/:name', requireRole('admin', 'super_admin'), (req, res) => {
   try {
     const name = decodeURIComponent(req.params.name);
     if (!fs.existsSync(CHANNELS_JSON)) return res.status(404).json({ error: '频道文件不存在' });
@@ -242,7 +266,7 @@ router.delete('/api/admin/channels/:name', requireRole('admin'), (req, res) => {
 // ===== 用户洞察 API =====
 
 // 生成周报式玩家洞察（上周五 ~ 本周四）
-router.post('/api/admin/insights/analyze', requireRole('admin'), async (req, res) => {
+router.post('/api/admin/insights/analyze', requireRole('super_admin'), async (req, res) => {
   ensureInsightsTable();
   try {
     // 计算时间范围：上周五 00:00 ~ 本周四 23:59
@@ -400,7 +424,7 @@ router.post('/api/admin/insights/analyze', requireRole('admin'), async (req, res
 });
 
 // 获取历史洞察报告列表
-router.get('/api/admin/insights/list', requireRole('admin'), (req, res) => {
+router.get('/api/admin/insights/list', requireRole('super_admin'), (req, res) => {
   ensureInsightsTable();
   try {
     const reports = db.queryAll('SELECT id, period, twitter_count, discord_count, total_records, created_at FROM insights_reports ORDER BY created_at DESC');
@@ -411,7 +435,7 @@ router.get('/api/admin/insights/list', requireRole('admin'), (req, res) => {
 });
 
 // 获取单篇洞察报告详情
-router.get('/api/admin/insights/:id', requireRole('admin'), (req, res) => {
+router.get('/api/admin/insights/:id', requireRole('super_admin'), (req, res) => {
   ensureInsightsTable();
   try {
     const report = db.queryOne('SELECT * FROM insights_reports WHERE id = ?', [req.params.id]);
@@ -423,7 +447,7 @@ router.get('/api/admin/insights/:id', requireRole('admin'), (req, res) => {
 });
 
 // 删除洞察报告
-router.delete('/api/admin/insights/:id', requireRole('admin'), (req, res) => {
+router.delete('/api/admin/insights/:id', requireRole('super_admin'), (req, res) => {
   ensureInsightsTable();
   try {
     db.getDb().run('DELETE FROM insights_reports WHERE id = ?', [req.params.id]);
