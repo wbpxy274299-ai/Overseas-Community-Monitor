@@ -77,6 +77,9 @@ async function initDb() {
   try { db.run('ALTER TABLE users ADD COLUMN google_id TEXT'); } catch (_) {}
   try { db.run('ALTER TABLE users ADD COLUMN picture TEXT'); } catch (_) {}
 
+  // 兼容：添加用户扩展权限列（JSON 格式，存储额外权限和地区限制）
+  try { db.run('ALTER TABLE users ADD COLUMN user_permissions TEXT'); } catch (_) {}
+
   // 数据迁移：旧版 'user' 角色 → 'operator'
   try {
     db.run("UPDATE users SET role = 'operator' WHERE role = 'user'");
@@ -285,7 +288,7 @@ function setUserRole(username, role) {
 }
 
 function getAllUsers() {
-  return queryAll('SELECT id, username, role, email, google_id, picture, created_at FROM users ORDER BY created_at DESC');
+  return queryAll('SELECT id, username, role, email, google_id, picture, user_permissions, created_at FROM users ORDER BY created_at DESC');
 }
 
 function deleteUser(username) {
@@ -297,6 +300,47 @@ function deleteUser(username) {
 function getRoleByEmail(email) {
   const row = queryOne('SELECT role FROM users WHERE email = ?', [email]);
   return row ? row.role : null;
+}
+
+// ===== 用户扩展权限管理 =====
+// user_permissions 是一个 JSON 字符串，格式如：
+// {"upload": true, "regions": ["JP", "TC", "SEA", "KR"]}
+// - upload: operator 是否有上传数据权限（默认 false）
+// - regions: 可操作的地区列表（默认 null = 全地区，空数组 = 无地区）
+
+const ALL_REGIONS = ['JP', 'TC', 'SEA', 'KR'];
+
+function getUserPermissions(username) {
+  const row = queryOne('SELECT user_permissions, role FROM users WHERE username = ?', [username]);
+  if (!row) return { upload: false, regions: ALL_REGIONS };
+  // admin/super_admin 拥有全部权限
+  if (row.role === 'admin' || row.role === 'super_admin') {
+    return { upload: true, regions: ALL_REGIONS };
+  }
+  try {
+    const perms = row.user_permissions ? JSON.parse(row.user_permissions) : {};
+    return {
+      upload: !!perms.upload,
+      regions: perms.regions || ALL_REGIONS, // null 或 undefined 表示全地区
+    };
+  } catch (_) {
+    return { upload: false, regions: ALL_REGIONS };
+  }
+}
+
+function setUserPermissions(username, permissions) {
+  const json = JSON.stringify(permissions);
+  db.run('UPDATE users SET user_permissions = ? WHERE username = ?', [json, username]);
+  saveDb();
+}
+
+function hasUploadPermission(username) {
+  return getUserPermissions(username).upload;
+}
+
+function hasRegionAccess(username, server) {
+  const perms = getUserPermissions(username);
+  return perms.regions.includes(server);
 }
 
 // ===== Google SSO 用户管理 =====
@@ -440,6 +484,7 @@ module.exports = {
   createUser, verifyUser, userExists,
   getUserRole, isAdmin, setUserRole, getAllUsers, VALID_ROLES, SUPER_ADMIN_EMAILS,
   deleteUser, getRoleByEmail,
+  getUserPermissions, setUserPermissions, hasUploadPermission, hasRegionAccess, ALL_REGIONS,
   getUserByGoogleId, getUserByEmail, createUserWithGoogle, updateUserGoogleInfo, setUserRoleByGoogleId,
   createTask, updateTask, getTask, listTasks,
   getPendingTasks, countTasks,

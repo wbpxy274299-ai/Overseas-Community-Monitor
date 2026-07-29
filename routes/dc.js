@@ -101,6 +101,17 @@ router.post('/api/tasks', validateInput({
   if (!ch) return res.status(400).json({ error: '频道名称不能为空' });
   if (!CHANNELS[ch]) return res.status(400).json({ error: `频道 '${ch}' 不存在` });
 
+  // operator 地区限制检查：admin/super_admin 不受限，operator 只能操作被分配的地区
+  if (req.user && req.user.role === 'operator') {
+    const targetServer = CHANNELS[ch].bot; // JP/TC/SEA/KR
+    if (!db.hasRegionAccess(op, targetServer)) {
+      return res.status(403).json({
+        error: '无该地区操作权限',
+        message: `你无权操作 ${targetServer} 地区的频道，请联系管理员开通`,
+      });
+    }
+  }
+
   // 发送人自动关联
   let finalSender = sd;
   if (!finalSender) {

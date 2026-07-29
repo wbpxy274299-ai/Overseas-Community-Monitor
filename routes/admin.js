@@ -94,6 +94,37 @@ router.put('/api/admin/users/:username/role', requireRole('admin', 'super_admin'
   }
 });
 
+// ===== 用户扩展权限管理 =====
+
+// 获取用户权限
+router.get('/api/admin/users/:username/permissions', requireRole('admin', 'super_admin'), (req, res) => {
+  const { username } = req.params;
+  try {
+    const perms = db.getUserPermissions(username);
+    res.json({ ok: true, data: perms });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 设置用户权限（上传权限 + 地区限制）
+router.put('/api/admin/users/:username/permissions', requireRole('admin', 'super_admin'), (req, res) => {
+  const { username } = req.params;
+  const { upload, regions } = req.body;
+  try {
+    const currentPerms = db.getUserPermissions(username);
+    const newPerms = {
+      upload: typeof upload === 'boolean' ? upload : currentPerms.upload,
+      regions: Array.isArray(regions) ? regions : currentPerms.regions,
+    };
+    db.setUserPermissions(username, newPerms);
+    log.info(`[权限设置] ${req.user.username} 设置 ${username} 权限: upload=${newPerms.upload}, regions=${JSON.stringify(newPerms.regions)}`);
+    res.json({ ok: true, message: '权限更新成功', data: newPerms });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // 删除用户（仅 super_admin）
 router.delete('/api/admin/users/:username', requireRole('super_admin'), (req, res) => {
   const operator = req.user.username;

@@ -819,8 +819,20 @@ router.post('/api/system/restart', requireRole('admin'), (req, res) => {
   }, 1000);
 });
 
-// ===== 手动数据上传 API（需要 operator 以上）=====
+// ===== 手动数据上传 API（operator 需额外 upload 权限，admin/super_admin 自动通过）=====
 router.post('/api/sentiment/upload', requireRole('operator', 'admin'), async (req, res) => {
+  // operator 需要单独的上传权限
+  if (req.user.role === 'operator') {
+    const userDb = require('../db');
+    if (!userDb.hasUploadPermission(req.user.username)) {
+      return res.status(403).json({
+        ok: false,
+        error: '无上传权限',
+        message: '请联系管理员开通上传数据权限',
+        code: 'NO_UPLOAD_PERMISSION',
+      });
+    }
+  }
   if (sentiment.getIsCollecting()) {
     return res.json({ ok: false, message: '采集进行中，请稍后再试' });
   }

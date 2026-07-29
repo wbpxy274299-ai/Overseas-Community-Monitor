@@ -50,7 +50,7 @@ async function loadUsers() {
 function renderUserTable(users) {
   const tbody = document.getElementById('userTableBody');
   if (!users || users.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">暂无用户</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">暂无用户</td></tr>';
     return;
   }
 
@@ -70,6 +70,9 @@ function renderUserTable(users) {
       ? `<button class="btn btn-sm" style="background:var(--color-danger,#f56565);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-top:4px;" onclick="deleteUser('${escapeHtml(user.username)}')">🗑️ 删除</button>`
       : '';
 
+    // 构建扩展权限控件（仅 operator 显示，admin/super_admin 默认全权限）
+    const permsHtml = buildPermissionsCell(user);
+
     html += `
       <tr>
         <td>
@@ -79,6 +82,7 @@ function renderUserTable(users) {
         </td>
         <td>${roleBadge}</td>
         <td><small style="color:var(--color-text-secondary,#666);">${roleInfo.desc}</small></td>
+        <td>${permsHtml}</td>
         <td>${formatDate(user.created_at)}</td>
         <td>${roleSelector}<br>${deleteBtn}</td>
       </tr>`;
@@ -156,6 +160,89 @@ async function deleteUser(username) {
     }
   } catch (e) {
     Toast.error('❌ 网络错误');
+  }
+}
+
+// ===== Tab 切换 =====
+
+// ===== 扩展权限控件 =====
+const REGION_LABELS = { JP: '🇯🇵 日服', TC: '🇹🇼 繁中', SEA: '🌏 东南亚', KR: '🇰🇷 韩服' };
+
+function buildPermissionsCell(user) {
+  const role = user.role || 'operator';
+  // admin/super_admin 默认全权限，不显示控件
+  if (role === 'admin' || role === 'super_admin') {
+    return '<small style="color:#888;">默认全权限</small>';
+  }
+  // pending/viewer 不显示扩展权限
+  if (role === 'pending' || role === 'viewer') {
+    return '<small style="color:#ccc;">—</small>';
+  }
+
+  // operator：解析权限
+  let perms = {};
+  try { perms = user.user_permissions ? JSON.parse(user.user_permissions) : {}; } catch (_) {}
+  const hasUpload = !!perms.upload;
+  const regions = perms.regions || ['JP', 'TC', 'SEA', 'KR']; // null = 全地区
+  const username = escapeHtml(user.username);
+
+  // 上传开关
+  const uploadToggle = `
+    <label class="perm-toggle" title="是否允许上传舆情数据">
+      <input type="checkbox" ${hasUpload ? 'checked' : ''} onchange="togglePerm('${username}', 'upload', this.checked)">
+      <span>📤 上传数据</span>
+    </label>`;
+
+  // 地区复选框
+  const regionChecks = Object.entries(REGION_LABELS).map(([key, label]) => {
+    const checked = regions.includes(key) ? 'checked' : '';
+    return `<label class="region-check">
+      <input type="checkbox" ${checked} onchange="togglePerm('${username}', 'region_${key}', this.checked)">
+      <span>${label}</span>
+    </label>`;
+  }).join('');
+
+  return `<div class="perm-cell">${uploadToggle}<div class="region-row">${regionChecks}</div></div>`;
+}
+
+// 切换权限
+async function togglePerm(username, type, value) {
+  try {
+    // 先获取当前权限
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(username)}/permissions`, { credentials: 'same-origin' });
+    const data = await res.json();
+    if (!data.ok) { Toast.error('获取权限失败'); return; }
+
+    const perms = data.data;
+    if (type === 'upload') {
+      perms.upload = value;
+    } else if (type.startsWith('region_')) {
+      const region = type.replace('region_', '');
+      if (value) {
+        if (!perms.regions.includes(region)) perms.regions.push(region);
+      } else {
+        perms.regions = perms.regions.filter(r => r !== region);
+      }
+    }
+
+    // 保存
+    const saveRes = await fetch(`/api/admin/users/${encodeURIComponent(username)}/permissions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(perms),
+      credentials: 'same-origin',
+    });
+    const saveData = await saveRes.json();
+    if (saveData.ok) {
+      const label = type === 'upload' ? '上传权限' : type.replace('region_', '') + ' 地区';
+      Toast.success(`✅ ${username} 的 ${label} 已${value ? '开通' : '关闭'}`);
+    } else {
+      Toast.error('❌ 保存失败: ' + saveData.error);
+      loadUsers(); // 回滚 UI
+    }
+  } catch (e) {
+    Toast.error('❌ 网络错误');
+    loadUsers();
   }
 }
 
