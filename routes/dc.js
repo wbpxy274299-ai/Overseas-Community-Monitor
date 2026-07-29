@@ -13,16 +13,17 @@ const { validateInput } = require('../middleware/validate');
 const { escapeHtml } = require('../middleware/utils');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
-// DC 发布相关 API 都需要登录 + operator 以上角色
-router.use('/api', requireAuth, requireRole('operator', 'admin'));
+// DC 发布相关 API 需要登录 + operator 以上角色
+// ⚠️ 注意：不能用 router.use('/api', ...) 否则会拦截 sentiment 等其他模块的 API
+const dcAuth = [requireAuth, requireRole('operator', 'admin')];
 
 // ===== 频道 / 发送人 =====
 
-router.get('/api/senders', (req, res) => {
+router.get('/api/senders', dcAuth, (req, res) => {
   res.json({ senders: SERVER_SENDER });
 });
 
-router.get('/api/channels', (req, res) => {
+router.get('/api/channels', dcAuth, (req, res) => {
   const grouped = {};
   for (const [name, info] of Object.entries(CHANNELS)) {
     const server = info.bot;
@@ -33,7 +34,7 @@ router.get('/api/channels', (req, res) => {
 });
 
 // ===== Bot Token 状态诊断 =====
-router.get('/api/token-status', requireRole('admin'), (req, res) => {
+router.get('/api/token-status', requireAuth, requireRole('admin'), (req, res) => {
   const servers = ['TC', 'JP', 'SEA', 'KR'];
   const status = {};
   for (const server of servers) {
@@ -59,7 +60,7 @@ router.get('/api/token-status', requireRole('admin'), (req, res) => {
 
 // ===== 图片上传 =====
 
-router.post('/api/upload', upload.array('files', 20), (req, res) => {
+router.post('/api/upload', dcAuth, upload.array('files', 20), (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: '没有上传文件' });
   }
@@ -70,7 +71,7 @@ router.post('/api/upload', upload.array('files', 20), (req, res) => {
 // ===== 任务 CRUD =====
 
 // 新建任务
-router.post('/api/tasks', validateInput({
+router.post('/api/tasks', dcAuth, validateInput({
   channel_name: { required: true, type: 'string', maxLength: 100 },
   content: { required: false, type: 'string', maxLength: 5000 },
   image_urls: { required: false, type: 'string', maxLength: 2000 },
@@ -166,7 +167,7 @@ router.post('/api/tasks', validateInput({
 });
 
 // ===== 任务统计概览 =====
-router.get('/api/tasks/stats', (req, res) => {
+router.get('/api/tasks/stats', dcAuth, (req, res) => {
   const stats = {
     total: db.countTasks(),
     received: db.countTasks('received'),
@@ -193,7 +194,7 @@ router.get('/api/tasks/stats', (req, res) => {
 });
 
 // 查询任务列表
-router.get('/api/tasks', (req, res) => {
+router.get('/api/tasks', dcAuth, (req, res) => {
   const status = req.query.status || undefined;
   const channel = req.query.channel || undefined;
   const requestType = req.query.request_type || undefined;
@@ -211,7 +212,7 @@ router.get('/api/tasks', (req, res) => {
 });
 
 // 查单条任务
-router.get('/api/tasks/:id', (req, res) => {
+router.get('/api/tasks/:id', dcAuth, (req, res) => {
   const task = db.getTask(parseInt(req.params.id));
   if (!task) return res.status(404).json({ error: '任务不存在' });
   task.status_label = STATUS[task.status] || task.status;
@@ -219,7 +220,7 @@ router.get('/api/tasks/:id', (req, res) => {
 });
 
 // 更新任务（取消 / 撤回 / 重试）
-router.put('/api/tasks/:id', (req, res) => {
+router.put('/api/tasks/:id', dcAuth, (req, res) => {
   const taskId = parseInt(req.params.id);
   const { action = '', operator = '' } = req.body;
   const act = action.trim();
@@ -258,7 +259,7 @@ router.put('/api/tasks/:id', (req, res) => {
 });
 
 // 批量操作
-router.post('/api/tasks/batch', (req, res) => {
+router.post('/api/tasks/batch', dcAuth, (req, res) => {
   const { task_ids = [], action = '', operator = '' } = req.body;
   const op = (operator || '').trim();
   if (!op || !db.userExists(op)) return res.status(401).json({ error: '请先登录后再操作' });
@@ -288,7 +289,7 @@ router.post('/api/tasks/batch', (req, res) => {
 });
 
 // ===== Discord 真实效果预览 =====
-router.get('/api/tasks/:id/preview', async (req, res) => {
+router.get('/api/tasks/:id/preview', dcAuth, async (req, res) => {
   try {
     const task = db.getTask(parseInt(req.params.id));
     if (!task) return res.status(404).json({ error: '任务不存在' });
@@ -331,7 +332,7 @@ router.get('/api/tasks/:id/preview', async (req, res) => {
 });
 
 // ===== 导出报告 =====
-router.get('/api/export', (req, res) => {
+router.get('/api/export', dcAuth, (req, res) => {
   const tasks = db.listTasks({ perPage: 200 });
   const now = db.nowStr();
   let lines = [
