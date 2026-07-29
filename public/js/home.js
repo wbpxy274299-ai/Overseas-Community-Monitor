@@ -616,7 +616,6 @@ async function doAction(taskId, action, msgDivId) {
     if (ok) {
       if (msgDivId) {
         showMsg(msgDivId, data.message, 'success');
-        lookupTask();
       } else {
         alert(data.message);
       }
@@ -626,46 +625,6 @@ async function doAction(taskId, action, msgDivId) {
       else alert(data.error);
     }
   });
-}
-
-// ===== 取消/撤回查询 =====
-async function lookupTask() {
-  const taskId = $('recallTaskId').value;
-  if (!taskId) { alert('请输入任务ID'); return; }
-  const { ok, data } = await api(`/api/tasks/${taskId}`);
-  const detailDiv = $('recallDetail');
-  if (!ok) {
-    detailDiv.innerHTML = '<div class="msg msg-error">任务不存在</div>';
-    return;
-  }
-  detailDiv.innerHTML = `
-    <div class="task-detail-card">
-      <div class="detail-row"><span>ID:</span> ${data.id}</div>
-      <div class="detail-row"><span>频道:</span> ${data.channel_name}</div>
-      <div class="detail-row"><span>内容:</span> ${(data.content || '').substring(0, 80)}</div>
-      <div class="detail-row"><span>类型:</span> ${data.request_type}</div>
-      <div class="detail-row"><span>状态:</span> <span class="status-tag status-${data.status}">${data.status_label}</span></div>
-      <div class="detail-row"><span>定时时间:</span> ${data.send_time || '—'}</div>
-      <div class="detail-row"><span>发送人:</span> ${data.sender || '—'}</div>
-      <div class="detail-row"><span>操作人:</span> ${data.operator || '—'}</div>
-      <div class="detail-row"><span>消息ID:</span> ${data.message_id || '—'}</div>
-      <div class="detail-row"><span>失败原因:</span> ${data.fail_reason || '—'}</div>
-      <div style="margin-top:10px;">${getRecallBtns(data)}</div>
-    </div>`;
-}
-
-function getRecallBtns(t) {
-  let btns = '';
-  if (['received', 'scheduled'].includes(t.status)) {
-    btns += `<button class="btn btn-danger" data-task="${t.id}" data-action="cancel" data-msg="recallMsg">取消任务</button>`;
-  }
-  if (t.status === 'sent' && t.message_id) {
-    btns += `<button class="btn btn-warning" data-task="${t.id}" data-action="recall" data-msg="recallMsg">撤回消息</button>`;
-  }
-  if (['failed', 'timeout'].includes(t.status)) {
-    btns += `<button class="btn btn-success" data-task="${t.id}" data-action="retry" data-msg="recallMsg">重试</button>`;
-  }
-  return btns || '<span style="color:var(--color-text-muted,#888);">当前状态无可用操作</span>';
 }
 
 // ===== 导出报告 =====

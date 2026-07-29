@@ -558,33 +558,6 @@ input[type="file"]::file-selector-button:hover {
 .action-cell { white-space: nowrap; }
 .action-cell .btn { margin-right: 4px; }
 
-/* ===== 撤回区域 ===== */
-#tab-recall {
-    background: #fff;
-    padding: 28px;
-    border-radius: 14px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-}
-.recall-box {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    margin-bottom: 16px;
-}
-.recall-box label { font-weight: 500; color: #7f8c8d; font-size: 14px; }
-.recall-box input {
-    width: 120px;
-    padding: 8px 12px;
-    border: 2px solid #ecf0f1;
-    border-radius: 10px;
-    font-size: 14px;
-    transition: border-color 0.2s;
-}
-.recall-box input:focus {
-    border-color: #667eea;
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
-}
 .task-detail-card {
     background: linear-gradient(135deg, #fafbfc 0%, #f5f6fa 100%);
     border: 1px solid #ecf0f1;
@@ -783,7 +756,6 @@ body.dark .tab-btn.active {
 /* — 暗黑：卡片容器 — */
 body.dark .login-card,
 body.dark #tab-submit,
-body.dark #tab-recall,
 body.dark .filter-bar,
 body.dark .task-table,
 body.dark .modal-content,
@@ -800,7 +772,6 @@ body.dark .form-group select,
 body.dark .form-group textarea,
 body.dark .filter-bar select,
 body.dark .filter-bar input,
-body.dark .recall-box input,
 body.dark .search-input {
     background: #3a3a4e;
     border-color: #4a4a5e;
@@ -853,7 +824,6 @@ body.dark .task-count { color: #8a8ea0; }
 /* — 暗黑：补充元素 — */
 body.dark .modal-header h3 { color: #e0e0e0; }
 body.dark .modal-close { color: #aaa; }
-body.dark .recall-box label { color: #8a8ea0; }
 body.dark .image-preview img { border-color: #4a4a5e; }
 body.dark .img-card { border-color: #4a4a5e; }
 body.dark .detail-meta { color: #bbb; }
@@ -1291,7 +1261,6 @@ body.dark .format-hint { color: #555; }
     .tabs { flex-direction: column; gap: 2px; }
     .tab-btn { padding: 8px 12px; font-size: 13px; }
     #tab-submit { padding: 16px; }
-    #tab-recall { padding: 16px; }
     .filter-bar { flex-wrap: wrap; padding: 10px; gap: 6px; }
     .filter-bar select, .filter-bar input { font-size: 12px; padding: 6px 8px; min-width: 0; flex: 1; }
     .search-input { min-width: 120px !important; }
@@ -1301,7 +1270,6 @@ body.dark .format-hint { color: #555; }
     .btn { padding: 7px 14px; font-size: 13px; }
     .btn-small { padding: 4px 8px; font-size: 11px; }
     .modal-content { margin: 20px 10px; padding: 16px; }
-    .recall-box { flex-wrap: wrap; }
     .img-card { width: 130px; }
     #batchActions { display: none !important; }
     .action-cell .btn { font-size: 10px; padding: 3px 6px; }
