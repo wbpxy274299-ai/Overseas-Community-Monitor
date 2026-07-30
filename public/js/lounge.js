@@ -10,11 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function checkLoginAndInit() {
   try {
-    const res = await Api.get('/api/auth/me');
-    if (res.success && res.user) {
+    const res = await Api.get('/api/auth/verify');
+    if (res.valid && res.user) {
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('mainApp').style.display = 'block';
-      renderNav();
       highlightNav();
       // 加载数据
       loadStatus();
