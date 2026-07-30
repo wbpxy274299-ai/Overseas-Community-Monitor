@@ -941,6 +941,96 @@ async function aiScoutNewTopics(generalRecords) {
   return [];
 }
 
+/**
+ * 七日热门话题 AI 概述（为每个话题生成真正的 summary）
+ * @param {Object} topicsByTag - { tag: { messages: [...], count, neg, pos, neu } }
+ * @param {string} platform - 'twitter' | 'discord'
+ * @returns {Object} - { tag: aiSummary } 每个话题的 AI 概述
+ */
+let weeklySummaryCache = { result: null, lastUpdated: 0, recordCount: 0 };
+
+async function aiSummarizeWeeklyTopics(topicsByTag, platform) {
+  const tags = Object.keys(topicsByTag);
+  if (tags.length === 0) return {};
+  
+  // 缓存检查（2小时有效）
+  const totalMessages = tags.reduce((sum, tag) => sum + (topicsByTag[tag].count || 0), 0);
+  const now = Date.now();
+  if (weeklySummaryCache.result && 
+      weeklySummaryCache.platform === platform &&
+      (now - weeklySummaryCache.lastUpdated) < 2 * 60 * 60 * 1000 &&
+      Math.abs(totalMessages - weeklySummaryCache.recordCount) < 5) {
+    console.log('📦 使用七日话题 AI 缓存（2小时内）');
+    return weeklySummaryCache.result;
+  }
+  
+  const platformName = platform === 'twitter' ? 'Twitter（日服）' : 'Discord（繁中服）';
+  
+  // 构建输入：每个话题取最多8条代表性发言
+  let content = '';
+  for (const tag of tags) {
+    const { messages, count } = topicsByTag[tag];
+    const samples = messages.slice(0, 8);
+    content += `\n【${tag}】(${count}条讨论)\n`;
+    for (let i = 0; i < samples.length; i++) {
+      const m = samples[i];
+      const text = m.translated_content || m.content || '';
+      const url = m.url ? ` [链接:${m.url}]` : '';
+      content += `  ${i+1}. "${text.substring(0, 150)}"${url}\n`;
+    }
+  }
+  
+  const prompt = `你是《森之国度》(ツリネバ/TOS Neverland) 游戏的社区运营分析师。
+
+以下是${platformName}玩家7日内的讨论，已按话题分组。
+
+游戏背景：
+- 树缘：核心社交结缘系统
+- 骑士团/骑士团战：公会和公会战玩法
+- 狂潮：限时挑战活动
+- ガチャ：抽卡系统
+
+❗❗ 核心要求：
+
+1. 为每个话题生成 **summary**（概述）：
+   - 用 2-3 句话总结玩家在聊什么、为什么聊、核心诉求是什么
+   - ❌ 错误：“玩家讨论骑士团”
+   - ✅ 正确：“多名玩家分享骑士团战排名经历，对积分机制和花御培养策略展开讨论，部分玩家对未能拿到第一感到遗憾”
+
+2. 返回 JSON 对象，key 为话题 tag，value 为概述字符串：
+{
+  "knight_order": "2-3句概述",
+  "gacha": "2-3句概述",
+  ...
+}
+
+只返回 JSON，不要其他内容。`;
+
+  console.log(`🤖 AI 生成七日话题概述（${platformName}，${tags.length}个话题）`);
+  const result = await callAI(prompt, content, { maxTokens: 1200, jsonMode: true });
+  
+  if (!result) {
+    console.warn('⚠️ 七日话题 AI 概述失败');
+    return {};
+  }
+  
+  try {
+    let parsed = safeJsonParse(result, '七日话题概述');
+    if (!parsed) {
+      const m = result.match(/\{[\s\S]*\}/);
+      if (m) parsed = safeJsonParse(m[0], '七日话题概述-提取');
+    }
+    if (parsed && typeof parsed === 'object') {
+      weeklySummaryCache = { result: parsed, lastUpdated: now, recordCount: totalMessages, platform };
+      return parsed;
+    }
+  } catch (e) {
+    console.warn('⚠️ 七日话题概述解析失败:', e.message);
+  }
+  
+  return {};
+}
+
 module.exports = {
   aiAnalyzeSentiment,
   aiExtractTopics,
@@ -948,6 +1038,7 @@ module.exports = {
   aiClassifyFeedback,
   aiSummarizeHotTopics,
   aiSummarizeHotTopicsDual,  // 双平台一次性分析
+  aiSummarizeWeeklyTopics,   // 七日热门话题AI概述
   batchAnalyze,
   clearTopicCache,           // 清除话题缓存
   standardizeTag,            // tag 标准化（全局唯一入口）

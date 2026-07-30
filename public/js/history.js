@@ -210,4 +210,150 @@ async function uploadDiscordText() {
 }
 
 // 页面加载时初始化
-window.onload = () => { initDates(); loadData(); };
+window.onload = () => { initDates(); loadData(); checkRunningCollection(); };
+
+// ===== 数据采集（从舆情页面搬过来） =====
+let collectPollTimer = null;
+
+async function startCollecting() {
+  const btn = document.getElementById('btnCollect');
+  if (btn.disabled) return;
+
+  // 先检查是否已有进行中的采集
+  try {
+    const progressRes = await fetch('/api/sentiment/collect-progress');
+    const progressData = await progressRes.json();
+    if (progressData.ok && progressData.data.running) {
+      showCollectProgress(progressData.data);
+      startProgressPolling();
+      return;
+    }
+  } catch (_) {}
+
+  btn.disabled = true;
+  btn.textContent = '⏳ 启动中...';
+
+  try {
+    const res = await fetch('/api/sentiment/collect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const result = await res.json();
+
+    if (result.ok) {
+      showCollectProgress({ running: true, phase: 'twitter', message: '正在启动采集...', elapsed: 0 });
+      startProgressPolling();
+    } else if (result.collecting) {
+      btn.textContent = '⏳ 采集中...';
+      showCollectProgress({ running: true, phase: '', message: '采集进行中...', elapsed: 0 });
+      startProgressPolling();
+    } else {
+      alert(result.message || '启动失败');
+      btn.disabled = false;
+      btn.textContent = '▶ 启动抓取';
+    }
+  } catch (e) {
+    alert('采集请求失败: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '▶ 启动抓取';
+  }
+}
+
+function startProgressPolling() {
+  if (collectPollTimer) clearInterval(collectPollTimer);
+  collectPollTimer = setInterval(async () => {
+    try {
+      const res = await fetch('/api/sentiment/collect-progress');
+      const result = await res.json();
+      if (result.ok) {
+        showCollectProgress(result.data);
+        if (!result.data.running) {
+          clearInterval(collectPollTimer);
+          collectPollTimer = null;
+          showCollectResult(result.data);
+          // 3秒后自动刷新表格
+          setTimeout(() => loadData(currentPage), 3000);
+        }
+      }
+    } catch (_) {}
+  }, 2000);
+}
+
+function showCollectProgress(data) {
+  const bar = document.getElementById('collectProgressBar');
+  const fill = document.getElementById('collectProgressFill');
+  const icon = document.getElementById('collectProgressIcon');
+  const text = document.getElementById('collectProgressText');
+  const elapsed = document.getElementById('collectProgressElapsed');
+  const detail = document.getElementById('collectProgressDetail');
+  const btn = document.getElementById('btnCollect');
+
+  bar.style.display = 'block';
+  text.textContent = data.message || '准备中...';
+  elapsed.textContent = data.elapsed ? `${data.elapsed}秒` : '';
+
+  let percent = 0;
+  if (data.phase === 'twitter') { icon.textContent = '🐦'; percent = 15; }
+  else if (data.phase === 'discord') { icon.textContent = '💬'; percent = 40; }
+  else if (data.phase === 'cleaning') { icon.textContent = '🧹'; percent = 60; }
+  else if (data.phase === 'saving') { icon.textContent = '💾'; percent = 80; }
+  else if (data.phase === 'done') { icon.textContent = '✅'; percent = 100; fill.className = 'collect-progress-fill done'; }
+  else if (data.phase === 'error') { icon.textContent = '❌'; percent = 100; fill.className = 'collect-progress-fill error'; }
+  else { icon.textContent = '⏳'; percent = 5; }
+  fill.style.width = percent + '%';
+
+  let parts = [];
+  if (data.twitterCount > 0) parts.push(`🐦 Twitter: ${data.twitterCount}`);
+  if (data.discordCount > 0) parts.push(`💬 Discord: ${data.discordCount}`);
+  if (data.dedupCount > 0) parts.push(`🧹 去重: ${data.dedupCount}`);
+  if (data.officialCount > 0) parts.push(`📤 过滤官方: ${data.officialCount}`);
+  if (data.translateCount > 0) parts.push(`🌐 翻译: ${data.translateCount}`);
+  if (data.savedCount > 0) parts.push(`✅ 保存: ${data.savedCount}`);
+  if (data.skippedCount > 0) parts.push(`⏭️ 跳过: ${data.skippedCount}`);
+  if (data.failedCount > 0) parts.push(`❌ 失败: ${data.failedCount}`);
+  detail.textContent = parts.join('  ·  ');
+
+  if (data.running) {
+    btn.disabled = true;
+    btn.textContent = '⏳ 采集中...';
+  } else {
+    btn.disabled = false;
+    btn.textContent = '▶ 启动抓取';
+    setTimeout(() => { if (!data.running) { bar.style.display = 'none'; fill.className = 'collect-progress-fill'; } }, 15000);
+  }
+}
+
+function showCollectResult(data) {
+  const el = document.getElementById('collectResult');
+  if (!el) return;
+  if (data.phase === 'error') {
+    el.style.display = 'block';
+    el.innerHTML = `<div class="result-error">❌ ${data.message || '采集失败'}${data.errors && data.errors.length ? '<br>' + data.errors.map(e => `<span>${e.source}: ${e.message}</span>`).join('<br>') : ''}</div>`;
+    return;
+  }
+  el.style.display = 'block';
+  const items = [
+    `<span class="result-item result-success">✅ 新增 ${data.savedCount} 条</span>`,
+    `<span class="result-item">🐦 Twitter ${data.twitterCount} 条</span>`,
+    `<span class="result-item">💬 Discord ${data.discordCount} 条</span>`,
+  ];
+  if (data.dedupCount > 0) items.push(`<span class="result-item">🧹 去重 ${data.dedupCount} 条</span>`);
+  if (data.officialCount > 0) items.push(`<span class="result-item result-official">📤 过滤官方 ${data.officialCount} 条（已转至意见反馈）</span>`);
+  if (data.translateCount > 0) items.push(`<span class="result-item">🌐 翻译 ${data.translateCount} 条</span>`);
+  if (data.skippedCount > 0) items.push(`<span class="result-item result-muted">⏭️ 跳过 ${data.skippedCount} 条</span>`);
+  if (data.errors && data.errors.length > 0) {
+    items.push(`<div class="result-errors">${data.errors.map(e => `⚠️ ${e.source}: ${e.message}`).join('<br>')}</div>`);
+  }
+  el.innerHTML = items.join('');
+}
+
+async function checkRunningCollection() {
+  try {
+    const res = await fetch('/api/sentiment/collect-progress');
+    const result = await res.json();
+    if (result.ok && result.data.running) {
+      showCollectProgress(result.data);
+      startProgressPolling();
+    }
+  } catch (_) {}
+}

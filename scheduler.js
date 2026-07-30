@@ -411,6 +411,13 @@ function checkScheduledJobs() {
 
 /**
  * 执行每日热门话题分析任务（带并发保护）
+ * 
+ * ★★★ 核心原则 ★★★
+ * 所有舆情分析必须基于历史数据池（sentiment_records 表）按时间范围查询，
+ * 绝不可以基于某次采集的中间结果来推进分析。
+ * 采集和分析是独立的两个步骤：
+ *   1. 采集：把数据存入数据库（补充数据池）
+ *   2. 分析：从数据库按时间范围查询并分析（与本次采集无关）
  */
 async function dailyAnalysisTask() {
   if (sentiment.getIsCollecting()) {
@@ -438,7 +445,8 @@ async function dailyAnalysisTask() {
     }
     
     // 第二步：AI 分析热门话题
-    console.log('\n🤖 第二步：AI 分析热门话题...');
+    // ★ 核心原则：分析基于历史数据池（数据库）按时间范围查询，与本次采集结果无关
+    console.log('\n🤖 第二步：从历史数据池分析热门话题（昨日8:30~今日8:30）...');
     const result = await sentiment.runDailyHotTopicsAnalysis();
     
     if (result.success) {

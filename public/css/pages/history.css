@@ -9,9 +9,6 @@
   padding: var(--space-lg);
   box-shadow: var(--shadow-card);
   margin-bottom: var(--space-lg);
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-md);
 }
 
 .filter-group {
@@ -24,6 +21,69 @@
   font-weight: 600;
   color: var(--color-text);
 }
+
+/* ===== 数据管理卡片（采集+上传+筛选 整合） ===== */
+.data-management {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--space-lg);
+}
+.mgmt-toolbar {
+  display: flex;
+  gap: var(--space-xl, 32px);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mgmt-collect, .mgmt-upload {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mgmt-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text, #2d3748);
+  white-space: nowrap;
+}
+/* 筛选行 */
+.mgmt-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border, #e5e7eb);
+  flex-wrap: wrap;
+}
+.mgmt-filters select,
+.mgmt-filters input[type="date"] {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 6px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #2d3748);
+}
+.filter-sep {
+  color: var(--color-text-muted, #999);
+  font-size: 14px;
+}
+.btn-query {
+  padding: 6px 14px !important;
+  font-size: 12px !important;
+  white-space: nowrap;
+}
+/* 上传面板 */
+.upload-panel {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-bg-light, #f7fafc);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-border, #e5e7eb);
+}
+[data-theme="dark"] .upload-panel { background: #1f2937; border-color: #374151; }
 
 /* 数据表格 */
 .data-table-container {
@@ -84,11 +144,77 @@
 }
 .url-link:hover { text-decoration: underline; }
 
-/* 上传区域 */
-.upload-section {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
-  box-shadow: var(--shadow-card);
-  margin-bottom: var(--space-lg);
+
+.collect-progress-bar {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
+.collect-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.collect-progress-icon { font-size: 16px; }
+.collect-progress-text { font-weight: 600; color: var(--color-text, #2d3748); }
+.collect-progress-elapsed {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-muted, #a0aec0);
+}
+.collect-progress-track {
+  height: 6px;
+  background: var(--color-border-light, #f0f2f5);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+[data-theme="dark"] .collect-progress-track { background: #374151; }
+.collect-progress-fill {
+  height: 100%;
+  background: var(--color-gradient, linear-gradient(135deg, #667eea, #764ba2));
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+.collect-progress-fill.done { background: linear-gradient(135deg, #48bb78, #38a169); }
+.collect-progress-fill.error { background: linear-gradient(135deg, #f56565, #e53e3e); }
+.collect-progress-detail {
+  font-size: 12px;
+  color: var(--color-text-secondary, #666);
+}
+
+/* 采集结果摘要 */
+.collect-result {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-bg-light, #f7fafc);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-border, #e5e7eb);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+[data-theme="dark"] .collect-result { background: #1f2937; border-color: #374151; }
+.result-item {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(102, 126, 234, 0.08);
+}
+.result-success { background: rgba(72, 187, 120, 0.12); color: #22543d; }
+.result-official { background: rgba(237, 137, 54, 0.12); color: #7b341e; }
+.result-muted { opacity: 0.6; }
+.result-error {
+  color: #c53030;
+  font-weight: 600;
+}
+.result-errors {
+  width: 100%;
+  font-size: 12px;
+  color: #c53030;
+  margin-top: 4px;
 }

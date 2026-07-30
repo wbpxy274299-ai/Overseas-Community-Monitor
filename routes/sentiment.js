@@ -14,6 +14,7 @@ const scheduler = require('../scheduler');
 const weeklyReport = require('../weekly_report');
 const { formatCst, nowCst } = require('../scanner');
 const log = require('../logger');
+const translator = require('../translator');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 // 跳过健康检查的认证（健康检查不需要登录）
@@ -157,12 +158,16 @@ router.get('/api/sentiment/history', (req, res) => {
 // ===== 采集进度追踪 =====
 let collectProgress = {
   running: false,
-  phase: '',        // 'twitter' | 'discord' | 'saving' | 'done' | 'error'
+  phase: '',        // 'twitter' | 'discord' | 'cleaning' | 'saving' | 'done' | 'error'
   twitterCount: 0,
   discordCount: 0,
+  dedupCount: 0,       // 去重数量
+  officialCount: 0,    // 过滤官方数量
+  translateCount: 0,   // 翻译数量
   savedCount: 0,
   skippedCount: 0,
   failedCount: 0,
+  errors: [],           // 各平台错误信息
   message: '',
   startTime: null,
   endTime: null,
@@ -185,69 +190,112 @@ router.post('/api/sentiment/collect', requireRole('super_admin'), async (req, re
   // 立即返回，后台执行
   res.json({ ok: true, message: '采集已启动，正在后台执行', collecting: true });
 
-  // 后台异步执行采集
+  // 后台异步执行采集（含清洗管线）
   (async () => {
     collectProgress = {
       running: true, phase: 'twitter',
-      twitterCount: 0, discordCount: 0, savedCount: 0, skippedCount: 0, failedCount: 0,
+      twitterCount: 0, discordCount: 0, dedupCount: 0, officialCount: 0, translateCount: 0,
+      savedCount: 0, skippedCount: 0, failedCount: 0, errors: [],
       message: '正在采集 Twitter 数据...', startTime: Date.now(), endTime: null,
     };
     sentiment.setIsCollecting(true);
-    console.log('📊 [手动采集] 开始采集 Twitter + Discord 舆情数据...');
+    console.log('📊 [手动采集] 开始采集 + 清洗管线...');
 
     try {
-      const enableAI = req.body.enableAI === true || req.query.enableAI === 'true';
-
-      // Twitter 采集
-      collectProgress.phase = 'twitter';
-      collectProgress.message = '正在采集 Twitter（日服 Yahoo 搜索）...';
+      // ====== 第1步：采集原始数据 ======
       let twitterRecords = [];
       try {
         twitterRecords = await sentiment.collectFromTwitter();
         collectProgress.twitterCount = twitterRecords.length;
-        console.log(`📊 [手动采集] Twitter 采集完成: ${twitterRecords.length} 条`);
+        console.log(`📊 [采集] Twitter: ${twitterRecords.length} 条`);
       } catch (e) {
-        console.error('📊 [手动采集] Twitter 采集失败:', e.message);
-        collectProgress.message = `Twitter 采集失败: ${e.message}，继续采集 Discord...`;
+        console.error('📊 [采集] Twitter 失败:', e.message);
+        collectProgress.errors.push({ source: 'Twitter', message: e.message });
       }
 
-      // Discord 采集
       collectProgress.phase = 'discord';
-      collectProgress.message = '正在采集 Discord（繁中频道）...';
+      collectProgress.message = '正在采集 Discord 数据...';
       let discordRecords = [];
       try {
         discordRecords = await sentiment.collectFromDiscord();
         collectProgress.discordCount = discordRecords.length;
-        console.log(`📊 [手动采集] Discord 采集完成: ${discordRecords.length} 条`);
+        console.log(`📊 [采集] Discord: ${discordRecords.length} 条`);
       } catch (e) {
-        console.error('📊 [手动采集] Discord 采集失败:', e.message);
-        collectProgress.message = `Discord 采集失败: ${e.message}`;
+        console.error('📊 [采集] Discord 失败:', e.message);
+        collectProgress.errors.push({ source: 'Discord', message: e.message });
       }
 
-      // 保存数据
-      const allRecords = [...twitterRecords, ...discordRecords];
-      if (allRecords.length > 0) {
-        collectProgress.phase = 'saving';
-        collectProgress.message = `正在保存 ${allRecords.length} 条数据...`;
-        const result = await sentiment.batchSaveRecords(allRecords, enableAI);
-        collectProgress.savedCount = result.success || 0;
-        collectProgress.skippedCount = result.skipped || 0;
-        collectProgress.failedCount = result.failed || 0;
-        console.log(`📊 [手动采集] 保存完成: 成功 ${result.success}, 跳过 ${result.skipped}, 失败 ${result.failed}`);
+      let allRecords = [...twitterRecords, ...discordRecords];
+      if (allRecords.length === 0) {
+        collectProgress.phase = 'done';
+        collectProgress.message = '采集完成，本次无新数据';
+        collectProgress.endTime = Date.now();
+        return;
       }
+
+      // ====== 第2步：数据去重 ======
+      collectProgress.phase = 'cleaning';
+      collectProgress.message = `原始数据 ${allRecords.length} 条，正在去重...`;
+      const dedupResult = sentiment.deduplicateRecords(allRecords);
+      allRecords = dedupResult.records;
+      collectProgress.dedupCount = dedupResult.dupCount;
+      console.log(`📊 [去重] 原始 ${allRecords.length + dedupResult.dupCount} 条 → 去重后 ${allRecords.length} 条（移除 ${dedupResult.dupCount} 条重复）`);
+
+      // ====== 第3步：过滤官方/运营发言 ======
+      const filterResult = sentiment.filterOfficialRecords(allRecords);
+      collectProgress.officialCount = filterResult.official.length;
+      console.log(`📊 [过滤官方] 过滤 ${filterResult.official.length} 条官方发言，剩余 ${filterResult.normal.length} 条玩家发言`);
+
+      // 官方发言翻译后存入反馈系统
+      for (const offRecord of filterResult.official) {
+        try {
+          let translated = offRecord.content;
+          if (translator.hasJapaneseCharacters(offRecord.content)) {
+            translated = await translator.translateJapaneseToChinese(offRecord.content);
+          }
+          const platformLabel = offRecord.platform === 'twitter' ? 'Twitter' : 'Discord';
+          const dateStr = todayStr();
+          db.getDb().run(
+            "INSERT INTO feedbacks (from_user, title, content, status) VALUES (?, ?, ?, 'unread')",
+            ['系统采集', `运营发言-${platformLabel}-${dateStr}`, `【${offRecord.author}】${translated}${offRecord.url ? '\n原链接: ' + offRecord.url : ''}`]
+          );
+          db.saveDb();
+        } catch (e) {
+          console.warn('⚠️ 官方发言存反馈失败:', e.message);
+        }
+      }
+
+      // ====== 第4步：批量翻译+打标签+入库 ======
+      collectProgress.phase = 'saving';
+      collectProgress.message = `正在保存 ${filterResult.normal.length} 条玩家发言（翻译+标签）...`;
+      const result = await sentiment.batchSaveRecords(filterResult.normal, true);
+      collectProgress.savedCount = result.success || 0;
+      collectProgress.skippedCount = result.skipped || 0;
+      collectProgress.failedCount = result.failed || 0;
+      collectProgress.translateCount = result.translated || 0;
+      console.log(`📊 [保存] 新增 ${result.success}, 翻译 ${result.translated}, 跳过 ${result.skipped}, 失败 ${result.failed}`);
 
       collectProgress.phase = 'done';
-      collectProgress.message = `采集完成！Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条`;
+      const summary = [
+        `Twitter ${collectProgress.twitterCount} 条`,
+        `Discord ${collectProgress.discordCount} 条`,
+      ].join(', ');
+      const cleaning = [
+        collectProgress.dedupCount > 0 ? `去重 ${collectProgress.dedupCount}` : '',
+        collectProgress.officialCount > 0 ? `过滤官方 ${collectProgress.officialCount}` : '',
+        collectProgress.translateCount > 0 ? `翻译 ${collectProgress.translateCount}` : '',
+      ].filter(Boolean).join(', ');
+      collectProgress.message = `采集完成！${summary}${cleaning ? ' | 清洗: ' + cleaning : ''}`;
       collectProgress.endTime = Date.now();
       console.log(`✅ [手动采集] 全部完成`);
 
-      // 清除统计数据缓存，让下次请求拿到最新数据
       clearStatisticsCache();
 
     } catch (e) {
       log.error('手动采集舆情数据失败', e.message);
       collectProgress.phase = 'error';
       collectProgress.message = `采集失败: ${e.message}`;
+      collectProgress.errors.push({ source: '系统', message: e.message });
       collectProgress.endTime = Date.now();
     } finally {
       collectProgress.running = false;
@@ -313,6 +361,122 @@ router.post('/api/sentiment/force-analyze', requireRole('super_admin'), async (r
     dailyAnalysisLock.analyzing = false;
     console.error('❌ [手动AI分析] 失败:', e.message);
     log.error('手动AI分析失败', e.message);
+  }
+});
+
+// ===== 分析变更检测（判断是否需要重新分析） =====
+router.get('/api/sentiment/analysis-check', (req, res) => {
+  try {
+    const current = sentiment.getCurrentDataSnapshot();
+    const last = sentiment.getAnalysisSnapshot();
+    const cs = sentiment.getCollectionStatus();
+
+    // 检查舆情面板是否有数据
+    const todayTopics = sentiment.getTodayHotTopics();
+    const hasTwitterTopics = todayTopics && todayTopics.twitter_topics && todayTopics.twitter_topics.length > 0;
+    const hasDiscordTopics = todayTopics && todayTopics.discord_topics && todayTopics.discord_topics.length > 0;
+    const panelComplete = hasTwitterTopics || hasDiscordTopics;
+
+    // 检查数据是否变更
+    const countChanged = current.recordCount !== last.recordCount;
+    const dateChanged = current.maxUpdatedAt !== last.maxUpdatedAt;
+    const dataChanged = countChanged || dateChanged;
+
+    let needRefresh = false;
+    let reason = '';
+
+    if (!dataChanged && panelComplete) {
+      needRefresh = false;
+      reason = '数据无变化且面板内容完整，无需刷新';
+    } else if (dataChanged) {
+      needRefresh = true;
+      const diff = current.recordCount - last.recordCount;
+      reason = `历史数据已更新（${diff > 0 ? '新增' : '变化'} ${Math.abs(diff)} 条记录）`;
+    } else if (!panelComplete) {
+      needRefresh = true;
+      reason = '舆情面板数据不完整，需要重新分析';
+    }
+
+    res.json({
+      ok: true,
+      needRefresh,
+      reason,
+      lastAnalysisAt: last.analyzedAt || null,
+      recordCountChange: current.recordCount - last.recordCount,
+      currentCount: current.recordCount,
+      panelComplete,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ===== 刷新分析（智能版：先检测再分析） =====
+router.post('/api/sentiment/refresh-analysis', requireRole('operator'), async (req, res) => {
+  try {
+    // 先检测是否需要刷新
+    const current = sentiment.getCurrentDataSnapshot();
+    const last = sentiment.getAnalysisSnapshot();
+    const todayTopics = sentiment.getTodayHotTopics();
+    const panelComplete = todayTopics && (
+      (todayTopics.twitter_topics && todayTopics.twitter_topics.length > 0) ||
+      (todayTopics.discord_topics && todayTopics.discord_topics.length > 0)
+    );
+    const dataChanged = current.recordCount !== last.recordCount || current.maxUpdatedAt !== last.maxUpdatedAt;
+
+    if (!dataChanged && panelComplete) {
+      return res.json({ ok: true, needRefresh: false, message: '数据无变化且面板完整，无需刷新分析' });
+    }
+
+    // 清除缓存和锁，执行分析
+    dailyAnalysisLock = { date: null, analyzing: false };
+    aiAnalyzer.clearTopicCache();
+    sentiment.clearTodayTopics();
+
+    res.json({ ok: true, needRefresh: true, message: 'AI 分析已启动，请稍后刷新查看结果' });
+
+    // 后台执行分析
+    const { startDate, endDate, periodLabel } = sentiment.getTodayPeriod();
+    const twitterRecords = sentiment.getQualityFeedback(30, 'twitter', startDate, endDate);
+    const discordRecords = sentiment.getQualityFeedback(30, 'discord', startDate, endDate);
+
+    if ((!twitterRecords || twitterRecords.length === 0) && (!discordRecords || discordRecords.length === 0)) {
+      console.log('⚠️ [刷新分析] 无数据可分析');
+      return;
+    }
+
+    dailyAnalysisLock = { date: null, analyzing: true };
+    try {
+      const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
+      const dedupByTag = (topics) => {
+        const seen = new Set();
+        return (topics || []).filter(t => { if (seen.has(t.tag)) return false; seen.add(t.tag); return true; });
+      };
+      result.twitter_topics = dedupByTag(result.twitter_topics);
+      result.discord_topics = dedupByTag(result.discord_topics);
+      sortByHeat(result.twitter_topics);
+      sortByHeat(result.discord_topics);
+
+      if (result.twitter_topics.length > 0) sentiment.saveTopicHistory(result.twitter_topics, 'twitter', true);
+      if (result.discord_topics.length > 0) sentiment.saveTopicHistory(result.discord_topics, 'discord', true);
+
+      dailyAnalysisLock = { date: todayStr(), analyzing: false };
+      sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
+
+      // 更新分析快照
+      sentiment.setAnalysisSnapshot({
+        recordCount: current.recordCount,
+        maxUpdatedAt: current.maxUpdatedAt,
+        analyzedAt: new Date().toISOString(),
+      });
+      console.log('✅ [刷新分析] 分析完成');
+    } finally {
+      dailyAnalysisLock.analyzing = false;
+    }
+  } catch (e) {
+    dailyAnalysisLock.analyzing = false;
+    console.error('❌ [刷新分析] 失败:', e.message);
+    log.error('刷新分析失败', e.message);
   }
 });
 
@@ -764,6 +928,39 @@ router.get('/api/sentiment/report/:id/download', (req, res) => {
   } catch (e) {
     log.error('下载报告失败', e.message);
     res.status(500).json({ error: `下载失败: ${e.message}` });
+  }
+});
+
+// ===== 七日概览（逐日数据，前端趋势图用）=====
+router.get('/api/sentiment/weekly-overview', (req, res) => {
+  try {
+    const overview = sentiment.getWeeklyOverview();
+    res.json({ ok: true, data: overview });
+  } catch (e) {
+    log.error('获取七日概览失败', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== 七日热门话题（7日聚合数据 + AI概述）=====
+router.get('/api/sentiment/weekly-hot-topics', async (req, res) => {
+  try {
+    const topics = await sentiment.getWeeklyHotTopics();
+    res.json({ ok: true, data: topics });
+  } catch (e) {
+    log.error('获取七日热门话题失败', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== 每日舆情概述（无话题时的兑底）=====
+router.get('/api/sentiment/daily-overview', (req, res) => {
+  try {
+    const overview = sentiment.getDailyOverview();
+    res.json({ ok: true, data: overview });
+  } catch (e) {
+    log.error('获取每日舆情概述失败', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 

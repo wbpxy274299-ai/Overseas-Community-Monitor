@@ -285,7 +285,7 @@
   align-items: center;
   gap: 8px;
 }
-.btn-collect {
+.btn-refresh-analysis {
   padding: 5px 16px;
   font-size: 12px;
   border: 1px solid var(--color-primary, #667eea);
@@ -296,104 +296,625 @@
   transition: all 0.2s;
   font-weight: 600;
 }
-.btn-collect:hover:not(:disabled) {
+.btn-refresh-analysis:hover:not(:disabled) {
   background: var(--color-primary, #667eea);
   color: #fff;
 }
-.btn-collect:disabled {
+.btn-refresh-analysis:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.btn-collect.running {
-  border-color: #f59e0b;
-  color: #f59e0b;
-  animation: pulse-border 1.5s infinite;
-}
 
-/* AI分析按钮 */
-.btn-ai-analyze {
-  padding: 5px 16px;
-  font-size: 12px;
-  border: 1px solid #8b5cf6;
-  color: #8b5cf6;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 600;
-  margin-left: 8px;
-}
-.btn-ai-analyze:hover:not(:disabled) {
-  background: #8b5cf6;
-  color: #fff;
-}
-.btn-ai-analyze:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-@keyframes pulse-border {
-  0%, 100% { border-color: #f59e0b; }
-  50% { border-color: #fbbf24; }
-}
-
-/* 采集进度条 */
-.collect-progress-bar {
+/* ===== 今日快报摘要 ===== */
+.daily-brief-banner {
+  padding: 16px 24px;
   background: var(--color-surface, #fff);
   border-bottom: 1px solid var(--color-border, #e5e7eb);
-  padding: 12px 24px;
-  animation: fadeInUp 0.3s;
 }
-.collect-progress-inner {
-  max-width: var(--container-max);
+.brief-inner {
+  max-width: 1400px;
   margin: 0 auto;
 }
-.collect-progress-header {
+.brief-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--color-text, #333);
+  margin-bottom: 12px;
+}
+.brief-cards {
+  display: flex;
+  gap: 12px;
+}
+.brief-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-card-bg, #fafbfc);
+  flex: 1;
+  min-width: 0;
+}
+.brief-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.brief-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--color-text, #1f2937);
+  line-height: 1.2;
+}
+.brief-label {
+  font-size: 12px;
+  color: var(--color-text-muted, #999);
+  font-weight: 500;
+}
+.brief-twitter { border-left: 3px solid #1d9bf0; }
+.brief-discord { border-left: 3px solid #5865f2; }
+.brief-risk { border-left: 3px solid #f59e0b; }
+.brief-mood { border-left: 3px solid #10b981; }
+
+[data-theme="dark"] .brief-card {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
+}
+
+/* 快报监控时间 */
+.brief-monitor-time {
+  font-size: 12px;
+  color: var(--color-text-muted, #999);
+  margin-top: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+/* 快报热门话题 */
+.brief-topics-section {
+  margin-top: 16px;
+}
+.brief-section-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text, #333);
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
-  font-size: 13px;
 }
-.collect-progress-icon {
-  font-size: 16px;
+.brief-help-btn {
+  background: none;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--color-text-muted, #999);
+  line-height: 1;
+  padding: 0;
 }
-.collect-progress-text {
-  font-weight: 600;
-  color: var(--color-text, #2d3748);
-}
-.collect-progress-elapsed {
-  margin-left: auto;
+.brief-heat-help {
+  margin: 0 0 10px 0;
+  padding: 10px 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
   font-size: 12px;
-  color: var(--color-text-muted, #a0aec0);
+  color: #92400e;
+  line-height: 1.8;
 }
-.collect-progress-track {
+.brief-topics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.brief-platform-tag {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  display: inline-block;
+}
+.brief-platform-tw { background: #e8f4fd; color: #1d9bf0; }
+.brief-platform-dc { background: #eef0ff; color: #5865f2; }
+[data-theme="dark"] .brief-platform-tw { background: rgba(29,155,240,0.15); }
+[data-theme="dark"] .brief-platform-dc { background: rgba(88,101,242,0.15); }
+
+.brief-topic-card {
+  padding: 10px 12px;
+  background: var(--color-card-bg, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: box-shadow 0.2s;
+}
+.brief-topic-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+[data-theme="dark"] .brief-topic-card {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
+}
+.btc-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #333);
+  line-height: 1.4;
+}
+.btc-meta {
+  font-size: 11px;
+  color: var(--color-text-muted, #999);
+  margin-top: 3px;
+}
+.brief-topic-notice {
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-muted, #999);
+}
+
+/* 每日舆情概述（无话题时兑底） */
+.brief-overview-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text, #333);
+  padding: 10px 12px;
+  background: var(--color-border-light, #f9fafb);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+[data-theme="dark"] .brief-overview-text {
+  background: rgba(255,255,255,0.03);
+}
+.brief-overview-samples {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.brief-sample {
+  padding: 6px 10px;
+  background: var(--color-card-bg, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 6px;
+  border-left: 2px solid var(--color-primary, #667eea);
+}
+[data-theme="dark"] .brief-sample {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
+}
+.brief-sample-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text, #333);
+  word-break: break-word;
+}
+.brief-sample-meta {
+  margin-top: 2px;
+}
+.brief-sample-link {
+  font-size: 10px;
+  color: var(--color-primary, #667eea);
+  text-decoration: none;
+  font-weight: 600;
+}
+.brief-sample-link:hover {
+  text-decoration: underline;
+}
+.brief-sample-author {
+  font-size: 10px;
+  color: var(--color-text-muted, #999);
+  margin-right: 8px;
+}
+
+/* 发言概况下方追加的热门话题 */
+.brief-hottopics-append {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border, #e5e7eb);
+}
+[data-theme="dark"] .brief-hottopics-append {
+  border-top-color: rgba(255,255,255,0.1);
+}
+.bha-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #666);
+  margin-bottom: 6px;
+}
+
+/* 快报玩家原声（折叠） */
+.brief-messages-section {
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+  padding-top: 12px;
+}
+.brief-messages-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 12px 18px;
+  user-select: none;
+  background: var(--color-primary, #667eea);
+  border: 2px solid var(--color-primary, #667eea);
+  border-radius: 10px;
+  transition: background 0.2s, transform 0.1s;
+}
+.brief-messages-header:hover {
+  background: var(--color-primary-hover, #5a6fd6);
+  transform: translateY(-1px);
+}
+.brief-messages-arrow {
+  font-size: 14px;
+  color: #fff;
+  font-weight: 700;
+  transition: transform 0.2s;
+  width: 18px;
+  text-align: center;
+}
+.brief-messages-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+.brief-msg-tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 12px;
+}
+.brief-msg-tab {
+  padding: 3px 10px;
+  font-size: 11px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(255,255,255,0.8);
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.brief-msg-tab.active {
+  background: #fff;
+  color: var(--color-primary, #667eea);
+  border-color: #fff;
+}
+.brief-msg-count {
+  font-size: 11px;
+  color: rgba(255,255,255,0.8);
+  margin-left: auto;
+}
+.brief-messages-content {
+  margin-top: 8px;
+}
+.brief-messages-scroll {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--color-card-bg, #fafbfc);
+}
+[data-theme="dark"] .brief-messages-scroll {
+  background: rgba(255,255,255,0.02);
+  border-color: rgba(255,255,255,0.1);
+}
+
+/* 七日热门话题 */
+.weekly-topics-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
+.weekly-topics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.wtp-header {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  display: inline-block;
+}
+.wtp-tw { background: #e8f4fd; color: #1d9bf0; }
+.wtp-dc { background: #eef0ff; color: #5865f2; }
+[data-theme="dark"] .wtp-tw { background: rgba(29,155,240,0.15); }
+[data-theme="dark"] .wtp-dc { background: rgba(88,101,242,0.15); }
+
+.wtp-card {
+  padding: 14px 16px;
+  background: var(--color-card-bg, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  transition: box-shadow 0.2s;
+}
+.wtp-card:hover {
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+[data-theme="dark"] .wtp-card {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
+}
+.wtp-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.wtp-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text, #333);
+}
+.wtp-card-tag {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.wtp-card-heat {
+  font-size: 12px;
+  color: var(--color-text-muted, #999);
+  margin-left: auto;
+  font-weight: 600;
+}
+.wtp-card-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary, #666);
+  margin-bottom: 6px;
+}
+/* 情绪分布条 */
+.wtp-mood-bar {
+  display: flex;
   height: 6px;
-  background: var(--color-border-light, #f0f2f5);
   border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  background: #e5e7eb;
+}
+[data-theme="dark"] .wtp-mood-bar {
+  background: rgba(255,255,255,0.1);
+}
+.wtp-mood-pos { background: #10b981; }
+.wtp-mood-neg { background: #ef4444; }
+.wtp-mood-neu { background: #9ca3af; }
+.wtp-card-summary {
+  font-size: 12px;
+  color: var(--color-text-secondary, #666);
+  line-height: 1.6;
+  padding: 6px 8px;
+  background: var(--color-border-light, #f9fafb);
+  border-radius: 6px;
+}
+[data-theme="dark"] .wtp-card-summary {
+  background: rgba(255,255,255,0.03);
+}
+.wtp-card-overview {
+  font-size: 12px;
+  color: var(--color-text-secondary, #666);
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: var(--color-border-light, #f9fafb);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+[data-theme="dark"] .wtp-card-overview {
+  background: rgba(255,255,255,0.03);
+}
+.wtp-voices {
+  margin-top: 8px;
+  border-top: 1px dashed var(--color-border, #e5e7eb);
+  padding-top: 8px;
+}
+.wtp-voice {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  background: var(--color-border-light, #f9fafb);
+  border-radius: 6px;
+  border-left: 2px solid var(--color-border, #e5e7eb);
+}
+[data-theme="dark"] .wtp-voice {
+  background: rgba(255,255,255,0.03);
+  border-left-color: rgba(255,255,255,0.1);
+}
+.wtp-voice-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text, #333);
+  word-break: break-word;
+}
+.wtp-voice-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 3px;
+  font-size: 10px;
+}
+.wtp-voice-author {
+  color: var(--color-text-muted, #999);
+}
+.wtp-link {
+  color: var(--color-primary, #667eea);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 10px;
+}
+.wtp-link:hover {
+  text-decoration: underline;
+}
+.wtp-card-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--color-text-muted, #999);
+  margin-top: 6px;
+}
+.wtp-empty {
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-muted, #999);
+}
+
+/* ===== 七日趋势 ===== */
+.weekly-section {
+  border-top: 3px solid var(--color-primary, #667eea);
+}
+.weekly-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.weekly-stat-card {
+  padding: 16px 18px;
+  background: var(--color-card-bg, #fafbfc);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+}
+[data-theme="dark"] .weekly-stat-card {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
+}
+.ws-label {
+  font-size: 12px;
+  color: var(--color-text-muted, #999);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.ws-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--color-text, #1f2937);
+  line-height: 1.2;
+}
+.ws-value.ws-hot {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.ws-sub {
+  font-size: 11px;
+  color: var(--color-text-muted, #999);
+  margin-top: 4px;
+}
+
+.weekly-chart-card {
+  background: var(--color-card-bg, #fafbfc);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+}
+[data-theme="dark"] .weekly-chart-card {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
+}
+.weekly-chart-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text, #333);
+  margin-bottom: 16px;
+}
+
+/* 逐日柱状图 */
+.weekly-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 180px;
+  padding: 0 4px;
+}
+.wbc-day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  justify-content: flex-end;
+}
+.wbc-bars {
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  width: 100%;
+  justify-content: center;
+}
+.wbc-bar {
+  width: 18px;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.5s ease;
+  position: relative;
+}
+.wbc-bar.tw { background: #1d9bf0; }
+.wbc-bar.dc { background: #5865f2; }
+.wbc-bar-label {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--color-text-muted, #999);
+  white-space: nowrap;
+}
+.wbc-date {
+  font-size: 11px;
+  color: var(--color-text-secondary, #666);
+  font-weight: 600;
+}
+.wbc-total {
+  font-size: 10px;
+  color: var(--color-text-muted, #999);
+}
+
+/* 情绪变化趋势 */
+.weekly-sentiment-track {
+  display: flex;
+  gap: 8px;
+}
+.wst-day {
+  flex: 1;
+  text-align: center;
+}
+.wst-bar {
+  height: 8px;
+  border-radius: 4px;
+  display: flex;
   overflow: hidden;
   margin-bottom: 6px;
 }
-[data-theme="dark"] .collect-progress-track {
-  background: #374151;
-}
-.collect-progress-fill {
-  height: 100%;
-  background: var(--color-gradient, linear-gradient(135deg, #667eea, #764ba2));
-  border-radius: 3px;
-  transition: width 0.5s ease;
-}
-.collect-progress-fill.done {
-  background: linear-gradient(135deg, #48bb78, #38a169);
-}
-.collect-progress-fill.error {
-  background: linear-gradient(135deg, #f56565, #e53e3e);
-}
-.collect-progress-detail {
+.wst-seg-pos { background: #10b981; }
+.wst-seg-neu { background: #6b7280; }
+.wst-seg-neg { background: #ef4444; }
+.wst-date {
   font-size: 11px;
-  color: var(--color-text-muted, #a0aec0);
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  color: var(--color-text-secondary, #666);
+  font-weight: 600;
+}
+.wst-ratio {
+  font-size: 10px;
+  color: var(--color-text-muted, #999);
+  margin-top: 2px;
+}
+
+@media (max-width: 900px) {
+  .weekly-stats-row { grid-template-columns: repeat(2, 1fr); }
+  .brief-cards { flex-wrap: wrap; }
+  .brief-card { flex: 1 1 45%; }
+  .brief-topics-grid { grid-template-columns: 1fr; }
+  .weekly-topics-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {

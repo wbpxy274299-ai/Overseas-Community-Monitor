@@ -47,112 +47,150 @@
       <span style="color:#ef4444;">⚠️ 错误: <span id="statusErrorCount">0</span></span>
     </div>
     <div class="status-actions">
-      <button class="btn-collect super-admin-only" id="btnCollect" onclick="startCollecting()" title="手动采集 Twitter + Discord 舆情数据">▶ 启动抓取</button>
-      <button class="btn-ai-analyze super-admin-only" id="btnAIAnalyze" onclick="requestAIAnalysis()" title="强制重新调用AI分析，生成热门话题总结">🤖 AI分析</button>
+      <button class="btn-refresh-analysis operator-only" id="btnRefreshAnalysis" onclick="refreshAnalysis()" title="检测数据变更后重新AI分析">🔄 刷新分析</button>
     </div>
   </div>
 
-  <!-- 采集进度条 -->
-  <div id="collectProgressBar" class="collect-progress-bar" style="display:none;">
-    <div class="collect-progress-inner">
-      <div class="collect-progress-header">
-        <span class="collect-progress-icon" id="collectProgressIcon">⏳</span>
-        <span class="collect-progress-text" id="collectProgressText">准备中...</span>
-        <span class="collect-progress-elapsed" id="collectProgressElapsed"></span>
+  <!-- 今日快报摘要 -->
+  <div class="daily-brief-banner">
+    <div class="brief-inner">
+      <div class="brief-title">📌 今日快报</div>
+      <div class="brief-cards">
+        <div class="brief-card brief-twitter">
+          <div class="brief-icon">🐦</div>
+          <div class="brief-info">
+            <div class="brief-value" id="briefTwCount">-</div>
+            <div class="brief-label">Twitter</div>
+          </div>
+        </div>
+        <div class="brief-card brief-discord">
+          <div class="brief-icon">💬</div>
+          <div class="brief-info">
+            <div class="brief-value" id="briefDcCount">-</div>
+            <div class="brief-label">Discord</div>
+          </div>
+        </div>
+        <div class="brief-card brief-risk">
+          <div class="brief-icon">⚠️</div>
+          <div class="brief-info">
+            <div class="brief-value" id="briefRisk">-</div>
+            <div class="brief-label">风险等级</div>
+          </div>
+        </div>
+        <div class="brief-card brief-mood">
+          <div class="brief-icon">🌤️</div>
+          <div class="brief-info">
+            <div class="brief-value" id="briefMood">-</div>
+            <div class="brief-label">整体情绪</div>
+          </div>
+        </div>
       </div>
-      <div class="collect-progress-track">
-        <div class="collect-progress-fill" id="collectProgressFill" style="width:0%"></div>
+
+      <!-- 监控时间 -->
+      <div class="brief-monitor-time" id="briefMonitorTime">监控时间：加载中...</div>
+
+      <!-- 两阵地发言概况 -->
+      <div class="brief-topics-section">
+        <div class="brief-section-title">💬 发言概况
+          <button onclick="toggleHeatHelp()" class="brief-help-btn" title="热度评分说明">?</button>
+        </div>
+        <div id="heatHelpBrief" style="display:none;" class="brief-heat-help">
+          <strong>🔥 热度评分规则（满分10分）</strong>
+          📊 基础分 = 讨论条数 · 😡 负面话题 +2 · 🐛 Bug话题 +1
+        </div>
+        <div class="brief-topics-grid">
+          <div class="brief-topics-col">
+            <div class="brief-platform-tag brief-platform-tw">🐦 日服 Twitter</div>
+            <div id="briefTwitterTopics"><div class="loading">加载中...</div></div>
+          </div>
+          <div class="brief-topics-col">
+            <div class="brief-platform-tag brief-platform-dc">💬 繁中 Discord</div>
+            <div id="briefDiscordTopics"><div class="loading">加载中...</div></div>
+          </div>
+        </div>
       </div>
-      <div class="collect-progress-detail" id="collectProgressDetail"></div>
+
+      <!-- 玩家发言原声（折叠） -->
+      <div class="brief-messages-section">
+        <div class="brief-messages-header" onclick="toggleBriefMessages()">
+          <span class="brief-messages-arrow" id="briefMsgArrow">▶</span>
+          <span class="brief-messages-title">📝 玩家发言原声</span>
+          <div class="brief-msg-tabs" id="briefMsgTabs" onclick="event.stopPropagation()">
+            <button id="msgTabTwitter" class="brief-msg-tab active" onclick="switchMsgTab('twitter')">🐦 Twitter</button>
+            <button id="msgTabDiscord" class="brief-msg-tab" onclick="switchMsgTab('discord')">💬 Discord</button>
+          </div>
+          <span class="brief-msg-count" id="msgCountInfo">加载中...</span>
+        </div>
+        <div id="briefMessagesContent" class="brief-messages-content" style="display:none;">
+          <div id="playerMessages" class="brief-messages-scroll">
+            <div class="loading">加载中...</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <div class="container">
-    <!-- 一日内舆情区域 -->
-    <div class="feedback-section">
+    <!-- 七日舆情趋势 -->
+    <div class="feedback-section weekly-section">
       <div class="section-header">
-        <h2>📅 一日内舆情</h2>
-        <span style="color: var(--color-text-muted, #999); font-size: 14px;" id="dailyMonitorPeriod">监控时间：加载中...</span>
+        <h2>📈 七日舆情趋势</h2>
+        <span style="color: var(--color-text-muted, #999); font-size: 13px;">近7天数据总览，发现趋势和异常</span>
       </div>
-
-      <!-- 统计卡片 -->
-      <div class="stats-grid" id="statsGrid">
-        <div class="stat-card">
-          <div class="label">🐦 日服（Twitter）</div>
-          <div class="value" id="twitterCount">-</div>
-          <div class="sub">Yahoo 实时搜索</div>
+      <!-- 七日统计卡片 -->
+      <div class="weekly-stats-row" id="weeklyStatsRow">
+        <div class="weekly-stat-card">
+          <div class="ws-label">📊 7日总量</div>
+          <div class="ws-value" id="weeklyTotal">-</div>
+          <div class="ws-sub" id="weeklyTotalSub">Twitter + Discord</div>
         </div>
-        <div class="stat-card">
-          <div class="label">💬 繁中（Discord）</div>
-          <div class="value" id="discordCount">-</div>
-          <div class="sub">日常閒聊 + 八卦吃瓜</div>
+        <div class="weekly-stat-card">
+          <div class="ws-label">📅 日均发言</div>
+          <div class="ws-value" id="weeklyDailyAvg">-</div>
+          <div class="ws-sub" id="weeklyDailyAvgSub">条/天</div>
         </div>
-        <div class="stat-card">
-          <div class="label">⚠️ 风险等级</div>
-          <div class="value" id="riskLevel">-</div>
-          <div class="sub">🟢低 / 🟡中 / 🔴高</div>
+        <div class="weekly-stat-card">
+          <div class="ws-label">📈 趋势变化</div>
+          <div class="ws-value" id="weeklyTrendChange">-</div>
+          <div class="ws-sub" id="weeklyTrendSub">较前一日</div>
         </div>
-        <div class="stat-card">
-          <div class="label">🌍 区域分布</div>
-          <div class="value" style="font-size: 14px; line-height: 1.6;" id="regionDistribution">加载中...</div>
-          <div class="sub">繁中/日服数据占比</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">📈 情绪倾向</div>
-          <div class="value" style="font-size: 14px; line-height: 1.6;" id="sentimentTrend">加载中...</div>
-          <div class="sub">整体玩家情绪分析</div>
+        <div class="weekly-stat-card">
+          <div class="ws-label">🔥 最热话题</div>
+          <div class="ws-value ws-hot" id="weeklyHotTopic">-</div>
+          <div class="ws-sub" id="weeklyHotSub">本周热度最高</div>
         </div>
       </div>
-
-      <!-- 图表区域 -->
-      <div class="charts-grid">
-        <div class="chart-card">
-          <h3>🐦 日服（Twitter）情感分布</h3>
-          <div class="chart-placeholder" id="twitterSentimentChart">加载中...</div>
+      <!-- 七日逐日柱状图 -->
+      <div class="weekly-chart-card">
+        <h3>📊 逐日发言量</h3>
+        <div class="weekly-bar-chart" id="weeklyBarChart">
+          <div class="loading">加载中...</div>
         </div>
-        <div class="chart-card">
-          <h3>💬 繁中（Discord）情感分布</h3>
-          <div class="chart-placeholder" id="discordSentimentChart">加载中...</div>
+      </div>
+      <!-- 七日情绪变化 -->
+      <div class="weekly-chart-card">
+        <h3>😊 情绪变化趋势</h3>
+        <div class="weekly-sentiment-track" id="weeklySentimentTrack">
+          <div class="loading">加载中...</div>
         </div>
       </div>
 
-      <!-- 热门话题 -->
-      <div class="charts-grid">
-        <div class="chart-card">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <h3 style="margin:0;">🔥 日服（Twitter）热门话题</h3>
-            <button onclick="toggleHeatHelp()" style="background:none; border:1px solid var(--color-border,#ddd); border-radius:50%; width:22px; height:22px; cursor:pointer; font-size:12px; color:var(--color-text-muted,#999); line-height:1; padding:0;" title="热度评分说明">?</button>
+      <!-- 七日热门话题 -->
+      <div class="weekly-topics-section">
+        <div class="section-header" style="margin-bottom:16px;">
+          <h2 style="font-size:16px;">🔥 七日热门话题</h2>
+          <span style="color:var(--color-text-muted,#999);font-size:12px;">7日数据聚合，发现持续热点</span>
+        </div>
+        <div class="weekly-topics-grid">
+          <div class="weekly-topics-col">
+            <div class="wtp-header wtp-tw">🐦 日服 Twitter</div>
+            <div id="weeklyTwitterTopics"><div class="loading">加载中...</div></div>
           </div>
-          <div id="heatHelp" style="display:none; margin:8px 0; padding:12px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; font-size:12px; color:#92400e; line-height:1.8;">
-            <strong>🔥 热度评分规则（满分10分）</strong><br>
-            📊 基础分 = 讨论条数<br>
-            😡 负面情绪话题 → 额外 +2<br>
-            🐛 涉及Bug/反馈类话题 → 额外 +1<br>
-            🔒 最低 1 分，最高 10 分
+          <div class="weekly-topics-col">
+            <div class="wtp-header wtp-dc">💬 繁中 Discord</div>
+            <div id="weeklyDiscordTopics"><div class="loading">加载中...</div></div>
           </div>
-          <div id="twitterTopics"><div class="loading">加载中...</div></div>
         </div>
-        <div class="chart-card">
-          <h3>🔥 繁中（Discord）热门话题</h3>
-          <div id="discordTopics"><div class="loading">加载中...</div></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 玩家发言原声（前日8:30~今日8:30） -->
-    <div class="feedback-section">
-      <div class="section-header">
-        <h2>📝 玩家发言原声</h2>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <div style="display:flex; border-radius:8px; overflow:hidden; border:2px solid var(--border);">
-            <button id="msgTabTwitter" class="btn btn-primary" onclick="switchMsgTab('twitter')" style="border-radius:6px 0 0 6px; margin:0;">🐦 日服 Twitter</button>
-            <button id="msgTabDiscord" class="btn btn-secondary" onclick="switchMsgTab('discord')" style="border-radius:0 6px 6px 0; margin:0;">💬 繁中 Discord</button>
-          </div>
-          <span style="color:var(--color-text-muted,#999); font-size:12px;" id="msgCountInfo">加载中...</span>
-        </div>
-      </div>
-      <div id="playerMessages" style="padding:16px;">
-        <div class="loading">加载中...</div>
       </div>
     </div>
 

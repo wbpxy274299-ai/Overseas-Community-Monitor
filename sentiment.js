@@ -1233,6 +1233,68 @@ async function saveSentimentRecord(record, enableAI = false) {
   }
 }
 
+// ===== 官方/运营发言过滤 =====
+// 比喻：仓库入口的"保安"，把官方公告和运营发言挑出来，不让它们混进玩家发言区
+const OFFICIAL_AUTHORS = [
+  { platform: 'discord', author: '小梅' },
+  { platform: 'twitter', author: 'ツリーオブセイヴァー：ネバーランド' },
+];
+const OFFICIAL_KEYWORDS = ['运营公告', '官方公告', 'GM公告', '维护通知', '官方通知', '运营通知'];
+
+function filterOfficialRecords(records) {
+  const official = [];
+  const normal = [];
+  for (const r of records) {
+    const author = (r.author || '').trim();
+    const content = r.content || '';
+    // 规则1：精确匹配官方账号
+    const isOfficialAuthor = OFFICIAL_AUTHORS.some(
+      o => o.platform === r.platform && author === o.author
+    );
+    // 规则2：内容包含运营/官方关键词
+    const hasOfficialKeyword = OFFICIAL_KEYWORDS.some(kw => content.includes(kw));
+    if (isOfficialAuthor || hasOfficialKeyword) {
+      official.push(r);
+    } else {
+      normal.push(r);
+    }
+  }
+  return { official, normal };
+}
+
+// ===== 内存去重（入库前快速过滤） =====
+function deduplicateRecords(records) {
+  const seen = new Set();
+  const unique = [];
+  let dupCount = 0;
+  for (const r of records) {
+    const key = `${r.platform}::${(r.content || '').replace(/\s+/g, ' ').trim()}`;
+    if (seen.has(key)) {
+      dupCount++;
+      continue;
+    }
+    seen.add(key);
+    unique.push(r);
+  }
+  return { records: unique, dupCount };
+}
+
+// ===== 分析快照（用于检测数据是否变更） =====
+let analysisSnapshot = { recordCount: 0, maxUpdatedAt: null, analyzedAt: null };
+
+function getAnalysisSnapshot() { return { ...analysisSnapshot }; }
+function setAnalysisSnapshot(snap) { analysisSnapshot = { ...snap }; }
+
+function getCurrentDataSnapshot() {
+  const row = db.queryOne(
+    'SELECT COUNT(*) as cnt, MAX(created_at) as maxAt FROM sentiment_records'
+  );
+  return {
+    recordCount: row ? row.cnt : 0,
+    maxUpdatedAt: row ? row.maxAt : null,
+  };
+}
+
 // ===== 批量保存 =====
 async function batchSaveRecords(records, enableAI = false) {
   let success = 0;
@@ -2308,6 +2370,298 @@ async function fullCollectAndSave() {
   }
 }
 
+// ===== 七日概览（逐日数据，给前端趋势图用） =====
+function getWeeklyOverview() {
+  const now = new Date();
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const start = dateStr + ' 00:00:00';
+    const end = dateStr + ' 23:59:59';
+    
+    const twCount = db.queryOne(
+      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='twitter' AND is_noise=0 AND created_at >= ? AND created_at <= ?`,
+      [start, end]
+    );
+    const dcCount = db.queryOne(
+      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='discord' AND is_noise=0 AND created_at >= ? AND created_at <= ?`,
+      [start, end]
+    );
+    const sentiments = db.queryAll(
+      `SELECT COALESCE(ai_sentiment, sentiment) as sentiment, COUNT(*) as cnt FROM sentiment_records WHERE is_noise=0 AND created_at >= ? AND created_at <= ? GROUP BY COALESCE(ai_sentiment, sentiment)`,
+      [start, end]
+    );
+    const sMap = { positive: 0, neutral: 0, negative: 0 };
+    sentiments.forEach(s => { sMap[s.sentiment] = s.cnt; });
+    
+    days.push({
+      date: dateStr,
+      label: `${d.getMonth()+1}/${d.getDate()}`,
+      twitter: twCount.cnt || 0,
+      discord: dcCount.cnt || 0,
+      total: (twCount.cnt || 0) + (dcCount.cnt || 0),
+      sentiment: sMap,
+    });
+  }
+  
+  const totalTwitter = days.reduce((s, d) => s + d.twitter, 0);
+  const totalDiscord = days.reduce((s, d) => s + d.discord, 0);
+  const totalAll = totalTwitter + totalDiscord;
+  const today = days[days.length - 1];
+  const yesterday = days.length >= 2 ? days[days.length - 2] : null;
+  const trendChange = yesterday ? today.total - yesterday.total : 0;
+  
+  // 7日最热话题：从 topic_tag 统计
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 6);
+  const wStart = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')} 00:00:00`;
+  const wEnd = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} 23:59:59`;
+  const hotTopics = db.queryAll(
+    `SELECT topic_tag, COUNT(*) as cnt FROM sentiment_records
+     WHERE is_noise=0 AND topic_tag IS NOT NULL AND topic_tag != 'general'
+     AND created_at >= ? AND created_at <= ?
+     GROUP BY topic_tag ORDER BY cnt DESC LIMIT 1`,
+    [wStart, wEnd]
+  );
+  const tagLabels = {
+    bug_report: 'Bug', gacha: '抽卡', knight_order: '骑士团',
+    tree_bond: '树缘', event: '活动', cosmetic: '时装',
+    world_boss: '世界Boss', photo: '拍照', pricing: '充值',
+    server: '服务器', general: '其他'
+  };
+  const hotTopicName = hotTopics.length > 0 ? (tagLabels[hotTopics[0].topic_tag] || hotTopics[0].topic_tag) : '-';
+  const hotTopicCount = hotTopics.length > 0 ? hotTopics[0].cnt : 0;
+  
+  return {
+    days,
+    total: totalAll,
+    totalTwitter,
+    totalDiscord,
+    dailyAvg: Math.round(totalAll / 7),
+    trendChange,
+    today,
+    hotTopic: hotTopicName,
+    hotTopicCount,
+  };
+}
+
+// ===== 七日热门话题（从 sentiment_records 聚合7日数据 + AI概述） =====
+async function getWeeklyHotTopics() {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 6);
+  const wStart = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')} 00:00:00`;
+  const wEnd = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} 23:59:59`;
+
+  const tagLabels = {
+    bug_report: 'Bug', gacha: '抽卡', knight_order: '骑士团',
+    tree_bond: '树缘', event: '活动', cosmetic: '时装',
+    world_boss: '世界Boss', photo: '拍照', pricing: '充值',
+    server: '服务器', general: '其他', login: '登录',
+    gameplay: '玩法', story: '剧情', collab: '联动',
+  };
+
+  // 清洗原声内容：去 hashtag、链接、多余符号，截断到100字
+  function cleanVoice(text) {
+    if (!text) return '';
+    let cleaned = text
+      .replace(/https?:\/\/\S+/g, '')           // 去链接
+      .replace(/#\S+/g, '')                       // 去 hashtag
+      .replace(/@\S+/g, '')                       // 去 @mention
+      .replace(/\s+/g, ' ')                       // 多余空格压缩
+      .replace(/[\n\r\t]+/g, ' ')                 // 换行压缩
+      .replace(/[【】「」《》\[\]{}()（）]/g, '')  // 去括号
+      .replace(/[✨🎉🔥💪👍❤️🎮⭐️💎🌟🎯🎁💫✨🌸]/g, '') // 去emoji
+      .trim();
+    if (cleaned.length > 100) {
+      cleaned = cleaned.substring(0, 100) + '...';
+    }
+    return cleaned;
+  }
+
+  async function buildPlatformTopics(platform) {
+    const rows = db.queryAll(
+      `SELECT topic_tag,
+              COUNT(*) as cnt,
+              SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'negative' THEN 1 ELSE 0 END) as neg_cnt,
+              SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'positive' THEN 1 ELSE 0 END) as pos_cnt,
+              SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'neutral' THEN 1 ELSE 0 END) as neu_cnt
+       FROM sentiment_records
+       WHERE platform = ? AND is_noise = 0
+       AND topic_tag IS NOT NULL AND topic_tag != 'general'
+       AND created_at >= ? AND created_at <= ?
+       GROUP BY topic_tag
+       ORDER BY cnt DESC
+       LIMIT 8`,
+      [platform, wStart, wEnd]
+    );
+    
+    // 为每个话题收集原声数据
+    const topicsByTag = {};
+    const topicResults = [];
+    
+    for (const r of rows) {
+      const samples = db.queryAll(
+        `SELECT content, translated_content, url, author, COALESCE(ai_sentiment, sentiment) as sentiment, created_at
+         FROM sentiment_records
+         WHERE platform = ? AND is_noise = 0 AND topic_tag = ?
+         AND created_at >= ? AND created_at <= ?
+         ORDER BY
+           CASE WHEN translated_content IS NOT NULL AND translated_content != '' THEN 0 ELSE 1 END,
+           CASE WHEN url IS NOT NULL AND url != '' THEN 0 ELSE 1 END,
+           content_quality DESC
+         LIMIT 5`,
+        [platform, r.topic_tag, wStart, wEnd]
+      );
+      
+      // 存入 topicsByTag 供 AI 概述用
+      topicsByTag[r.topic_tag] = { messages: samples, count: r.cnt };
+      
+      const dominant = r.neg_cnt > r.pos_cnt ? 'negative' : r.pos_cnt > r.neg_cnt ? 'positive' : 'neutral';
+      const heat = Math.min(10, Math.max(1, Math.round((r.cnt / 7) * 2) + (dominant === 'negative' ? 2 : 0)));
+      
+      topicResults.push({
+        tag: r.topic_tag,
+        title: tagLabels[r.topic_tag] || r.topic_tag,
+        count: r.cnt,
+        heat,
+        sentiment: dominant,
+        neg: r.neg_cnt,
+        pos: r.pos_cnt,
+        neu: r.neu_cnt || 0,
+        overview: '', // 稍后用 AI 填充
+        voices: samples.slice(0, 3).map(s => ({
+          text: cleanVoice(s.translated_content || s.content),
+          url: s.url || '',
+          author: s.author || '匿名',
+          sentiment: s.sentiment || 'neutral',
+        })),
+        daily_avg: Math.round(r.cnt / 7 * 10) / 10,
+      });
+    }
+    
+    // ★ 调用 AI 生成每个话题的真正概述
+    try {
+      const aiSummaries = await aiAnalyzer.aiSummarizeWeeklyTopics(topicsByTag, platform);
+      for (const topic of topicResults) {
+        topic.overview = aiSummaries[topic.tag] || `${topic.count}条关于「${topic.title}」的讨论`;
+      }
+    } catch (e) {
+      log.warn(`七日话题 AI 概述失败(${platform})，使用兑底文本`, e.message);
+      for (const topic of topicResults) {
+        topic.overview = `${topic.count}条关于「${topic.title}」的讨论`;
+      }
+    }
+    
+    return topicResults;
+  }
+
+  const [twitterTopics, discordTopics] = await Promise.all([
+    buildPlatformTopics('twitter'),
+    buildPlatformTopics('discord'),
+  ]);
+
+  return {
+    twitter_topics: twitterTopics,
+    discord_topics: discordTopics,
+  };
+}
+
+// ===== 每日舆情概述（无话题时的兑底文本） =====
+function getDailyOverview() {
+  const { startDate, endDate } = getTodayPeriod();
+  
+  function buildPlatformOverview(platform) {
+    const records = db.queryAll(
+      `SELECT content, translated_content, topic_tag, author, COALESCE(ai_sentiment, sentiment) as sentiment, url
+       FROM sentiment_records
+       WHERE platform = ? AND is_noise = 0 AND created_at >= ? AND created_at <= ?
+       ORDER BY content_quality DESC, created_at DESC
+       LIMIT 20`,
+      [platform, startDate, endDate]
+    );
+    
+    if (!records || records.length === 0) {
+      return { hasData: false, text: '今日暂无玩家发言', samples: [] };
+    }
+    
+    // 清洗原声
+    function cleanVoice(text) {
+      if (!text) return '';
+      let cleaned = text
+        .replace(/https?:\/\/\S+/g, '')
+        .replace(/#\S+/g, '')
+        .replace(/@\S+/g, '')
+        .replace(/\s+/g, ' ')
+        .replace(/[\n\r\t]+/g, ' ')
+        .replace(/[【】「」《》\[\]{}()（）]/g, '')
+        .trim();
+      if (cleaned.length > 100) cleaned = cleaned.substring(0, 100) + '...';
+      return cleaned;
+    }
+    
+    // 统计情绪分布
+    const pos = records.filter(r => r.sentiment === 'positive').length;
+    const neg = records.filter(r => r.sentiment === 'negative').length;
+    const neu = records.filter(r => r.sentiment === 'neutral').length;
+    
+    // 统计话题分布
+    const tagCounts = {};
+    records.forEach(r => {
+      const tag = r.topic_tag || 'general';
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+    });
+    
+    const tagLabels = {
+      bug_report: 'Bug反馈', gacha: '抽卡', knight_order: '骑士团',
+      tree_bond: '树缘', event: '活动', cosmetic: '时装',
+      world_boss: '世界Boss', photo: '拍照', pricing: '充值',
+      server: '服务器', general: '日常聊天', login: '登录',
+      gameplay: '玩法', story: '剧情', collab: '联动',
+    };
+    
+    // 生成概述文本
+    const total = records.length;
+    let moodText = '情绪平稳';
+    if (neg > pos && neg > neu) moodText = '负面情绪偏多';
+    else if (pos > neg && pos > neu) moodText = '正面情绪为主';
+    else if (neu >= pos && neu >= neg) moodText = '以中性讨论为主';
+    
+    const topTags = Object.entries(tagCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([tag, cnt]) => `${tagLabels[tag] || tag}(${cnt}条)`);
+    
+    // 负面舆情提示
+    let negWarning = '';
+    const negRatio = total > 0 ? neg / total : 0;
+    if (neg >= 3 && negRatio >= 0.4) {
+      negWarning = `⚠️ 负面舆情集中：${neg}条负面发言（占比${Math.round(negRatio * 100)}%），主要集中在${Object.entries(tagCounts).filter(([tag]) => records.some(r => r.topic_tag === tag && r.sentiment === 'negative')).slice(0, 2).map(([tag]) => tagLabels[tag] || tag).join('、')}方向`;
+    }
+    
+    const parts = [`总共发言${total}条`, moodText, `主要在聊：${topTags.join('、')}`];
+    if (negWarning) parts.push(negWarning);
+    const text = parts.join('，') + '。';
+    
+    // 取3条代表性原声（已清洗）
+    const samples = records.slice(0, 3).map(r => ({
+      text: cleanVoice(r.translated_content || r.content),
+      url: r.url || '',
+      author: r.author || '匿名',
+      sentiment: r.sentiment || 'neutral',
+    }));
+    
+    return { hasData: true, text, samples, total, pos, neg, neu };
+  }
+  
+  return {
+    twitter: buildPlatformOverview('twitter'),
+    discord: buildPlatformOverview('discord'),
+  };
+}
+
 // ===== 导出 API =====
 module.exports = {
   initSentimentTable,
@@ -2348,4 +2702,12 @@ module.exports = {
   getCollectionStatus,         // 获取采集状态（状态面板用）
   recordError,                 // 记录错误（其他模块也可用）
   normalizeDateTime,           // 时间格式统一规范化
+  getWeeklyOverview,           // 七日概览（逐日数据）
+  getWeeklyHotTopics,          // 七日热门话题（聚合7日数据）
+  getDailyOverview,            // 每日舆情概述（无话题时的兆底）
+  filterOfficialRecords,       // 官方/运营发言过滤
+  deduplicateRecords,          // 内存去重
+  getAnalysisSnapshot,         // 获取上次分析时的快照
+  setAnalysisSnapshot,         // 更新分析快照
+  getCurrentDataSnapshot,      // 获取当前数据快照
 };

@@ -5,7 +5,7 @@ const API_BASE = '/api/sentiment';
 
 // 热度说明开关
 function toggleHeatHelp() {
-  const el = document.getElementById('heatHelp');
+  const el = document.getElementById('heatHelpBrief');
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
@@ -17,16 +17,9 @@ async function loadStatistics() {
     const data = await response.json();
     
     if (data.ok) {
-      document.getElementById('twitterCount').textContent = data.data.twitter_count || 0;
-      document.getElementById('discordCount').textContent = data.data.discord_count || 0;
       const riskLevel = data.data.risk_level || 'low';
-      const riskLabels = { low: '🟢 低', medium: '🟡 中', high: '🔴 高' };
-      document.getElementById('riskLevel').textContent = riskLabels[riskLevel] || '🟢 低';
-      renderRegionDistribution(data.data.region_distribution);
-      loadSentimentTrend();
-      renderTwitterSentimentChart(data.data.twitter_sentiment);
-      renderDiscordSentimentChart(data.data.discord_sentiment);
-      loadAITopics();
+      // 更新今日快报摘要
+      updateDailyBrief(data.data, riskLevel);
       const cacheStatus = data.cached ? '（缓存）' : '（最新）';
       console.log(`📊 统计数据已更新 ${cacheStatus}`);
     }
@@ -128,6 +121,224 @@ function renderRegionDistribution(regions) {
     html += `<div>${r.label}: ${r.count}条 (${percent}%)</div>`;
   });
   container.innerHTML = html;
+}
+
+// ===== 今日快报摘要更新 =====
+function updateDailyBrief(data, riskLevel) {
+  const twEl = document.getElementById('briefTwCount');
+  const dcEl = document.getElementById('briefDcCount');
+  const riskEl = document.getElementById('briefRisk');
+  const moodEl = document.getElementById('briefMood');
+  if (twEl) twEl.textContent = data.twitter_count || 0;
+  if (dcEl) dcEl.textContent = data.discord_count || 0;
+  const riskLabels = { low: '🟢 低', medium: '🟡 中', high: '🔴 高' };
+  if (riskEl) riskEl.textContent = riskLabels[riskLevel] || '-';
+  // 情绪从 twitter + discord 情感分布计算
+  const twS = data.twitter_sentiment || {};
+  const dcS = data.discord_sentiment || {};
+  const pos = (twS.positive || 0) + (dcS.positive || 0);
+  const neg = (twS.negative || 0) + (dcS.negative || 0);
+  const neu = (twS.neutral || 0) + (dcS.neutral || 0);
+  const total = pos + neg + neu;
+  if (total > 0 && moodEl) {
+    const posR = Math.round(pos / total * 100);
+    const negR = Math.round(neg / total * 100);
+    if (posR >= 60) moodEl.textContent = `😊 ${posR}%正面`;
+    else if (negR >= 40) moodEl.textContent = `😟 ${negR}%负面`;
+    else moodEl.textContent = `😐 平稳`;
+  } else if (moodEl) {
+    moodEl.textContent = '-';
+  }
+}
+
+// ===== 七日舆情趋势 =====
+async function loadWeeklyOverview() {
+  try {
+    const res = await fetch(`${API_BASE}/weekly-overview`);
+    const result = await res.json();
+    if (result.ok && result.data) {
+      renderWeeklyStats(result.data);
+      renderWeeklyBarChart(result.data.days);
+      renderWeeklySentimentTrack(result.data.days);
+    }
+  } catch (e) {
+    console.error('加载七日概览失败:', e);
+  }
+}
+
+function renderWeeklyStats(overview) {
+  const totalEl = document.getElementById('weeklyTotal');
+  const avgEl = document.getElementById('weeklyDailyAvg');
+  const trendEl = document.getElementById('weeklyTrendChange');
+  const totalSubEl = document.getElementById('weeklyTotalSub');
+  const avgSubEl = document.getElementById('weeklyDailyAvgSub');
+  const trendSubEl = document.getElementById('weeklyTrendSub');
+  
+  if (totalEl) totalEl.textContent = overview.total;
+  if (totalSubEl) totalSubEl.textContent = `TW:${overview.totalTwitter} DC:${overview.totalDiscord}`;
+  if (avgEl) avgEl.textContent = overview.dailyAvg;
+  
+  const tc = overview.trendChange;
+  if (trendEl) {
+    if (tc > 0) { trendEl.textContent = `📈 +${tc}`; trendEl.style.color = '#ef4444'; }
+    else if (tc < 0) { trendEl.textContent = `📉 ${tc}`; trendEl.style.color = '#10b981'; }
+    else { trendEl.textContent = '➡️ 持平'; trendEl.style.color = ''; }
+  }
+  if (trendSubEl) trendSubEl.textContent = '较前一日';
+  
+  const hotEl = document.getElementById('weeklyHotTopic');
+  const hotSubEl = document.getElementById('weeklyHotSub');
+  if (hotEl) hotEl.textContent = overview.hotTopic || '-';
+  if (hotSubEl) hotSubEl.textContent = overview.hotTopicCount > 0 ? `${overview.hotTopicCount} 条讨论` : '本周无话题';
+}
+
+function renderWeeklyBarChart(days) {
+  const container = document.getElementById('weeklyBarChart');
+  if (!container || !days) return;
+  const maxTotal = Math.max(...days.map(d => d.total), 1);
+  const maxBarH = 140;
+  
+  let html = '';
+  for (const d of days) {
+    const twH = Math.max(Math.round((d.twitter / maxTotal) * maxBarH), d.twitter > 0 ? 4 : 0);
+    const dcH = Math.max(Math.round((d.discord / maxTotal) * maxBarH), d.discord > 0 ? 4 : 0);
+    const isToday = d === days[days.length - 1];
+    html += `<div class="wbc-day">
+      <div class="wbc-bars">
+        <div class="wbc-bar tw" style="height:${twH}px;" title="Twitter: ${d.twitter}">
+          ${d.twitter > 0 ? `<span class="wbc-bar-label">${d.twitter}</span>` : ''}
+        </div>
+        <div class="wbc-bar dc" style="height:${dcH}px;" title="Discord: ${d.discord}">
+          ${d.discord > 0 ? `<span class="wbc-bar-label">${d.discord}</span>` : ''}
+        </div>
+      </div>
+      <div class="wbc-date" style="${isToday ? 'color:var(--color-primary,#667eea);font-weight:800;' : ''}">${d.label}${isToday ? '(今)' : ''}</div>
+      <div class="wbc-total">${d.total}</div>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderWeeklySentimentTrack(days) {
+  const container = document.getElementById('weeklySentimentTrack');
+  if (!container || !days) return;
+  
+  let html = '';
+  for (const d of days) {
+    const s = d.sentiment || { positive: 0, neutral: 0, negative: 0 };
+    const total = (s.positive || 0) + (s.neutral || 0) + (s.negative || 0);
+    const isToday = d === days[days.length - 1];
+    if (total > 0) {
+      const posW = Math.round((s.positive / total) * 100);
+      const neuW = Math.round((s.neutral / total) * 100);
+      const negW = 100 - posW - neuW;
+      html += `<div class="wst-day">
+        <div class="wst-bar">
+          <div class="wst-seg-pos" style="width:${posW}%"></div>
+          <div class="wst-seg-neu" style="width:${neuW}%"></div>
+          <div class="wst-seg-neg" style="width:${negW}%"></div>
+        </div>
+        <div class="wst-date" style="${isToday ? 'color:var(--color-primary,#667eea);font-weight:800;' : ''}">${d.label}${isToday ? '(今)' : ''}</div>
+        <div class="wst-ratio">😊${posW}% 😟${negW}%</div>
+      </div>`;
+    } else {
+      html += `<div class="wst-day">
+        <div class="wst-bar" style="background:#e5e7eb;"></div>
+        <div class="wst-date">${d.label}${isToday ? '(今)' : ''}</div>
+        <div class="wst-ratio">无数据</div>
+      </div>`;
+    }
+  }
+  container.innerHTML = html;
+}
+
+// ===== 七日热门话题 =====
+async function loadWeeklyHotTopics() {
+  try {
+    const res = await fetch(`${API_BASE}/weekly-hot-topics`);
+    const result = await res.json();
+    if (result.ok && result.data) {
+      renderWeeklyTopicColumn('weeklyTwitterTopics', result.data.twitter_topics || []);
+      renderWeeklyTopicColumn('weeklyDiscordTopics', result.data.discord_topics || []);
+    }
+  } catch (e) {
+    console.error('加载七日热门话题失败:', e);
+  }
+}
+
+function renderWeeklyTopicColumn(containerId, topics) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  if (!topics || topics.length === 0) {
+    container.innerHTML = '<div class="wtp-empty">7日内暂无话题数据</div>';
+    return;
+  }
+  const sentimentIcon = s => s === 'positive' ? '😊' : s === 'negative' ? '😟' : '😐';
+  const sentimentColor = s => s === 'positive' ? '#10b981' : s === 'negative' ? '#ef4444' : '#6b7280';
+  const sentimentLabel = s => s === 'positive' ? '正面' : s === 'negative' ? '负面' : '中性';
+  const tagColors = {
+    bug_report: '#ef4444', gacha: '#f59e0b', knight_order: '#8b5cf6',
+    tree_bond: '#10b981', event: '#3b82f6', cosmetic: '#ec4899',
+    world_boss: '#f97316', photo: '#06b6d4', pricing: '#eab308',
+    server: '#6366f1', general: '#6b7280', login: '#14b8a6',
+    gameplay: '#f472b6', story: '#a78bfa', collab: '#fb923c',
+  };
+  let html = '';
+  for (const t of topics) {
+    const sColor = sentimentColor(t.sentiment);
+    const sIcon = sentimentIcon(t.sentiment);
+    const tagColor = tagColors[t.tag] || '#6b7280';
+    // 原声样本（已清洗）
+    let voicesHtml = '';
+    if (t.voices && t.voices.length > 0) {
+      voicesHtml = '<div class="wtp-voices">';
+      for (const v of t.voices) {
+        const linkHtml = v.url ? `<a href="${v.url}" target="_blank" rel="noopener" class="wtp-link">原帖↗</a>` : '';
+        const vSIcon = sentimentIcon(v.sentiment);
+        voicesHtml += `<div class="wtp-voice">
+          <div class="wtp-voice-text">${vSIcon} ${escapeHtml(v.text)}</div>
+          <div class="wtp-voice-meta">
+            <span class="wtp-voice-author">👤 ${escapeHtml(v.author)}</span>
+            ${linkHtml}
+          </div>
+        </div>`;
+      }
+      voicesHtml += '</div>';
+    }
+    // 情绪分布条
+    const total = (t.neg || 0) + (t.pos || 0) + (t.neu || 0);
+    let moodBar = '';
+    if (total > 0) {
+      const posW = Math.round((t.pos || 0) / total * 100);
+      const negW = Math.round((t.neg || 0) / total * 100);
+      const neuW = 100 - posW - negW;
+      moodBar = `<div class="wtp-mood-bar">
+        <div class="wtp-mood-pos" style="width:${posW}%" title="正面 ${posW}%"></div>
+        <div class="wtp-mood-neg" style="width:${negW}%" title="负面 ${negW}%"></div>
+        <div class="wtp-mood-neu" style="width:${neuW}%" title="中性 ${neuW}%"></div>
+      </div>`;
+    }
+    html += `<div class="wtp-card">
+      <div class="wtp-card-header">
+        <span class="wtp-card-title">${sIcon} ${t.title}</span>
+        <span class="wtp-card-heat">🔥 ${t.heat}/10</span>
+      </div>
+      <div class="wtp-card-stats">
+        <span>${t.count}条讨论</span>
+        <span style="color:#10b981;">👍${t.pos || 0}</span>
+        <span style="color:#ef4444;">👎${t.neg || 0}</span>
+      </div>
+      ${moodBar}
+      <div class="wtp-card-overview">${escapeHtml(t.overview)}</div>
+      ${voicesHtml}
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // 加载情绪倾向分析
@@ -410,18 +621,128 @@ function renderDiscordTopics(topics) {
   container.innerHTML = html;
 }
 
-// 加载一日内舆情
+// 加载快报监控时间
 async function loadDailyFeedback() {
   try {
     const response = await fetch(`${API_BASE}/statistics?period=today`);
     const data = await response.json();
     if (data.ok && data.data.period) {
-      document.getElementById('dailyMonitorPeriod').textContent = `监控时间：${data.data.period}`;
+      const el = document.getElementById('briefMonitorTime');
+      if (el) el.textContent = `📅 监控时间：${data.data.period}`;
     }
   } catch (error) {
     console.error('获取监控时间失败:', error);
-    document.getElementById('dailyMonitorPeriod').textContent = '监控时间：前一日 8:30 ~ 今日 8:30';
+    const el = document.getElementById('briefMonitorTime');
+    if (el) el.textContent = '📅 监控时间：前一日 8:30 ~ 今日 8:30';
   }
+}
+
+// ===== 发言概况（始终显示概述） =====
+async function loadHotTopicsBrief() {
+  try {
+    document.getElementById('briefTwitterTopics').innerHTML = '<div class="loading">加载中...</div>';
+    document.getElementById('briefDiscordTopics').innerHTML = '<div class="loading">加载中...</div>';
+    // 只加载每日概述（发言画像）
+    await loadDailyBriefOverview();
+  } catch (e) {
+    console.error('加载发言概况失败:', e);
+    renderBriefDiagnosis({ reason: 'no_data' });
+  }
+}
+
+// 加载每日舆情概述（无话题时的兑底显示）
+async function loadDailyBriefOverview() {
+  try {
+    const res = await fetch(`${API_BASE}/daily-overview`);
+    const result = await res.json();
+    if (result.ok && result.data) {
+      renderDailyBriefOverview(result.data);
+    } else {
+      renderBriefDiagnosis({ reason: 'no_data' });
+    }
+  } catch (e) {
+    console.error('加载每日概述失败:', e);
+    renderBriefDiagnosis({ reason: 'no_data' });
+  }
+}
+
+function renderDailyBriefOverview(data) {
+  const twContainer = document.getElementById('briefTwitterTopics');
+  const dcContainer = document.getElementById('briefDiscordTopics');
+  
+  function renderPlatform(el, platformData) {
+    if (!platformData || !platformData.hasData) {
+      el.innerHTML = '<div class="brief-topic-notice">📭 今日暂无玩家发言</div>';
+      return;
+    }
+    // 只显示概述文本，不显示原声
+    el.innerHTML = `<div class="brief-overview-text">${platformData.text}</div>`;
+  }
+  
+  if (twContainer) renderPlatform(twContainer, data.twitter);
+  if (dcContainer) renderPlatform(dcContainer, data.discord);
+}
+
+// 在概述下方追加热门话题卡片
+function appendBriefHotTopics(container, topics) {
+  if (!container || !topics || topics.length === 0) return;
+  const sentimentIcon = s => s === 'positive' ? '😊' : s === 'negative' ? '😟' : '😐';
+  const sentimentColor = s => s === 'positive' ? '#10b981' : s === 'negative' ? '#ef4444' : '#9ca3af';
+  
+  let html = '<div class="brief-hottopics-append"><div class="bha-title">🔥 热门话题</div>';
+  for (const t of topics.slice(0, 3)) {
+    const sColor = sentimentColor(t.sentiment);
+    const sIcon = sentimentIcon(t.sentiment);
+    html += `<div class="brief-topic-card" style="border-left:3px solid ${sColor};">
+      <div class="btc-title">${sIcon} ${t.title}</div>
+      <div class="btc-meta">🔥${t.heat || '?'}/10 · ${t.count || 0}条</div>
+    </div>`;
+  }
+  html += '</div>';
+  container.insertAdjacentHTML('beforeend', html);
+}
+
+function renderBriefDiagnosis(d) {
+  const reasonIcon = d.reason === 'collection_failed' ? '❌' : d.reason === 'ai_failed' ? '🤖' : '📭';
+  const reasonText = d.reason === 'collection_failed' ? '采集失败' : d.reason === 'ai_failed' ? 'AI 分析失败' : d.reason === 'no_posts' ? '玩家暂无发言' : '暂无数据';
+  const html = `<div class="brief-topic-notice">${reasonIcon} ${reasonText}</div>`;
+  document.getElementById('briefTwitterTopics').innerHTML = html;
+  document.getElementById('briefDiscordTopics').innerHTML = html;
+}
+
+function renderBriefTopics(data) {
+  const twitterTopics = Array.isArray(data) ? data : (data.twitter_topics || []);
+  const discordTopics = Array.isArray(data) ? [] : (data.discord_topics || []);
+  const sentimentIcon = s => s === 'positive' ? '😊' : s === 'negative' ? '😟' : '😐';
+  const sentimentColor = s => s === 'positive' ? '#10b981' : s === 'negative' ? '#ef4444' : '#9ca3af';
+
+  function compactCard(topic) {
+    const sColor = sentimentColor(topic.sentiment);
+    const sIcon = sentimentIcon(topic.sentiment);
+    return `<div class="brief-topic-card" style="border-left:3px solid ${sColor};">
+      <div class="btc-title">${sIcon} ${topic.title}</div>
+      <div class="btc-meta">🔥${topic.heat || '?'}/10 · ${topic.count || 0}条</div>
+    </div>`;
+  }
+
+  const twContainer = document.getElementById('briefTwitterTopics');
+  const dcContainer = document.getElementById('briefDiscordTopics');
+  twContainer.innerHTML = twitterTopics.length > 0
+    ? twitterTopics.slice(0, 5).map(compactCard).join('')
+    : '<div class="brief-topic-notice">暂无话题</div>';
+  dcContainer.innerHTML = discordTopics.length > 0
+    ? discordTopics.slice(0, 5).map(compactCard).join('')
+    : '<div class="brief-topic-notice">暂无话题</div>';
+}
+
+// ===== 原声折叠开关 =====
+function toggleBriefMessages() {
+  const content = document.getElementById('briefMessagesContent');
+  const arrow = document.getElementById('briefMsgArrow');
+  if (!content) return;
+  const isOpen = content.style.display !== 'none';
+  content.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
 }
 
 // 加载话题趋势数据
@@ -458,11 +779,11 @@ function switchMsgTab(platform) {
   const twBtn = document.getElementById('msgTabTwitter');
   const dcBtn = document.getElementById('msgTabDiscord');
   if (platform === 'twitter') {
-    twBtn.className = 'btn btn-primary';
-    dcBtn.className = 'btn btn-secondary';
+    twBtn.className = 'brief-msg-tab active';
+    dcBtn.className = 'brief-msg-tab';
   } else {
-    twBtn.className = 'btn btn-secondary';
-    dcBtn.className = 'btn btn-primary';
+    twBtn.className = 'brief-msg-tab';
+    dcBtn.className = 'brief-msg-tab active';
   }
   loadPlayerMessages(platform);
 }
@@ -504,15 +825,15 @@ function renderPlayerMessages(messages, platform) {
     const time = msg.created_at ? msg.created_at.substring(5, 16) : '';
     const url = msg.url || '';
     
-    html += `<div style="padding:10px 14px; background:var(--color-card-bg,var(--color-surface,#fff)); border:1px solid var(--color-border,#e5e7eb); border-radius:8px; border-left:3px solid ${sColor};">`;
+    html += `<div style="padding:10px 14px; background:var(--color-card-bg,#fff); border:1px solid var(--color-border,#e5e7eb); border-radius:8px; border-left:3px solid ${sColor};">`;
     html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">`;
-    html += `<span style="font-weight:600; font-size:13px; color:var(--color-text,#333);">${sIcon} ${escapeHtml(author)}</span>`;
-    html += `<span style="font-size:11px; color:var(--color-text-muted,#999);">${time}`;
-    if (url) html += ` · <a href="${url}" target="_blank" style="color:#3b82f6; text-decoration:none;">原文↗</a>`;
+    html += `<span style="font-weight:600; font-size:13px; color:#1a1a1a;">${sIcon} ${escapeHtml(author)}</span>`;
+    html += `<span style="font-size:11px; color:#666;">${time}`;
+    if (url) html += ` · <a href="${url}" target="_blank" style="color:#3b82f6; text-decoration:none; font-weight:600;">原文↗</a>`;
     html += `</span></div>`;
-    html += `<div style="font-size:13px; color:var(--color-text-secondary,#444); line-height:1.6;">${escapeHtml(content)}</div>`;
+    html += `<div style="font-size:13px; color:#333; line-height:1.6;">${escapeHtml(content)}</div>`;
     if (original && original !== content) {
-      html += `<div style="font-size:11px; color:var(--color-text-muted,#999); margin-top:4px; font-style:italic;">原文: ${escapeHtml(original.substring(0,100))}${original.length>100?'...':''}</div>`;
+      html += `<div style="font-size:11px; color:#888; margin-top:4px; font-style:italic;">原文: ${escapeHtml(original.substring(0,100))}${original.length>100?'...':''}</div>`;
     }
     html += '</div>';
   }
@@ -564,197 +885,81 @@ async function loadSystemStatus() {
   }
 }
 
-// ===== 启动抓取（替代原重启按钮） =====
-let collectPollTimer = null;
-
-async function startCollecting() {
-  const btn = document.getElementById('btnCollect');
+// ===== 刷新分析（智能检测 + 触发AI分析） =====
+async function refreshAnalysis() {
+  const btn = document.getElementById('btnRefreshAnalysis');
   if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = '🔄 检测中...';
 
-  // 先检查是否已有进行中的采集
   try {
-    const progressRes = await fetch('/api/sentiment/collect-progress');
-    const progressData = await progressRes.json();
-    if (progressData.ok && progressData.data.running) {
-      // 采集正在进行，显示进度并开始轮询
-      showCollectProgress(progressData.data);
-      startProgressPolling();
+    // 第1步：检测是否需要刷新
+    const checkRes = await fetch('/api/sentiment/analysis-check');
+    const checkResult = await checkRes.json();
+    console.log('[刷新分析] 检测结果:', checkResult);
+
+    if (!checkResult.needRefresh) {
+      // 不需要刷新，弹窗提醒（warning 更醒目，显示 4 秒）
+      btn.disabled = false;
+      btn.textContent = '🔄 刷新分析';
+      const msg = checkResult.reason || '数据无变化且面板完整，无需刷新分析';
+      if (typeof Toast !== 'undefined') Toast.warning(msg);
+      else alert(msg);
       return;
     }
-  } catch (_) {}
 
-  btn.disabled = true;
-  btn.textContent = '⏳ 启动中...';
-
-  try {
-    const res = await fetch('/api/sentiment/collect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enableAI: true }),
-    });
-    const result = await res.json();
-
-    if (result.ok) {
-      // 采集已启动
-      showCollectProgress({ running: true, phase: 'twitter', message: '正在启动采集...', elapsed: 0 });
-      startProgressPolling();
-    } else if (result.collecting) {
-      // 采集正在进行中
-      btn.textContent = '⏳ 采集中...';
-      showCollectProgress({ running: true, phase: '', message: '采集进行中...', elapsed: 0 });
-      startProgressPolling();
-    } else {
-      alert(result.message || '启动失败');
-      btn.disabled = false;
-      btn.textContent = '▶ 启动抓取';
-    }
-  } catch (e) {
-    alert('采集请求失败: ' + e.message);
-    btn.disabled = false;
-    btn.textContent = '▶ 启动抓取';
-  }
-}
-
-// ===== 请求AI分析 =====
-async function requestAIAnalysis() {
-  const btn = document.getElementById('btnAIAnalyze');
-  if (btn.disabled) return;
-
-  btn.disabled = true;
-  btn.textContent = '⏳ 分析中...';
-
-  try {
-    const res = await fetch('/api/sentiment/force-analyze', {
+    // 第2步：触发分析
+    btn.textContent = '🔄 分析中...';
+    const res = await fetch('/api/sentiment/refresh-analysis', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
     const result = await res.json();
+    console.log('[刷新分析] 分析结果:', result);
 
     if (result.ok) {
-      btn.textContent = '✅ 已提交';
-      Toast.success('AI 分析已启动，约30秒后刷新查看结果');
-      // 10秒后自动刷新AI话题区域
-      document.getElementById('twitterTopics').innerHTML = '<div class="loading">AI 正在分析中，请稍候...</div>';
-      document.getElementById('discordTopics').innerHTML = '<div class="loading">AI 正在分析中，请稍候...</div>';
+      if (result.needRefresh === false) {
+        btn.disabled = false;
+        btn.textContent = '🔄 刷新分析';
+        if (typeof Toast !== 'undefined') Toast.warning(result.message || '无需刷新');
+        else alert(result.message);
+        return;
+      }
+      // 分析已启动，显示加载状态 + 等待完成
+      if (typeof Toast !== 'undefined') Toast.success(result.message || 'AI 分析已启动，约 15 秒后刷新');
+      const loadingHtml = '<div class="loading">AI 正在分析中，请稍候...</div>';
+      // 更新今日快报中的话题区域
+      const briefTw = document.getElementById('briefTwitterTopics');
+      const briefDc = document.getElementById('briefDiscordTopics');
+      if (briefTw) briefTw.innerHTML = loadingHtml;
+      if (briefDc) briefDc.innerHTML = loadingHtml;
+      // 更新七日热门话题区域
+      const weekTw = document.getElementById('weeklyTwitterTopics');
+      const weekDc = document.getElementById('weeklyDiscordTopics');
+      if (weekTw) weekTw.innerHTML = loadingHtml;
+      if (weekDc) weekDc.innerHTML = loadingHtml;
       setTimeout(() => {
         loadAITopics();
+        loadStatistics();
+        loadDailyFeedback();
+        loadHotTopicsBrief();
+        loadSystemStatus();
         btn.disabled = false;
-        btn.textContent = '🤖 AI分析';
+        btn.textContent = '🔄 刷新分析';
       }, 15000);
     } else {
-      Toast.error(result.message || 'AI 分析请求失败');
+      if (typeof Toast !== 'undefined') Toast.error(result.message || '分析失败');
+      else alert(result.message || '分析失败');
       btn.disabled = false;
-      btn.textContent = '🤖 AI分析';
+      btn.textContent = '🔄 刷新分析';
     }
   } catch (e) {
-    Toast.error('AI 分析请求失败: ' + e.message);
+    console.error('[刷新分析] 异常:', e);
+    if (typeof Toast !== 'undefined') Toast.error('刷新分析失败: ' + e.message);
+    else alert('刷新分析失败: ' + e.message);
     btn.disabled = false;
-    btn.textContent = '🤖 AI分析';
+    btn.textContent = '🔄 刷新分析';
   }
-}
-
-function startProgressPolling() {
-  if (collectPollTimer) clearInterval(collectPollTimer);
-  collectPollTimer = setInterval(async () => {
-    try {
-      const res = await fetch('/api/sentiment/collect-progress');
-      const result = await res.json();
-      if (result.ok) {
-        showCollectProgress(result.data);
-        if (!result.data.running) {
-          // 采集完成，停止轮询
-          clearInterval(collectPollTimer);
-          collectPollTimer = null;
-          // 3秒后自动刷新数据
-          setTimeout(() => {
-            loadStatistics();
-            loadDailyFeedback();
-            loadSystemStatus();
-            loadAITopics();
-            loadPlayerMessages('twitter');
-          }, 3000);
-        }
-      }
-    } catch (_) {}
-  }, 2000);
-}
-
-function showCollectProgress(data) {
-  const bar = document.getElementById('collectProgressBar');
-  const fill = document.getElementById('collectProgressFill');
-  const icon = document.getElementById('collectProgressIcon');
-  const text = document.getElementById('collectProgressText');
-  const elapsed = document.getElementById('collectProgressElapsed');
-  const detail = document.getElementById('collectProgressDetail');
-  const btn = document.getElementById('btnCollect');
-
-  bar.style.display = 'block';
-  text.textContent = data.message || '准备中...';
-  elapsed.textContent = data.elapsed ? `${data.elapsed}秒` : '';
-
-  // 进度百分比和图标
-  let percent = 0;
-  if (data.phase === 'twitter') {
-    icon.textContent = '🐦';
-    percent = 15;
-  } else if (data.phase === 'discord') {
-    icon.textContent = '💬';
-    percent = 45;
-  } else if (data.phase === 'saving') {
-    icon.textContent = '💾';
-    percent = 75;
-  } else if (data.phase === 'done') {
-    icon.textContent = '✅';
-    percent = 100;
-    fill.className = 'collect-progress-fill done';
-  } else if (data.phase === 'error') {
-    icon.textContent = '❌';
-    percent = 100;
-    fill.className = 'collect-progress-fill error';
-  } else {
-    icon.textContent = '⏳';
-    percent = 5;
-  }
-  fill.style.width = percent + '%';
-
-  // 详情行
-  let detailParts = [];
-  if (data.twitterCount > 0) detailParts.push(`🐦 Twitter: ${data.twitterCount} 条`);
-  if (data.discordCount > 0) detailParts.push(`💬 Discord: ${data.discordCount} 条`);
-  if (data.savedCount > 0) detailParts.push(`✅ 保存: ${data.savedCount}`);
-  if (data.skippedCount > 0) detailParts.push(`⏭️ 跳过: ${data.skippedCount}`);
-  if (data.failedCount > 0) detailParts.push(`❌ 失败: ${data.failedCount}`);
-  detail.textContent = detailParts.join('  ·  ');
-
-  // 按钮状态
-  if (data.running) {
-    btn.disabled = true;
-    btn.textContent = '⏳ 采集中...';
-    btn.classList.add('running');
-  } else {
-    btn.disabled = false;
-    btn.textContent = '▶ 启动抓取';
-    btn.classList.remove('running');
-    // 完成后 10 秒自动隐藏进度条
-    setTimeout(() => {
-      if (!data.running) {
-        bar.style.display = 'none';
-        fill.className = 'collect-progress-fill';
-      }
-    }, 15000);
-  }
-}
-
-// 页面加载时检查是否有进行中的采集
-async function checkRunningCollection() {
-  try {
-    const res = await fetch('/api/sentiment/collect-progress');
-    const result = await res.json();
-    if (result.ok && result.data.running) {
-      showCollectProgress(result.data);
-      startProgressPolling();
-    }
-  } catch (_) {}
 }
 
 // 初始化加载数据
@@ -762,10 +967,11 @@ function refreshData() {
   loadSystemStatus();
   loadStatistics();
   loadDailyFeedback();
-  loadAITopics();
+  loadHotTopicsBrief();
   loadPlayerMessages('twitter');
   loadDailySnapshots();
-  checkRunningCollection(); // 检查是否有进行中的采集
+  loadWeeklyOverview();
+  loadWeeklyHotTopics();
 }
 
 // ========== 周报生成功能 ==========

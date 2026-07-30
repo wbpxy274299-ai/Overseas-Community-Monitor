@@ -456,6 +456,130 @@ const FeedbackBtn = {
   },
 };
 
+// ===== 阿饱提示 帮助弹窗系统 =====
+const AbaoTip = {
+  tips: {},  // 各页面的帮助内容
+
+  // 注册页面帮助内容
+  register(pageKey, htmlContent) {
+    this.tips[pageKey] = htmlContent;
+  },
+
+  // 显示帮助弹窗
+  show(pageKey) {
+    const content = this.tips[pageKey];
+    if (!content) {
+      Toast.info('该页面暂无操作提示');
+      return;
+    }
+    // 创建遮罩 + 弹窗
+    const overlay = document.createElement('div');
+    overlay.className = 'abao-help-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+      <div class="abao-help-modal">
+        <div class="abao-help-header">
+          <h3>💡 阿饱提示</h3>
+          <button class="abao-help-close" onclick="this.closest('.abao-help-overlay').remove()">✕</button>
+        </div>
+        <div class="abao-help-body">${content}</div>
+      </div>`;
+    document.body.appendChild(overlay);
+    // ESC 关闭
+    const escHandler = (e) => {
+      if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); }
+    };
+    document.addEventListener('keydown', escHandler);
+  },
+
+  // 在 header 注入帮助按钮（只保留💡图标，贴在大标题旁边）
+  injectButton(pageKey) {
+    const h1 = document.querySelector('.header-left h1');
+    if (!h1) return;
+    if (h1.querySelector('.abao-help-btn')) return; // 已存在
+    const btn = document.createElement('button');
+    btn.className = 'abao-help-btn';
+    btn.innerHTML = '💡';
+    btn.title = '阿饱提示';
+    btn.onclick = () => this.show(pageKey);
+    h1.insertAdjacentElement('afterend', btn);
+  },
+};
+
+// 注册各页面帮助内容
+AbaoTip.register('post-assistant', `
+  <h4>🤖 左侧：阿里 AI Studio（免费）</h4>
+  <ul>
+    <li>这是公司账号的 <strong>AI Studio 模型</strong>，已经训练好了，专门用于<strong>贴文制作</strong></li>
+    <li>你可以发送文案给它，也可以<strong>只发一张图片</strong>让它帮你写配文</li>
+    <li>不花钱，随便用，想怎么用怎么用</li>
+  </ul>
+  <div class="abao-tip-highlight">
+    💡 小提示：左侧 AI 可以帮你润色文案、翻译、生成贴文内容，是日常工作的主要工具。
+  </div>
+  <h4>💰 右侧：付费 AI（翻译 & 校对）</h4>
+  <ul>
+    <li>右侧的翻译和校对功能使用的是<strong>阿饱自费的 AI</strong></li>
+    <li>每人每天 <strong>15 次</strong>额度，请合理使用，不要浪费</li>
+    <li>翻译结果和校对结果会分别显示在下方 Tab 中，不会互相覆盖</li>
+  </ul>
+`);
+
+AbaoTip.register('sentiment', `
+  <h4>📌 今日快报</h4>
+  <ul>
+    <li>顶部 4 张卡片显示今日 Twitter/Discord 发言数、风险等级、整体情绪</li>
+    <li>热门话题展示 AI 分析的玩家讨论热点，每个话题有原声样本和原帖链接</li>
+    <li>点击<strong>“📝 玩家发言原声”</strong>可展开查看玩家原始发言</li>
+  </ul>
+  <h4>📈 七日舆情趋势</h4>
+  <ul>
+    <li>统计卡片显示 7 日总量、日均发言、趋势变化、最热话题</li>
+    <li>柱状图显示每日发言量对比，情绪变化条显示每日正负面情绪比例</li>
+  </ul>
+  <h4>🔥 七日热门话题</h4>
+  <ul>
+    <li>每个话题卡片包含：热度评分、讨论数、情绪判断、玩家原声、原帖链接</li>
+    <li>点击“原帖↗”可跳转到 Twitter/Discord 原始帖子</li>
+  </ul>
+  <div class="abao-tip-highlight">
+    💡 数据每 8:30 自动采集 + AI 分析，也可手动点击“启动抓取”和“AI分析”按钮。
+  </div>
+`);
+
+AbaoTip.register('admin', `
+  <h4>👥 用户管理</h4>
+  <ul>
+    <li>查看和修改用户角色：pending → viewer → operator → admin → super_admin</li>
+    <li>角色越高权限越大，super_admin 拥有所有权限</li>
+  </ul>
+  <h4>🔑 Token 管理</h4>
+  <ul>
+    <li>查看各服务 Token 状态，<strong>仅超级管理员</strong>可更新 Token</li>
+  </ul>
+  <h4>💬 意见反馈</h4>
+  <ul>
+    <li>仅超级管理员可见，查看用户提交的反馈和建议</li>
+  </ul>
+`);
+
+AbaoTip.register('terminology', `
+  <h4>📚 术语库</h4>
+  <ul>
+    <li>管理游戏术语翻译，支持搜索、新增、编辑、删除</li>
+    <li>术语库用于贴文助手的自动校对功能</li>
+    <li>每条术语包含：原文、译文、分类、备注</li>
+  </ul>
+`);
+
+AbaoTip.register('home', `
+  <h4>🏠 发布系统</h4>
+  <ul>
+    <li>DC 发布系统用于向 Discord 频道发送消息和管理公告</li>
+    <li>支持文字+图片发布，可选择不同频道</li>
+  </ul>
+`);
+
 // ===== 初始化 =====
 document.addEventListener('DOMContentLoaded', async () => {
   DarkMode.init();
@@ -482,6 +606,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyNavPermissions(); // 非管理员隐藏 admin-only
   applyReadOnlyMode();   // operator 隐藏写入按钮
   FeedbackBtn.init();
+  
+  // 注入“阿饱提示”帮助按钮
+  const path = window.location.pathname;
+  let pageKey = 'home';
+  if (path.includes('post-assistant')) pageKey = 'post-assistant';
+  else if (path.includes('sentiment')) pageKey = 'sentiment';
+  else if (path.includes('admin')) pageKey = 'admin';
+  else if (path.includes('terminology')) pageKey = 'terminology';
+  AbaoTip.injectButton(pageKey);
   
   // 点击外部关闭汉堡菜单
   document.addEventListener('click', (e) => {
