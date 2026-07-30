@@ -127,18 +127,21 @@ function renderRegionDistribution(regions) {
 function updateDailyBrief(data, riskLevel) {
   const twEl = document.getElementById('briefTwCount');
   const dcEl = document.getElementById('briefDcCount');
+  const loungeEl = document.getElementById('briefLoungeCount');
   const riskEl = document.getElementById('briefRisk');
   const moodEl = document.getElementById('briefMood');
   if (twEl) twEl.textContent = data.twitter_count || 0;
   if (dcEl) dcEl.textContent = data.discord_count || 0;
+  if (loungeEl) loungeEl.textContent = data.lounge_count || 0;
   const riskLabels = { low: '🟢 低', medium: '🟡 中', high: '🔴 高' };
   if (riskEl) riskEl.textContent = riskLabels[riskLevel] || '-';
-  // 情绪从 twitter + discord 情感分布计算
+  // 情绪从 twitter + discord + lounge 情感分布计算
   const twS = data.twitter_sentiment || {};
   const dcS = data.discord_sentiment || {};
-  const pos = (twS.positive || 0) + (dcS.positive || 0);
-  const neg = (twS.negative || 0) + (dcS.negative || 0);
-  const neu = (twS.neutral || 0) + (dcS.neutral || 0);
+  const loungeS = data.lounge_sentiment || {};
+  const pos = (twS.positive || 0) + (dcS.positive || 0) + (loungeS.positive || 0);
+  const neg = (twS.negative || 0) + (dcS.negative || 0) + (loungeS.negative || 0);
+  const neu = (twS.neutral || 0) + (dcS.neutral || 0) + (loungeS.neutral || 0);
   const total = pos + neg + neu;
   if (total > 0 && moodEl) {
     const posR = Math.round(pos / total * 100);
@@ -175,7 +178,7 @@ function renderWeeklyStats(overview) {
   const trendSubEl = document.getElementById('weeklyTrendSub');
   
   if (totalEl) totalEl.textContent = overview.total;
-  if (totalSubEl) totalSubEl.textContent = `TW:${overview.totalTwitter} DC:${overview.totalDiscord}`;
+  if (totalSubEl) totalSubEl.textContent = `TW:${overview.totalTwitter} DC:${overview.totalDiscord} KR:${overview.totalLounge || 0}`;
   if (avgEl) avgEl.textContent = overview.dailyAvg;
   
   const tc = overview.trendChange;
@@ -202,6 +205,7 @@ function renderWeeklyBarChart(days) {
   for (const d of days) {
     const twH = Math.max(Math.round((d.twitter / maxTotal) * maxBarH), d.twitter > 0 ? 4 : 0);
     const dcH = Math.max(Math.round((d.discord / maxTotal) * maxBarH), d.discord > 0 ? 4 : 0);
+    const krH = Math.max(Math.round(((d.lounge||0) / maxTotal) * maxBarH), (d.lounge||0) > 0 ? 4 : 0);
     const isToday = d === days[days.length - 1];
     html += `<div class="wbc-day">
       <div class="wbc-bars">
@@ -210,6 +214,9 @@ function renderWeeklyBarChart(days) {
         </div>
         <div class="wbc-bar dc" style="height:${dcH}px;" title="Discord: ${d.discord}">
           ${d.discord > 0 ? `<span class="wbc-bar-label">${d.discord}</span>` : ''}
+        </div>
+        <div class="wbc-bar kr" style="height:${krH}px;background:#f59e0b;" title="🇰🇷 Naver: ${d.lounge||0}">
+          ${(d.lounge||0) > 0 ? `<span class="wbc-bar-label">${d.lounge}</span>` : ''}
         </div>
       </div>
       <div class="wbc-date" style="${isToday ? 'color:var(--color-primary,#667eea);font-weight:800;' : ''}">${d.label}${isToday ? '(今)' : ''}</div>
@@ -865,6 +872,9 @@ async function loadSystemStatus() {
     const dcCount = d.collection?.discord?.lastCount ?? '-';
     document.getElementById('statusTwitterCount').textContent = twCount;
     document.getElementById('statusDiscordCount').textContent = dcCount;
+    // 韩国社区
+    const loungeCountEl = document.getElementById('statusLoungeCount');
+    if (loungeCountEl) loungeCountEl.textContent = d.collection?.lounge?.lastCount ?? '-';
     
     // 话题
     const topicInfo = d.topicsReady ? `${d.topicCount} 个已就绪` : '未生成';
@@ -972,6 +982,36 @@ function refreshData() {
   loadDailySnapshots();
   loadWeeklyOverview();
   loadWeeklyHotTopics();
+  loadLoungeBrief();
+}
+
+// ===== 加载韩国社区快报 =====
+async function loadLoungeBrief() {
+  try {
+    const res = await fetch('/api/lounge/posts?size=5');
+    const result = await res.json();
+    if (!result.success) return;
+    const container = document.getElementById('briefLoungePosts');
+    if (!container) return;
+    const posts = result.data || [];
+    if (posts.length === 0) {
+      container.innerHTML = '<div class="brief-topic-notice">暂无韩国社区数据</div>';
+      return;
+    }
+    let html = '';
+    for (const p of posts) {
+      const title = p.title_zh || p.title || '';
+      const sentIcon = p.sentiment === 'negative' ? '😟' : p.sentiment === 'positive' ? '😊' : '😐';
+      const comments = p.comment_count || 0;
+      html += `<div class="brief-compact-card">
+        <div class="brief-compact-title">${sentIcon} ${escapeHtml(title.length > 30 ? title.substring(0,30)+'...' : title)}</div>
+        <div class="brief-compact-meta">👤 ${escapeHtml(p.author || '匿名')} · 💬 ${comments}条评论</div>
+      </div>`;
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('加载韩国社区快报失败:', e);
+  }
 }
 
 // ========== 周报生成功能 ==========

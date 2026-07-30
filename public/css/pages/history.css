@@ -218,3 +218,166 @@
   color: #c53030;
   margin-top: 4px;
 }
+
+/* ===== 韩国社区板块 ===== */
+.lounge-section {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--space-lg);
+}
+.lounge-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.lounge-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.lounge-subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted, #999);
+}
+.lounge-count {
+  font-size: 12px;
+  padding: 2px 10px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.lounge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lounge-card {
+  padding: 14px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.lounge-card:hover {
+  background: var(--color-hover-row, #f7fafc);
+  border-color: var(--color-primary, #667eea);
+}
+[data-theme="dark"] .lounge-card:hover { border-color: #818cf8; }
+.lounge-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.lounge-sent-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.lounge-cat-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #ede9fe;
+  color: #6b21a8;
+}
+[data-theme="dark"] .lounge-cat-badge { background: #312e81; color: #c4b5fd; }
+.lounge-time {
+  font-size: 11px;
+  color: var(--color-text-muted, #999);
+  margin-left: auto;
+}
+.lounge-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text, #1f2937);
+  margin-bottom: 4px;
+}
+.lounge-card-summary {
+  font-size: 12px;
+  color: var(--color-text-secondary, #666);
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+.lounge-card-meta {
+  font-size: 11px;
+  color: var(--color-text-muted, #999);
+}
+.lounge-card-meta a {
+  color: var(--color-primary, #667eea);
+  text-decoration: none;
+}
+
+/* 韩国评论弹窗 */
+.lounge-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.lounge-modal-content {
+  background: var(--color-surface, #fff);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 640px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.lounge-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+.lounge-modal-header h3 { margin: 0; font-size: 15px; }
+.lounge-modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--color-text-muted, #999);
+  padding: 0 4px;
+}
+.lounge-modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+.lounge-comment {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-light, #f0f0f0);
+}
+.lounge-comment:last-child { border-bottom: none; }
+.lounge-cmt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.lounge-cmt-author { font-weight: 600; color: var(--color-text, #1f2937); }
+.lounge-cmt-time { color: var(--color-text-muted, #999); }
+.lounge-cmt-likes { color: #f59e0b; }
+.lounge-cmt-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text, #333);
+}
+
+/* 韩国平台标记（发言概况用） */
+.brief-platform-kr {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: white !important;
+}

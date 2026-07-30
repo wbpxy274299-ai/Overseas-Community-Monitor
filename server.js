@@ -61,6 +61,7 @@ app.use('/', require('./routes/sentiment'));
 app.use('/', require('./routes/admin'));
 app.use('/', require('./routes/feedback'));
 app.use('/', require('./routes/terminology'));  // 术语搜索/校对 API
+app.use('/', require('./routes/lounge'));  // 韩国社区监控
 
 // 初始化术语模块（后台加载10万条术语，供翻译功能使用）
 const terminology = require('./terminology');
@@ -80,6 +81,15 @@ async function start() {
     console.log('✅ 舆情监控模块已初始化');
   } catch (e) {
     console.error('⚠️ 舆情监控模块初始化失败:', e.message);
+  }
+
+  // 初始化韩国社区监控数据表
+  try {
+    const loungeRoute = require('./routes/lounge');
+    loungeRoute.initLoungeTables();
+    console.log('✅ 韩国社区监控模块已初始化');
+  } catch (e) {
+    console.error('⚠️ 韩国社区监控模块初始化失败:', e.message);
   }
 
   log.info('DC 发布 Web 服务启动');

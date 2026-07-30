@@ -210,7 +210,7 @@ async function uploadDiscordText() {
 }
 
 // 页面加载时初始化
-window.onload = () => { initDates(); loadData(); checkRunningCollection(); };
+window.onload = () => { initDates(); loadData(); loadLoungePosts(); checkRunningCollection(); };
 
 // ===== 数据采集（从舆情页面搬过来） =====
 let collectPollTimer = null;
@@ -356,4 +356,133 @@ async function checkRunningCollection() {
       startProgressPolling();
     }
   } catch (_) {}
+}
+
+// ===== 韩国社区帖子 =====
+let loungePage = 1;
+const loungePageSize = 20;
+let loungeTotal = 0;
+
+async function loadLoungePosts(page = 1) {
+  loungePage = page;
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+
+  document.getElementById('loungeLoading').style.display = 'block';
+  document.getElementById('loungeEmpty').style.display = 'none';
+  document.getElementById('loungeList').innerHTML = '';
+  document.getElementById('loungePagination').style.display = 'none';
+
+  try {
+    const params = new URLSearchParams({ page: loungePage, pageSize: loungePageSize, startDate, endDate });
+    const res = await fetch(`/api/sentiment/lounge-posts?${params}`);
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error);
+    loungeTotal = result.total;
+    document.getElementById('loungeTotal').textContent = `共 ${loungeTotal} 条`;
+    renderLoungePosts(result.data);
+    renderLoungePagination(result.total, loungePageSize, loungePage);
+  } catch (e) {
+    console.error('加载韩国帖子失败:', e);
+    document.getElementById('loungeLoading').style.display = 'none';
+    document.getElementById('loungeEmpty').style.display = 'block';
+  }
+}
+
+function renderLoungePosts(posts) {
+  document.getElementById('loungeLoading').style.display = 'none';
+  if (!posts || posts.length === 0) {
+    document.getElementById('loungeEmpty').style.display = 'block';
+    return;
+  }
+  const sentIcon = s => s === 'negative' ? '😟' : s === 'positive' ? '😊' : '😐';
+  const sentColor = s => s === 'negative' ? '#ef4444' : s === 'positive' ? '#22c55e' : '#6b7280';
+  const catLabel = c => ({ bug:'🐛Bug', suggestion:'💡建议', complaint:'😤投诉', praise:'👍好评', question:'❓提问', other:'其他' }[c] || c || '');
+
+  let html = '';
+  for (const p of posts) {
+    const title = p.title_zh || p.title || '';
+    const summary = p.ai_summary || p.content_zh || '';
+    const sIcon = sentIcon(p.sentiment);
+    const sColor = sentColor(p.sentiment);
+    const cat = catLabel(p.ai_category);
+    const cmtCount = p._comment_count || p.comment_count || 0;
+    html += `<div class="lounge-card" onclick="openLoungePost('${p.post_id}','${escapeHtml(p.game_code)}')">
+      <div class="lounge-card-top">
+        <span class="lounge-sent-badge" style="background:${sColor}15;color:${sColor};">${sIcon} ${p.sentiment}</span>
+        ${cat ? `<span class="lounge-cat-badge">${cat}</span>` : ''}
+        <span class="lounge-time">${p.crawled_at || ''}</span>
+      </div>
+      <div class="lounge-card-title">${escapeHtml(title)}</div>
+      ${summary ? `<div class="lounge-card-summary">${escapeHtml(summary.length > 100 ? summary.substring(0,100)+'...' : summary)}</div>` : ''}
+      <div class="lounge-card-meta">
+        👤 ${escapeHtml(p.author || '匿名')} · 👁 ${p.view_count||0} · 💬 ${cmtCount}条评论
+        ${p.url ? ` · <a href="${p.url}" target="_blank" onclick="event.stopPropagation()">原帖↗</a>` : ''}
+      </div>
+    </div>`;
+  }
+  document.getElementById('loungeList').innerHTML = html;
+}
+
+function renderLoungePagination(total, pageSize, current) {
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) {
+    document.getElementById('loungePagination').style.display = 'none';
+    return;
+  }
+  document.getElementById('loungePagination').style.display = 'flex';
+  document.getElementById('loungePageInfo').textContent = `第 ${current} 页 / 共 ${totalPages} 页（共 ${total} 条）`;
+  document.getElementById('loungePrevBtn').disabled = current === 1;
+  document.getElementById('loungeNextBtn').disabled = current === totalPages;
+}
+
+function changeLoungePage(delta) {
+  loadLoungePosts(loungePage + delta);
+}
+
+async function openLoungePost(postId, gameCode) {
+  const modal = document.getElementById('loungeModal');
+  const title = document.getElementById('loungeModalTitle');
+  const body = document.getElementById('loungeModalBody');
+  modal.style.display = 'flex';
+  title.textContent = '加载中...';
+  body.innerHTML = '<div class="loading">加载评论中...</div>';
+  try {
+    const res = await fetch(`/api/sentiment/lounge-comments/${postId}`);
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error);
+    title.textContent = `💬 评论 (${result.data.length} 条)`;
+    if (result.data.length === 0) {
+      body.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">暂无评论</div>';
+      return;
+    }
+    const sentIcon = s => s === 'negative' ? '😟' : s === 'positive' ? '😊' : '😐';
+    let html = '';
+    for (const c of result.data) {
+      const text = c.content_zh || c.content || '';
+      html += `<div class="lounge-comment">
+        <div class="lounge-cmt-header">
+          <span class="lounge-cmt-author">👤 ${escapeHtml(c.author || '匿名')}</span>
+          <span class="lounge-cmt-sent">${sentIcon(c.sentiment)}</span>
+          <span class="lounge-cmt-time">${c.comment_time || ''}</span>
+          ${c.likes > 0 ? `<span class="lounge-cmt-likes">👍 ${c.likes}</span>` : ''}
+        </div>
+        <div class="lounge-cmt-text">${escapeHtml(text)}</div>
+      </div>`;
+    }
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = `<div style="color:#ef4444;">加载失败: ${e.message}</div>`;
+  }
+}
+
+function closeLoungeModal() {
+  document.getElementById('loungeModal').style.display = 'none';
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }

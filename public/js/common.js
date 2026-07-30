@@ -90,6 +90,7 @@ function renderNav() {
       { path: '/sentiment', label: '📊 舆情日报', match: p => p.startsWith('/sentiment') && !p.includes('history'), minRole: 'viewer' },
       { path: '/reports', label: '📋 周报管理', match: p => p.startsWith('/reports'), minRole: 'operator' },
       { path: '/sentiment-history', label: '📚 历史数据', match: p => p.includes('sentiment-history'), minRole: 'operator' },
+      { path: '/lounge', label: '🇰🇷 韩国社区', match: p => p.startsWith('/lounge'), minRole: 'viewer' },
       { path: '/insights', label: '🔍 玩家洞察', match: p => p === '/insights', minRole: 'super_admin', superOnly: true },
     ]},
     { label: '内容管理', items: [

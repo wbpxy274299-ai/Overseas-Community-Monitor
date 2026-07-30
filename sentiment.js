@@ -1289,9 +1289,22 @@ function getCurrentDataSnapshot() {
   const row = db.queryOne(
     'SELECT COUNT(*) as cnt, MAX(created_at) as maxAt FROM sentiment_records'
   );
+  let loungeCount = 0;
+  let loungeMaxAt = null;
+  try {
+    const lr = db.queryOne(
+      'SELECT COUNT(*) as cnt, MAX(crawled_at) as maxAt FROM lounge_posts'
+    );
+    loungeCount = lr?.cnt || 0;
+    loungeMaxAt = lr?.maxAt || null;
+  } catch (_) {}
+  const totalCount = (row ? row.cnt : 0) + loungeCount;
+  const maxAt = row?.maxAt && loungeMaxAt
+    ? (row.maxAt > loungeMaxAt ? row.maxAt : loungeMaxAt)
+    : (row?.maxAt || loungeMaxAt);
   return {
-    recordCount: row ? row.cnt : 0,
-    maxUpdatedAt: row ? row.maxAt : null,
+    recordCount: totalCount,
+    maxUpdatedAt: maxAt,
   };
 }
 
@@ -1484,13 +1497,30 @@ function getStatistics(period = 'week') {
     [startDate, endDate]
   );
   
-  // 计算风险等级（Twitter + Discord 综合负面比例）
+  // ===== 韩国社区数据 =====
+  let loungeCount = 0;
+  let loungeSentiment = { positive: 0, neutral: 0, negative: 0 };
+  try {
+    const loungeRow = db.queryOne(
+      `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ?`,
+      [startDate, endDate]
+    );
+    loungeCount = loungeRow?.cnt || 0;
+    const loungeSentRows = db.queryAll(
+      `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ? GROUP BY sentiment`,
+      [startDate, endDate]
+    );
+    loungeSentRows.forEach(r => { if (loungeSentiment[r.sentiment] !== undefined) loungeSentiment[r.sentiment] = r.cnt; });
+  } catch (_) { /* lounge表可能不存在 */ }
+
+  // 计算风险等级（Twitter + Discord + Lounge 综合负面比例）
   const twNeg = twitterSentiment.find(r => r.sentiment === 'negative')?.cnt || 0;
   const twTotal = twitterCount?.cnt || 0;
   const dcNeg = discordSentiment.find(r => r.sentiment === 'negative')?.cnt || 0;
   const dcTotal = discordCount?.cnt || 0;
-  const totalNeg = twNeg + dcNeg;
-  const totalCount = twTotal + dcTotal;
+  const loungeNeg = loungeSentiment.negative;
+  const totalNeg = twNeg + dcNeg + loungeNeg;
+  const totalCount = twTotal + dcTotal + loungeCount;
   const negativeRatio = totalNeg / Math.max(totalCount, 1);
   
   let riskLevel = 'low';
@@ -1503,6 +1533,7 @@ function getStatistics(period = 'week') {
   return {
     twitter_count: twitterCount?.cnt || 0,
     discord_count: discordCount?.cnt || 0,
+    lounge_count: loungeCount,
     risk_level: riskLevel,
     period: periodLabel,
     // 新增：区域分布统计
@@ -1521,6 +1552,7 @@ function getStatistics(period = 'week') {
       neutral: discordSentiment.find(r => r.sentiment === 'neutral')?.cnt || 0,
       negative: discordSentiment.find(r => r.sentiment === 'negative')?.cnt || 0
     },
+    lounge_sentiment: loungeSentiment,
     twitter_topics: twitterTopics.map(r => ({
       name: getTopicTagLabel(r.topic_tag),
       tag: r.topic_tag,
@@ -2159,6 +2191,18 @@ async function saveDailySnapshot(dateStr = null) {
     const recordCount = countResult?.cnt || 0;
     
     console.log(`    有效记录数: ${recordCount}`);
+
+    // 韩国社区帖子统计
+    let loungeCount = 0;
+    try {
+      const loungeRow = db.queryOne(
+        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at < ?`,
+        [windowStart, windowEnd]
+      );
+      loungeCount = loungeRow?.cnt || 0;
+      console.log(`    韩国帖子数: ${loungeCount}`);
+    } catch (_) {}
+    const totalCount = recordCount + loungeCount;
     
     // 检查是否已存在该日期的快照
     const existing = db.queryOne(
@@ -2240,22 +2284,24 @@ async function saveDailySnapshot(dateStr = null) {
     
     // ★ 核心改动：保存快照（只存统计信息和AI话题，不存原始记录JSON）
     // ★ 使用 INSERT OR REPLACE 防止并发问题（snapshot_date 有 UNIQUE 约束）
+    const dataJson = JSON.stringify({ lounge_count: loungeCount });
     db.getDb().run(
       'INSERT OR REPLACE INTO daily_snapshots (snapshot_date, data_json, record_count, ai_topics_json) VALUES (?, ?, ?, ?)',
-      [dateKey, '{}', recordCount, aiTopicsJson]
+      [dateKey, dataJson, totalCount, aiTopicsJson]
     );
     db.saveDb();
     
-    console.log(`✅ 每日舆情快照保存成功: ${dateKey} (${recordCount}条记录)`);
+    console.log(`✅ 每日舆情快照保存成功: ${dateKey} (${totalCount}条记录, 含韩国${loungeCount}条)`);
     
     return {
       success: true,
-      count: recordCount,
+      count: totalCount,
       date: dateKey,
       platforms: {
         twitter: aiTopics.twitter_topics.length,
         discord: aiTopics.discord_topics.length
       },
+      lounge_count: loungeCount,
       ai_topics: {
         twitter: aiTopics.twitter_topics.length,
         discord: aiTopics.discord_topics.length
@@ -2395,20 +2441,32 @@ function getWeeklyOverview() {
     );
     const sMap = { positive: 0, neutral: 0, negative: 0 };
     sentiments.forEach(s => { sMap[s.sentiment] = s.cnt; });
+
+    // 韩国社区
+    let loungeCnt = 0;
+    try {
+      const lRow = db.queryOne(
+        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ?`,
+        [start, end]
+      );
+      loungeCnt = lRow?.cnt || 0;
+    } catch (_) {}
     
     days.push({
       date: dateStr,
       label: `${d.getMonth()+1}/${d.getDate()}`,
       twitter: twCount.cnt || 0,
       discord: dcCount.cnt || 0,
-      total: (twCount.cnt || 0) + (dcCount.cnt || 0),
+      lounge: loungeCnt,
+      total: (twCount.cnt || 0) + (dcCount.cnt || 0) + loungeCnt,
       sentiment: sMap,
     });
   }
   
   const totalTwitter = days.reduce((s, d) => s + d.twitter, 0);
   const totalDiscord = days.reduce((s, d) => s + d.discord, 0);
-  const totalAll = totalTwitter + totalDiscord;
+  const totalLounge = days.reduce((s, d) => s + (d.lounge || 0), 0);
+  const totalAll = totalTwitter + totalDiscord + totalLounge;
   const today = days[days.length - 1];
   const yesterday = days.length >= 2 ? days[days.length - 2] : null;
   const trendChange = yesterday ? today.total - yesterday.total : 0;
@@ -2439,6 +2497,7 @@ function getWeeklyOverview() {
     total: totalAll,
     totalTwitter,
     totalDiscord,
+    totalLounge,
     dailyAvg: Math.round(totalAll / 7),
     trendChange,
     today,

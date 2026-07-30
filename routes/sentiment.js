@@ -155,6 +155,64 @@ router.get('/api/sentiment/history', (req, res) => {
   }
 });
 
+// ===== 韩国社区帖子（历史数据页用）=====
+router.get('/api/sentiment/lounge-posts', (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 20;
+    const startDate = req.query.startDate || null;
+    const endDate = req.query.endDate || null;
+
+    let whereClauses = [];
+    let params = [];
+    if (startDate) { whereClauses.push('crawled_at >= ?'); params.push(startDate + ' 00:00:00'); }
+    if (endDate) { whereClauses.push('crawled_at <= ?'); params.push(endDate + ' 23:59:59'); }
+
+    const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+    const countResult = db.queryOne(`SELECT COUNT(*) as total FROM lounge_posts ${whereSql}`, params);
+    const total = countResult?.total || 0;
+    const offset = (page - 1) * pageSize;
+
+    const posts = db.queryAll(
+      `SELECT id, post_id, game_code, game_name, title, title_zh, author, content, content_zh,
+              comment_count, view_count, url, sentiment, ai_category, ai_summary, crawled_at
+       FROM lounge_posts ${whereSql} ORDER BY crawled_at DESC LIMIT ? OFFSET ?`,
+      [...params, pageSize, offset]
+    );
+
+    // 为每个帖子加载评论数统计
+    for (const p of posts) {
+      try {
+        const cmtCount = db.queryOne(
+          `SELECT COUNT(*) as cnt FROM lounge_comments WHERE post_id = ?`, [p.post_id]
+        );
+        p._comment_count = cmtCount?.cnt || 0;
+      } catch (_) { p._comment_count = 0; }
+    }
+
+    res.json({ success: true, data: posts, total, page, pageSize, totalPages: Math.ceil(total / pageSize) });
+  } catch (e) {
+    log.error('获取韩国帖子失败', e.message);
+    res.status(500).json({ error: `获取韩国帖子失败: ${e.message}` });
+  }
+});
+
+// ===== 韩国帖子评论详情 =====
+router.get('/api/sentiment/lounge-comments/:postId', (req, res) => {
+  try {
+    const { postId } = req.params;
+    const comments = db.queryAll(
+      `SELECT id, author, content, content_zh, comment_time, likes, sentiment
+       FROM lounge_comments WHERE post_id = ? ORDER BY comment_time ASC`,
+      [postId]
+    );
+    res.json({ success: true, data: comments });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ===== 采集进度追踪 =====
 let collectProgress = {
   running: false,

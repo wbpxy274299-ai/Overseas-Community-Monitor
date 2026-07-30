@@ -10,6 +10,10 @@ const log = require('./logger');
 const db = require('./db');
 const { CHANNELS } = require('./config');
 
+// 韩国社区抓取模块（可选，如果 routes/lounge.js 存在）
+let loungeModule = null;
+try { loungeModule = require('./routes/lounge'); } catch (_) {}
+
 let schedulerInterval = null;
 const path = require('path');
 const fs = require('fs');
@@ -24,6 +28,7 @@ const taskRunLog = {
   dailySnapshot: { lastRun: null, success: false, message: '' },
   midnightCollect: { lastRun: null, success: false, message: '' },
   afternoonBackup: { lastRun: null, success: false, message: '' },
+  loungeCrawl: { lastRun: null, success: false, message: '' },
 };
 
 // 从文件读取状态（重启后恢复）
@@ -37,7 +42,7 @@ function loadState() {
   } catch (e) {
     console.warn('⚠️ 调度器状态文件读取失败，使用默认值');
   }
-  return { dailyAnalysis: null, dailySnapshot: null, midnightCollect: null, afternoonBackup: null };
+  return { dailyAnalysis: null, dailySnapshot: null, midnightCollect: null, afternoonBackup: null, loungeCrawl: null };
 }
 
 // 状态写入文件（持久化）
@@ -407,6 +412,25 @@ function checkScheduledJobs() {
       }
     }
   }
+
+  // 5. 韩国社区抓取（每天 9:00 和 21:00 各执行一次）
+  if (loungeModule && loungeModule.fullCrawlPipeline) {
+    const loungeKey = `loungeCrawl_${currentHour < 12 ? 'am' : 'pm'}`;
+    if (lastRunDates[loungeKey] !== today) {
+      if ((currentHour === 9 || currentHour === 21) && currentMinute < 5) {
+        console.log('⏰ 触发韩国社区定时抓取');
+        lastRunDates[loungeKey] = today;
+        saveState();
+        loungeCrawlTask().then((result) => {
+          taskRunLog.loungeCrawl = { lastRun: new Date().toISOString(), success: result?.success || false, message: result?.message || '完成' };
+        }).catch(e => {
+          taskRunLog.loungeCrawl = { lastRun: new Date().toISOString(), success: false, message: e.message };
+          sentiment.recordError('调度器-韩国抓取', e.message);
+          console.error('❌ 韩国社区抓取失败:', e.message);
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -572,6 +596,33 @@ async function afternoonBackupTask() {
   } finally {
     sentiment.setIsCollecting(false);
   }
+}
+
+/**
+ * 韩国社区定时抓取任务
+ */
+async function loungeCrawlTask() {
+  if (!loungeModule || !loungeModule.fullCrawlPipeline) {
+    return { success: false, message: 'lounge模块未加载' };
+  }
+
+  console.log('\n🇰🇷 ===== 开始执行韩国社区抓取任务 =====');
+
+  try {
+    const result = await loungeModule.fullCrawlPipeline();
+    if (result?.success) {
+      console.log(`✅ 韩国社区抓取完成`);
+      return { success: true, message: '抓取完成' };
+    } else {
+      console.error('❌ 韩国社区抓取失败:', result?.error || '未知错误');
+      return { success: false, message: result?.error || '未知错误' };
+    }
+  } catch (e) {
+    console.error('❌ 韩国社区抓取异常:', e.message);
+    return { success: false, message: e.message };
+  }
+
+  console.log('🇰🇷 ===== 韩国社区抓取任务完成 =====\n');
 }
 
 /**

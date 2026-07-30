@@ -177,7 +177,106 @@ function hasJapaneseCharacters(text) {
   return japaneseOnlyRegex.test(text);
 }
 
+// ===== 韩文翻译扩展 =====
+
+// 韩文游戏名保护列表
+const KR_GAME_NAMES = [
+  { original: '트리오브세이비어', code: '__KRGAME1__' },
+  { original: '네버랜드', code: '__KRGAME2__' },
+  { original: 'TOS', code: '__KRGAME3__' },
+];
+
+function protectKrGameNames(text) {
+  let result = text;
+  for (const g of KR_GAME_NAMES) {
+    result = result.split(g.original).join(g.code);
+  }
+  return result;
+}
+
+function restoreKrGameNames(text) {
+  let result = text;
+  result = result.split('__KRGAME1__').join('트리오브세이비어');
+  result = result.split('__KRGAME2__').join('네버랜드');
+  result = result.split('__KRGAME3__').join('TOS');
+  return result;
+}
+
+/**
+ * 韩文→中文翻译（带游戏术语保护）
+ * 和日文翻译用同一个 DeepSeek API，只是 prompt 不同
+ */
+async function translateKoreanToChinese(text) {
+  if (!text || text.trim().length === 0) return '';
+
+  const cacheKey = 'ko:' + crypto.createHash('md5').update(text).digest('hex');
+  if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
+
+  if (!DEEPSEEK_API_KEY) {
+    console.warn('⚠️ DeepSeek API Key 未配置，跳过韩文翻译');
+    return '';
+  }
+
+  try {
+    const protectedText = protectKrGameNames(text);
+    const truncated = protectedText.length > 4000
+      ? protectedText.substring(0, 4000) + '\n...(截断)'
+      : protectedText;
+
+    const systemPrompt = [
+      '你是一个专业的韩语到中文翻译助手，专门翻译游戏社区内容。',
+      '规则：',
+      '1. 将韩语翻译成简体中文，保持原意不变',
+      '2. 口语化/网络用语保持口语风格，不要翻译得太书面',
+      '3. 游戏术语尽量用中文游戏圈常用的说法',
+      '4. 只返回翻译结果，不要添加任何解释或注释',
+      '5. __KRGAME1__、__KRGAME2__、__KRGAME3__ 是游戏名称占位符，必须原样保留',
+      '6. 韩语网络缩写要还原意思再翻译（如 ㄹㅇ=真的, ㄷㄷ=震惊, ㅈㄱ=标题即内容）',
+    ].join('\n');
+
+    const response = await axios.post(
+      DEEPSEEK_API_URL,
+      {
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: truncated },
+        ],
+        temperature: 0.1,
+        max_tokens: 2000,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 60000,
+        proxy: getProxyConfig(),
+      }
+    );
+
+    let result = response.data?.choices?.[0]?.message?.content || '';
+    result = restoreKrGameNames(result);
+
+    if (translationCache.size >= MAX_CACHE_SIZE) {
+      const firstKey = translationCache.keys().next().value;
+      translationCache.delete(firstKey);
+    }
+    translationCache.set(cacheKey, result);
+
+    return result;
+  } catch (err) {
+    if (err.response?.status === 429) {
+      console.log('⚠️ DeepSeek 频率限制，韩文翻译跳过');
+    } else {
+      console.error('❌ 韩文翻译失败:', err.message);
+    }
+    return '';
+  }
+}
+
 module.exports = {
   translateJapaneseToChinese,
+  translateKoreanToChinese,
   hasJapaneseCharacters,
 };

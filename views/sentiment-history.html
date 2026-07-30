@@ -107,6 +107,37 @@
         <button onclick="changePage(1)" id="nextBtn">下一页</button>
       </div>
     </div>
+
+    <!-- 韩国社区板块 -->
+    <div class="lounge-section">
+      <div class="lounge-header">
+        <h2>🇰🇷 韩国社区帖子</h2>
+        <span class="lounge-subtitle">Naver Game Lounge · Tree of Savior</span>
+        <span class="lounge-count" id="loungeTotal">-</span>
+      </div>
+      <div id="loungeLoading" class="loading">加载中...</div>
+      <div id="loungeEmpty" class="empty-state" style="display:none;">
+        <p>暂无韩国社区数据</p>
+      </div>
+      <div id="loungeList" class="lounge-list"></div>
+      <!-- 韩国帖子分页 -->
+      <div class="pagination" id="loungePagination" style="display:none;">
+        <button onclick="changeLoungePage(-1)" id="loungePrevBtn">上一页</button>
+        <span class="pagination-info" id="loungePageInfo">第 1 页 / 共 1 页</span>
+        <button onclick="changeLoungePage(1)" id="loungeNextBtn">下一页</button>
+      </div>
+    </div>
+
+    <!-- 韩国评论弹窗 -->
+    <div id="loungeModal" class="lounge-modal" style="display:none;" onclick="if(event.target===this)closeLoungeModal()">
+      <div class="lounge-modal-content">
+        <div class="lounge-modal-header">
+          <h3 id="loungeModalTitle">帖子详情</h3>
+          <button onclick="closeLoungeModal()" class="lounge-modal-close">&times;</button>
+        </div>
+        <div id="loungeModalBody" class="lounge-modal-body"></div>
+      </div>
+    </div>
   </div>
 
   <script src="/static/js/history.js"></script>
