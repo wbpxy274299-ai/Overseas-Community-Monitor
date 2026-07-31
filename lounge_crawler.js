@@ -8,6 +8,7 @@
 
 const puppeteer = require('puppeteer');
 const log = require('./logger');
+const db = require('./db');
 
 // ===== 自动查找 Chrome 路径 =====
 function findChromePath() {
@@ -533,11 +534,63 @@ async function crawlPostDetail(browser, post) {
   return detail;
 }
 
+// ===== 排重：查询仓库里已有的帖子评论数 =====
+
+/**
+ * 从数据库查已有的帖子信息（评论数），用于判断是否需要重新打开
+ * 比喻：翻开上次的成绩单，看上次打了多少分
+ *
+ * @returns {Object} { [postId]: { commentCount: number, crawledAt: string } }
+ */
+function getExistingPosts() {
+  const map = {};
+  try {
+    const rows = db.queryAll(
+      'SELECT post_id, comment_count, crawled_at FROM lounge_posts'
+    );
+    for (const row of rows) {
+      map[row.post_id] = {
+        commentCount: row.comment_count || 0,
+        crawledAt: row.crawled_at || '',
+      };
+    }
+  } catch (_) {}
+  return map;
+}
+
+/**
+ * 判断帖子是否近两天内发的
+ * Naver 移动端时间格式："3시간 전"(3小时前)、"1일 전"(1天前)、"2026.07.29"(具体日期)
+ *
+ * @param {string} timeStr - 帖子时间字符串
+ * @returns {boolean} 是否在近2天内
+ */
+function isRecentPost(timeStr) {
+  if (!timeStr) return true; // 没时间信息的，保守起见当作新帖
+  // 韩文相对时间：분(分钟)、시간(小时)、일(天)
+  const minMatch = timeStr.match(/(\d+)\s*분/);
+  if (minMatch) return true;
+  const hourMatch = timeStr.match(/(\d+)\s*시간/);
+  if (hourMatch) return parseInt(hourMatch[1]) <= 48;
+  const dayMatch = timeStr.match(/(\d+)\s*일/);
+  if (dayMatch) return parseInt(dayMatch[1]) <= 2;
+  // "방금"(刚刚)、"어제"(昨天) 也算近两天
+  if (/방금|어제/.test(timeStr)) return true;
+  // 具体日期格式 2026.07.29
+  const dateMatch = timeStr.match(/(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+  if (dateMatch) {
+    const postDate = new Date(parseInt(dateMatch[1]), parseInt(dateMatch[2]) - 1, parseInt(dateMatch[3]));
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    return postDate >= twoDaysAgo;
+  }
+  return true; // 无法解析的保守当作新帖
+}
+
 // ===== 主入口：完整抓取流程 =====
 
 /**
  * 执行一次完整的 Lounge 抓取
- * 流程：打开列表 → 抓帖子标题 → 逐个打开帖子 → 抓正文+评论
+ * 流程：打开列表 → 排重过滤 → 只打开需要的帖子 → 抓正文+评论
  *
  * @param {Object} options - 可选配置
  * @param {number} options.maxDetail - 最多抓多少条帖子的详情（默认全部）
@@ -558,6 +611,7 @@ async function crawlLounge(options = {}) {
     totalPosts: 0,
     totalComments: 0,
     crawlTime: 0,
+    skippedPosts: 0,
     error: null,
   };
 
@@ -601,17 +655,53 @@ async function crawlLounge(options = {}) {
         continue;
       }
 
-      // 第二步：逐个抓帖子详情
-      const maxDetail = options.maxDetail || postList.length;
-      const detailPosts = postList.slice(0, maxDetail);
+      // 第二步：排重过滤 — 决定哪些帖子需要打开详情页
+      // 比喻：老师批作业前先看名单，上次批过且没改过的直接跳过
+      const existingMap = getExistingPosts();
+      const postsToOpen = [];    // 需要打开详情页的帖子
+      const postsToSkip = [];    // 跳过的帖子（DB已有完整数据）
+      const postsBasicOnly = []; // 只存基本信息的帖子（超出详情页数量限制）
 
-      for (let i = 0; i < detailPosts.length; i++) {
-        const post = detailPosts[i];
-        console.log(`  [${i + 1}/${detailPosts.length}] 正在抓取帖子: ${post.title.substring(0, 30)}...`);
+      const maxDetail = options.maxDetail || postList.length;
+      let detailCount = 0;
+
+      for (const post of postList) {
+        // 超过详情页数量限制的，只存基本信息
+        if (detailCount >= maxDetail) {
+          postsBasicOnly.push(post);
+          continue;
+        }
+
+        const existing = existingMap[post.id];
+        const isRecent = isRecentPost(post.time);
+
+        if (!existing) {
+          // 全新帖子，必须打开
+          postsToOpen.push(post);
+          detailCount++;
+        } else if (isRecent) {
+          // 近2天的帖子，总是重新打开（可能有新评论）
+          postsToOpen.push(post);
+          detailCount++;
+        } else if (post.commentCount > existing.commentCount) {
+          // 老帖子但评论增加了，打开看新评论
+          postsToOpen.push(post);
+          detailCount++;
+        } else {
+          // 评论没增加（持平或减少），跳过
+          postsToSkip.push(post);
+        }
+      }
+
+      console.log(`📋 排重结果：需打开 ${postsToOpen.length} 条，跳过 ${postsToSkip.length} 条（评论未增加）`);
+
+      // 第三步：逐个打开需要抓的帖子详情
+      for (let i = 0; i < postsToOpen.length; i++) {
+        const post = postsToOpen[i];
+        console.log(`  [${i + 1}/${postsToOpen.length}] 正在抓取: ${post.title.substring(0, 30)}...`);
 
         const detail = await crawlPostDetail(browser, post);
 
-        // 合并列表信息和详情信息
         result.posts.push({
           ...post,
           gameCode: game.code,
@@ -624,17 +714,16 @@ async function crawlLounge(options = {}) {
 
         result.totalComments += detail.comments.length;
 
-        // 每个帖子之间等一下，别太猛
-        if (i < detailPosts.length - 1) {
+        if (i < postsToOpen.length - 1) {
           await sleep(LOUNGE_CONFIG.delayBetween);
         }
       }
 
       result.totalPosts += postList.length;
+      result.skippedPosts += postsToSkip.length;
 
-      // 未抓详情的帖子也加入结果（只更新标题、作者、时间等基本信息）
-      const remainingPosts = postList.slice(maxDetail);
-      for (const post of remainingPosts) {
+      // 只存基本信息的帖子（超出限制的）
+      for (const post of postsBasicOnly) {
         result.posts.push({
           ...post,
           gameCode: game.code,
@@ -650,7 +739,7 @@ async function crawlLounge(options = {}) {
     result.success = true;
     result.crawlTime = Math.round((Date.now() - startTime) / 1000);
     console.log(`\n✅ ===== 抓取完成 =====`);
-    console.log(`   帖子: ${result.posts.length} 条（列表共 ${result.totalPosts} 条）`);
+    console.log(`   帖子: ${result.posts.length} 条（列表共 ${result.totalPosts} 条，跳过 ${result.skippedPosts} 条）`);
     console.log(`   评论: ${result.totalComments} 条`);
     console.log(`   耗时: ${result.crawlTime} 秒`);
 
