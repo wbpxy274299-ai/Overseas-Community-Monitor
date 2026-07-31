@@ -162,11 +162,15 @@ router.get('/api/sentiment/lounge-posts', (req, res) => {
     const pageSize = parseInt(req.query.pageSize) || 20;
     const startDate = req.query.startDate || null;
     const endDate = req.query.endDate || null;
+    const sentiment = req.query.sentiment || null;
+    const category = req.query.category || null;
 
-    let whereClauses = [];
+    let whereClauses = ["author != 'GM 티메이' AND author != 'GM티메이'"];
     let params = [];
-    if (startDate) { whereClauses.push('crawled_at >= ?'); params.push(startDate + ' 00:00:00'); }
-    if (endDate) { whereClauses.push('crawled_at <= ?'); params.push(endDate + ' 23:59:59'); }
+    if (startDate) { whereClauses.push('crawled_at >= ?'); params.push(startDate + 'T00:00:00'); }
+    if (endDate) { whereClauses.push('crawled_at <= ?'); params.push(endDate + 'T23:59:59'); }
+    if (sentiment) { whereClauses.push('sentiment = ?'); params.push(sentiment); }
+    if (category) { whereClauses.push('ai_category = ?'); params.push(category); }
 
     const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
@@ -176,7 +180,7 @@ router.get('/api/sentiment/lounge-posts', (req, res) => {
 
     const posts = db.queryAll(
       `SELECT id, post_id, game_code, game_name, title, title_zh, author, content, content_zh,
-              comment_count, view_count, url, sentiment, ai_category, ai_summary, crawled_at
+              comment_count, view_count, url, sentiment, ai_category, ai_summary, crawled_at, post_time
        FROM lounge_posts ${whereSql} ORDER BY crawled_at DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     );
@@ -198,16 +202,44 @@ router.get('/api/sentiment/lounge-posts', (req, res) => {
   }
 });
 
-// ===== 韩国帖子评论详情 =====
+// ===== 韩国帖子详情（帖子内容 + 评论） =====
 router.get('/api/sentiment/lounge-comments/:postId', (req, res) => {
   try {
     const { postId } = req.params;
+    // 先获取帖子本身的内容
+    const post = db.queryOne(
+      `SELECT title, title_zh, content, content_zh, author, sentiment, ai_category, url, post_time, view_count, comment_count
+       FROM lounge_posts WHERE post_id = ?`,
+      [postId]
+    );
+    // 再获取评论
     const comments = db.queryAll(
       `SELECT id, author, content, content_zh, comment_time, likes, sentiment
        FROM lounge_comments WHERE post_id = ? ORDER BY comment_time ASC`,
       [postId]
     );
-    res.json({ success: true, data: comments });
+    res.json({ success: true, data: comments, post: post || null });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== 韩国社区当日帖子（发言原声用） =====
+router.get('/api/sentiment/lounge-daily', (req, res) => {
+  try {
+    const today = new Date().toLocaleDateString('sv-SE');
+    const start = today + 'T00:00:00';
+    const end = today + 'T23:59:59';
+    const limit = parseInt(req.query.limit) || 200;
+    const posts = db.queryAll(
+      `SELECT title_zh, title, content_zh, author, url, sentiment, ai_category, post_time
+       FROM lounge_posts
+       WHERE crawled_at >= ? AND crawled_at <= ?
+       AND author != 'GM 티메이' AND author != 'GM티메이'
+       ORDER BY COALESCE(post_time, crawled_at) DESC LIMIT ?`,
+      [start, end, limit]
+    );
+    res.json({ ok: true, data: posts, total: posts.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

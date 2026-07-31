@@ -265,17 +265,19 @@ async function loadWeeklyHotTopics() {
     const res = await fetch(`${API_BASE}/weekly-hot-topics`);
     const result = await res.json();
     if (result.ok && result.data) {
-      renderWeeklyTopicColumn('weeklyTwitterTopics', result.data.twitter_topics || []);
-      renderWeeklyTopicColumn('weeklyDiscordTopics', result.data.discord_topics || []);
+      renderWeeklyTopicColumn('weeklyTwitterTopics', result.data.twitter_topics || [], 'tw');
+      renderWeeklyTopicColumn('weeklyDiscordTopics', result.data.discord_topics || [], 'dc');
+      renderWeeklyTopicColumn('weeklyLoungeTopics', result.data.lounge_topics || [], 'kr');
     }
   } catch (e) {
     console.error('加载七日热门话题失败:', e);
   }
 }
 
-function renderWeeklyTopicColumn(containerId, topics) {
+function renderWeeklyTopicColumn(containerId, topics, platform) {
   const container = document.getElementById(containerId);
   if (!container) return;
+  const pf = platform || 'tw';
   if (!topics || topics.length === 0) {
     container.innerHTML = '<div class="wtp-empty">7日内暂无话题数据</div>';
     return;
@@ -289,6 +291,9 @@ function renderWeeklyTopicColumn(containerId, topics) {
     world_boss: '#f97316', photo: '#06b6d4', pricing: '#eab308',
     server: '#6366f1', general: '#6b7280', login: '#14b8a6',
     gameplay: '#f472b6', story: '#a78bfa', collab: '#fb923c',
+    // 韩国社区分类颜色
+    bug: '#ef4444', complaint: '#f59e0b', question: '#3b82f6',
+    suggestion: '#8b5cf6', praise: '#10b981', other: '#6b7280',
   };
   let html = '';
   for (const t of topics) {
@@ -325,10 +330,12 @@ function renderWeeklyTopicColumn(containerId, topics) {
         <div class="wtp-mood-neu" style="width:${neuW}%" title="中性 ${neuW}%"></div>
       </div>`;
     }
-    html += `<div class="wtp-card">
+    // 热度火焰颜色
+    const heatClass = t.heat >= 7 ? 'wtp-heat-high' : t.heat >= 4 ? 'wtp-heat-med' : 'wtp-heat-low';
+    html += `<div class="wtp-card wtp-card-${pf}">
       <div class="wtp-card-header">
-        <span class="wtp-card-title">${sIcon} ${t.title}</span>
-        <span class="wtp-card-heat">🔥 ${t.heat}/10</span>
+        <span class="wtp-card-tag wtp-card-tag-${pf}">${sIcon} ${t.title}</span>
+        <span class="wtp-card-heat ${heatClass}">🔥 ${t.heat}/10</span>
       </div>
       <div class="wtp-card-stats">
         <span>${t.count}条讨论</span>
@@ -336,7 +343,7 @@ function renderWeeklyTopicColumn(containerId, topics) {
         <span style="color:#ef4444;">👎${t.neg || 0}</span>
       </div>
       ${moodBar}
-      <div class="wtp-card-overview">${escapeHtml(t.overview)}</div>
+      <div class="wtp-card-overview wtp-card-overview-${pf}">${escapeHtml(t.overview)}</div>
       ${voicesHtml}
     </div>`;
   }
@@ -676,18 +683,19 @@ async function loadDailyBriefOverview() {
 function renderDailyBriefOverview(data) {
   const twContainer = document.getElementById('briefTwitterTopics');
   const dcContainer = document.getElementById('briefDiscordTopics');
+  const krContainer = document.getElementById('briefLoungePosts');
   
-  function renderPlatform(el, platformData) {
+  function renderPlatform(el, platformData, pClass) {
     if (!platformData || !platformData.hasData) {
       el.innerHTML = '<div class="brief-topic-notice">📭 今日暂无玩家发言</div>';
       return;
     }
-    // 只显示概述文本，不显示原声
-    el.innerHTML = `<div class="brief-overview-text">${platformData.text}</div>`;
+    el.innerHTML = `<div class="brief-overview-text ${pClass}">${platformData.text}</div>`;
   }
   
-  if (twContainer) renderPlatform(twContainer, data.twitter);
-  if (dcContainer) renderPlatform(dcContainer, data.discord);
+  if (twContainer) renderPlatform(twContainer, data.twitter, 'brief-overview-tw');
+  if (dcContainer) renderPlatform(dcContainer, data.discord, 'brief-overview-dc');
+  if (krContainer) renderPlatform(krContainer, data.lounge, 'brief-overview-kr');
 }
 
 // 在概述下方追加热门话题卡片
@@ -715,6 +723,8 @@ function renderBriefDiagnosis(d) {
   const html = `<div class="brief-topic-notice">${reasonIcon} ${reasonText}</div>`;
   document.getElementById('briefTwitterTopics').innerHTML = html;
   document.getElementById('briefDiscordTopics').innerHTML = html;
+  const krContainer = document.getElementById('briefLoungePosts');
+  if (krContainer) krContainer.innerHTML = html;
 }
 
 function renderBriefTopics(data) {
@@ -783,14 +793,10 @@ let currentMsgPlatform = 'twitter';
 
 function switchMsgTab(platform) {
   currentMsgPlatform = platform;
-  const twBtn = document.getElementById('msgTabTwitter');
-  const dcBtn = document.getElementById('msgTabDiscord');
-  if (platform === 'twitter') {
-    twBtn.className = 'brief-msg-tab active';
-    dcBtn.className = 'brief-msg-tab';
-  } else {
-    twBtn.className = 'brief-msg-tab';
-    dcBtn.className = 'brief-msg-tab active';
+  const tabs = { twitter: 'msgTabTwitter', discord: 'msgTabDiscord', korean: 'msgTabKorean' };
+  for (const [p, id] of Object.entries(tabs)) {
+    const el = document.getElementById(id);
+    if (el) el.className = 'brief-msg-tab' + (p === platform ? ' active' : '');
   }
   loadPlayerMessages(platform);
 }
@@ -799,14 +805,62 @@ async function loadPlayerMessages(platform = 'twitter') {
   const container = document.getElementById('playerMessages');
   container.innerHTML = '<div class="loading">加载中...</div>';
   try {
-    const res = await fetch(`${API_BASE}/daily?limit=200&platform=${platform}`);
-    const result = await res.json();
-    if (!result.ok) throw new Error(result.error);
-    renderPlayerMessages(result.data, platform);
-    document.getElementById('msgCountInfo').textContent = `共 ${result.total} 条发言`;
+    let res, result;
+    if (platform === 'korean') {
+      res = await fetch(`${API_BASE}/lounge-daily?limit=200`);
+      result = await res.json();
+      if (!result.ok) throw new Error(result.error);
+      renderKoreanMessages(result.data);
+      document.getElementById('msgCountInfo').textContent = `共 ${result.total} 条发言`;
+    } else {
+      res = await fetch(`${API_BASE}/daily?limit=200&platform=${platform}`);
+      result = await res.json();
+      if (!result.ok) throw new Error(result.error);
+      renderPlayerMessages(result.data, platform);
+      document.getElementById('msgCountInfo').textContent = `共 ${result.total} 条发言`;
+    }
   } catch (e) {
     container.innerHTML = `<div style="color:var(--color-text-muted,#999);">加载失败: ${e.message}</div>`;
   }
+}
+
+// 渲染韩国社区发言原声
+function renderKoreanMessages(posts) {
+  const container = document.getElementById('playerMessages');
+  if (!posts || posts.length === 0) {
+    container.innerHTML = '<div style="color:var(--color-text-muted,#999); padding:20px; text-align:center;">暂无韩国社区发言</div>';
+    return;
+  }
+  const sentimentIcon = s => s === 'positive' ? '😊' : s === 'negative' ? '😟' : '😐';
+  const sentimentColor = s => s === 'positive' ? '#10b981' : s === 'negative' ? '#ef4444' : '#9ca3af';
+  const catLabel = c => ({ bug:'🐛 Bug', suggestion:'💡 建议', complaint:'😤 投诉', praise:'👍 好评', question:'❓ 提问', other:'' }[c] || '');
+  const escapeHtml = t => (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
+  for (const p of posts) {
+    const title = p.title_zh || p.title || '';
+    const content = p.content_zh || '';
+    const sColor = sentimentColor(p.sentiment);
+    const sIcon = sentimentIcon(p.sentiment);
+    const cat = catLabel(p.ai_category);
+    const time = (p.post_time || '').substring(5, 16);
+    const url = p.url || '';
+    html += `<div style="padding:10px 14px; background:var(--color-card-bg,#fff); border:1px solid var(--color-border,#e5e7eb); border-radius:8px; border-left:3px solid ${sColor};">`;
+    html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">`;
+    html += `<span style="font-weight:600; font-size:13px; color:#1a1a1a;">${sIcon} ${escapeHtml(p.author || '匿名')}</span>`;
+    html += `<span style="font-size:11px; color:#666;">${time}`;
+    if (url) html += ` · <a href="${url}" target="_blank" style="color:#3b82f6; text-decoration:none; font-weight:600;">原文↗</a>`;
+    html += `</span></div>`;
+    html += `<div style="font-size:13px; color:#333; line-height:1.6;">${escapeHtml(title)}</div>`;
+    if (content && content !== title) {
+      html += `<div style="font-size:12px; color:#555; margin-top:4px; line-height:1.5;">${escapeHtml(content.substring(0, 150))}${content.length>150?'...':''}</div>`;
+    }
+    if (cat) {
+      html += `<div style="font-size:11px; color:#6b7280; margin-top:4px;">${cat}</div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
 }
 
 function renderPlayerMessages(messages, platform) {
@@ -982,37 +1036,8 @@ function refreshData() {
   loadDailySnapshots();
   loadWeeklyOverview();
   loadWeeklyHotTopics();
-  loadLoungeBrief();
 }
 
-// ===== 加载韩国社区快报 =====
-async function loadLoungeBrief() {
-  try {
-    const res = await fetch('/api/lounge/posts?size=5');
-    const result = await res.json();
-    if (!result.success) return;
-    const container = document.getElementById('briefLoungePosts');
-    if (!container) return;
-    const posts = result.data || [];
-    if (posts.length === 0) {
-      container.innerHTML = '<div class="brief-topic-notice">暂无韩国社区数据</div>';
-      return;
-    }
-    let html = '';
-    for (const p of posts) {
-      const title = p.title_zh || p.title || '';
-      const sentIcon = p.sentiment === 'negative' ? '😟' : p.sentiment === 'positive' ? '😊' : '😐';
-      const comments = p.comment_count || 0;
-      html += `<div class="brief-compact-card">
-        <div class="brief-compact-title">${sentIcon} ${escapeHtml(title.length > 30 ? title.substring(0,30)+'...' : title)}</div>
-        <div class="brief-compact-meta">👤 ${escapeHtml(p.author || '匿名')} · 💬 ${comments}条评论</div>
-      </div>`;
-    }
-    container.innerHTML = html;
-  } catch (e) {
-    console.error('加载韩国社区快报失败:', e);
-  }
-}
 
 // ========== 周报生成功能 ==========
 async function generateWeeklyReport() {

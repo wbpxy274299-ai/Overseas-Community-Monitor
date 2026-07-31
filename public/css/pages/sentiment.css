@@ -407,7 +407,7 @@
 }
 .brief-topics-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 16px;
 }
 .brief-platform-tag {
@@ -456,18 +456,89 @@
   color: var(--color-text-muted, #999);
 }
 
+/* 韩国快报卡片 */
+.brief-compact-card {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border-light, #f0f2f5);
+}
+.brief-compact-card:last-child { border-bottom: none; }
+.brief-compact-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #1f2937);
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.brief-compact-meta {
+  font-size: 11px;
+  color: var(--color-text-muted, #999);
+  margin-top: 3px;
+}
+.brief-sent-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.brief-cat-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #ede9fe;
+  color: #6b21a8;
+  white-space: nowrap;
+}
+[data-theme="dark"] .brief-cat-badge { background: #312e81; color: #c4b5fd; }
+.brief-platform-kr {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: white !important;
+}
+
 /* 每日舆情概述（无话题时兑底） */
 .brief-overview-text {
   font-size: 13px;
   line-height: 1.6;
   color: var(--color-text, #333);
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: var(--color-border-light, #f9fafb);
   border-radius: 8px;
   margin-bottom: 8px;
+  border-left: 4px solid var(--color-border, #e5e7eb);
 }
 [data-theme="dark"] .brief-overview-text {
   background: rgba(255,255,255,0.03);
+}
+/* 概述框平台品牌色 */
+.brief-overview-tw {
+  background: #eff8ff;
+  border-left-color: #1d9bf0;
+  color: #0c4a6e;
+}
+[data-theme="dark"] .brief-overview-tw {
+  background: rgba(29,155,240,0.08);
+  color: #7dd3fc;
+}
+.brief-overview-dc {
+  background: #f0f0ff;
+  border-left-color: #5865f2;
+  color: #312e81;
+}
+[data-theme="dark"] .brief-overview-dc {
+  background: rgba(88,101,242,0.08);
+  color: #a5b4fc;
+}
+.brief-overview-kr {
+  background: #fffbeb;
+  border-left-color: #f59e0b;
+  color: #78350f;
+}
+[data-theme="dark"] .brief-overview-kr {
+  background: rgba(245,158,11,0.08);
+  color: #fcd34d;
 }
 .brief-overview-samples {
   display: flex;
@@ -610,7 +681,7 @@
 }
 .weekly-topics-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 20px;
 }
 .wtp-header {
@@ -623,8 +694,10 @@
 }
 .wtp-tw { background: #e8f4fd; color: #1d9bf0; }
 .wtp-dc { background: #eef0ff; color: #5865f2; }
+.wtp-kr { background: #fef3c7; color: #d97706; }
 [data-theme="dark"] .wtp-tw { background: rgba(29,155,240,0.15); }
 [data-theme="dark"] .wtp-dc { background: rgba(88,101,242,0.15); }
+[data-theme="dark"] .wtp-kr { background: rgba(245,158,11,0.15); }
 
 .wtp-card {
   padding: 14px 16px;
@@ -632,7 +705,7 @@
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 10px;
   margin-bottom: 10px;
-  transition: box-shadow 0.2s;
+  transition: box-shadow 0.2s, border-color 0.2s;
 }
 .wtp-card:hover {
   box-shadow: 0 2px 10px rgba(0,0,0,0.08);
@@ -641,6 +714,51 @@
   background: rgba(255,255,255,0.04);
   border-color: rgba(255,255,255,0.1);
 }
+/* 话题卡片平台品牌色左边框 */
+.wtp-card-tw {
+  border-left: 4px solid #1d9bf0;
+}
+.wtp-card-tw:hover {
+  border-color: #1d9bf0;
+  box-shadow: 0 2px 12px rgba(29,155,240,0.15);
+}
+.wtp-card-dc {
+  border-left: 4px solid #5865f2;
+}
+.wtp-card-dc:hover {
+  border-color: #5865f2;
+  box-shadow: 0 2px 12px rgba(88,101,242,0.15);
+}
+.wtp-card-kr {
+  border-left: 4px solid #f59e0b;
+}
+.wtp-card-kr:hover {
+  border-color: #f59e0b;
+  box-shadow: 0 2px 12px rgba(245,158,11,0.15);
+}
+/* 话题标签平台色 */
+.wtp-card-tag-tw { background: #dbeafe; color: #1e40af; }
+.wtp-card-tag-dc { background: #e0e7ff; color: #3730a3; }
+.wtp-card-tag-kr { background: #fef3c7; color: #92400e; }
+[data-theme="dark"] .wtp-card-tag-tw { background: rgba(29,155,240,0.2); color: #93c5fd; }
+[data-theme="dark"] .wtp-card-tag-dc { background: rgba(88,101,242,0.2); color: #a5b4fc; }
+[data-theme="dark"] .wtp-card-tag-kr { background: rgba(245,158,11,0.2); color: #fcd34d; }
+/* 概述框平台色 */
+.wtp-card-overview-tw {
+  background: #eff8ff;
+  border-left: 3px solid #1d9bf0;
+}
+.wtp-card-overview-dc {
+  background: #f0f0ff;
+  border-left: 3px solid #5865f2;
+}
+.wtp-card-overview-kr {
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+}
+[data-theme="dark"] .wtp-card-overview-tw { background: rgba(29,155,240,0.06); }
+[data-theme="dark"] .wtp-card-overview-dc { background: rgba(88,101,242,0.06); }
+[data-theme="dark"] .wtp-card-overview-kr { background: rgba(245,158,11,0.06); }
 .wtp-card-header {
   display: flex;
   align-items: center;
@@ -653,10 +771,11 @@
   color: var(--color-text, #333);
 }
 .wtp-card-tag {
-  font-size: 10px;
-  padding: 2px 7px;
-  border-radius: 10px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 8px;
+  display: inline-block;
 }
 .wtp-card-heat {
   font-size: 12px;
@@ -709,6 +828,10 @@
 [data-theme="dark"] .wtp-card-overview {
   background: rgba(255,255,255,0.03);
 }
+/* 热度火焰颜色 */
+.wtp-heat-low { color: #6b7280; }
+.wtp-heat-med { color: #f59e0b; }
+.wtp-heat-high { color: #ef4444; }
 .wtp-voices {
   margin-top: 8px;
   border-top: 1px dashed var(--color-border, #e5e7eb);

@@ -67,101 +67,89 @@ const Api = {
   },
 };
 
-// ===== 导航栏高亮 =====
+// ===== 导航栏高亮（已迁移到侧边栏，保留兼容）=====
 function highlightNav() {
-  const path = window.location.pathname;
-  document.querySelectorAll('.nav-link').forEach(link => {
-    const href = link.getAttribute('href');
-    if (href === path || (href !== '/' && path.startsWith(href))) {
-      link.classList.add('active');
-    }
-  });
+  // 侧边栏已在 renderNav 中处理高亮
 }
 
-// ===== 统一导航栏渲染（所有页面共用，改这一处就行）=====
+// ===== 侧边栏导航渲染（替代旧版汉堡菜单）=====
 function renderNav() {
   const path = window.location.pathname;
   const role = getUserRole();
   const roleLevel = ROLE_LEVEL[role] || 0;
   
-  // 分组导航配置：每组包含分组标题和页面列表
   const groups = [
     { label: '舆情监控', items: [
-      { path: '/sentiment', label: '📊 舆情日报', match: p => p.startsWith('/sentiment') && !p.includes('history'), minRole: 'viewer' },
-      { path: '/reports', label: '📋 周报管理', match: p => p.startsWith('/reports'), minRole: 'operator' },
-      { path: '/sentiment-history', label: '📚 历史数据', match: p => p.includes('sentiment-history'), minRole: 'operator' },
-      { path: '/lounge', label: '🇰🇷 韩国社区', match: p => p.startsWith('/lounge'), minRole: 'viewer' },
-      { path: '/insights', label: '🔍 玩家洞察', match: p => p === '/insights', minRole: 'super_admin', superOnly: true },
+      { path: '/sentiment', label: '📊 舆情日报', icon: '📊', match: p => p.startsWith('/sentiment') && !p.includes('history'), minRole: 'viewer' },
+      { path: '/reports', label: '📋 周报管理', icon: '📋', match: p => p.startsWith('/reports'), minRole: 'operator' },
+      { path: '/sentiment-history', label: '📚 历史数据', icon: '📚', match: p => p.includes('sentiment-history'), minRole: 'operator' },
+      { path: '/insights', label: '🔍 玩家洞察', icon: '🔍', match: p => p === '/insights', minRole: 'super_admin', superOnly: true },
     ]},
     { label: '内容管理', items: [
-      { path: '/', label: '🚀 DC发布', match: p => p === '/', minRole: 'operator' },
-      { path: '/post-assistant', label: '✍️ 贴文助手', match: p => p.startsWith('/post-assistant'), minRole: 'operator', permKey: 'postAssistant' },
-      { path: '/terminology', label: '📖 术语校对', match: p => p.startsWith('/terminology'), minRole: 'viewer' },
+      { path: '/', label: '🚀 DC发布', icon: '🚀', match: p => p === '/', minRole: 'operator' },
+      { path: '/post-assistant', label: '✍️ 贴文助手', icon: '✍️', match: p => p.startsWith('/post-assistant'), minRole: 'operator', permKey: 'postAssistant' },
+      { path: '/terminology', label: '📖 术语校对', icon: '📖', match: p => p.startsWith('/terminology'), minRole: 'viewer' },
     ]},
     { label: '权限管理', items: [
-      { path: '/admin', label: '🔐 权限管理', match: p => p === '/admin', minRole: 'admin' },
+      { path: '/admin', label: '🔐 权限管理', icon: '🔐', match: p => p === '/admin', minRole: 'admin' },
     ]},
   ];
   
-  let linksHtml = '';
+  let navHtml = '';
   groups.forEach((group, gi) => {
-    // 过滤掉不可见的页面
     const visibleItems = group.items.filter(p => {
       if (p.superOnly && role !== 'super_admin') return false;
       return true;
     });
     if (!visibleItems.length) return;
-
-    // 分组标题（除了第一组）
-    if (gi > 0) {
-      linksHtml += '<div class="nav-group-divider"></div>';
-    }
-    linksHtml += `<div class="nav-group-label">${group.label}</div>`;
-
+    if (gi > 0) navHtml += '<div class="sidebar-group-divider"></div>';
+    navHtml += `<div class="sidebar-group-label">${group.label}</div>`;
     for (const p of visibleItems) {
       const minLevel = ROLE_LEVEL[p.minRole] || 0;
       const hasRoleAccess = roleLevel >= minLevel;
-      // 细粒度权限检查（如 postAssistant）
       const hasPerm = hasRoleAccess && _hasUserPerm(p.permKey);
       const isActive = p.match(path);
-      
+      const icon = p.icon || p.label.split(' ')[0];
+      const labelText = p.label.replace(/^[^\s]+\s/, '');
       if (hasRoleAccess && hasPerm) {
-        const activeClass = isActive ? ' active' : '';
-        linksHtml += `<a href="${p.path}" class="nav-link${activeClass}">${p.label}</a>`;
+        navHtml += `<a href="${p.path}" class="sidebar-link${isActive ? ' active' : ''}" title="${labelText}"><span class="sidebar-link-icon">${icon}</span><span class="sidebar-link-label">${labelText}</span></a>`;
       } else if (hasRoleAccess && !hasPerm) {
-        // 角色够但没有细粒度权限，置灰
-        linksHtml += `<span class="nav-link nav-disabled" title="管理员已关闭此功能的权限" onclick="Toast.warning('管理员已关闭你的贴文助手权限，请联系管理员开通')">${p.label}</span>`;
+        navHtml += `<span class="sidebar-link sidebar-disabled" title="管理员已关闭此功能的权限" onclick="Toast.warning('管理员已关闭你的贴文助手权限，请联系管理员开通')"><span class="sidebar-link-icon">${icon}</span><span class="sidebar-link-label">${labelText}</span></span>`;
       } else {
-        linksHtml += `<span class="nav-link nav-disabled" title="权限不足，需要 ${p.minRole} 角色" onclick="Toast.warning('权限不足，无法访问此页面')">${p.label}</span>`;
+        navHtml += `<span class="sidebar-link sidebar-disabled" title="权限不足"><span class="sidebar-link-icon">${icon}</span><span class="sidebar-link-label">${labelText}</span></span>`;
       }
     }
   });
   
-  linksHtml += '<div class="nav-divider"></div>';
-  // 暗黑模式切换按钮
-  const darkBtnText = DarkMode.isDark() ? '☀️ 切换白昼模式' : '🌙 切换暗黑模式';
-  linksHtml += `<button class="nav-dark-toggle" onclick="DarkMode.toggle(); toggleNavMenu();">${darkBtnText}</button>`;
-  // 退出登录按钮
-  linksHtml += '<button class="nav-logout-btn" onclick="window.location.href=\'/api/auth/logout\'">🚪 退出登录</button>';
-  
-  const html = `
-    <button class="hamburger-btn" onclick="toggleNavMenu()" title="菜单">☰ <span class="hamburger-label">菜单</span></button>
-    <div class="nav-dropdown" id="navDropdown">
-      ${linksHtml}
-    </div>
+  // 底部操作区
+  const darkBtnText = DarkMode.isDark() ? '☀️ 白昼模式' : '🌙 暗黑模式';
+  const footerHtml = `
+    <button class="sidebar-footer-btn" onclick="DarkMode.toggle()"><span class="sidebar-footer-icon">${DarkMode.isDark() ? '☀️' : '🌙'}</span><span class="sidebar-footer-label">${darkBtnText}</span></button>
+    <button class="sidebar-footer-btn logout" onclick="window.location.href='/api/auth/logout'"><span class="sidebar-footer-icon">🚪</span><span class="sidebar-footer-label">退出登录</span></button>
   `;
   
-  const navEl = document.getElementById('mainNav');
-  if (navEl) {
-    navEl.innerHTML = html;
+  const sidebarHtml = `
+    <div class="sidebar-brand">
+      <span class="sidebar-brand-icon">📡</span>
+      <span class="sidebar-brand-text">M2G 运营后台</span>
+    </div>
+    <div class="sidebar-nav">${navHtml}</div>
+    <div class="sidebar-footer">${footerHtml}</div>
+  `;
+  
+  // 注入侧边栏到 body
+  let sidebar = document.getElementById('sidebarNav');
+  if (!sidebar) {
+    sidebar = document.createElement('aside');
+    sidebar.id = 'sidebarNav';
+    sidebar.className = 'app-sidebar';
+    document.body.prepend(sidebar);
   }
-}
-
-function toggleNavMenu() {
-  const dropdown = document.getElementById('navDropdown');
-  if (dropdown) {
-    dropdown.classList.toggle('open');
-  }
+  sidebar.innerHTML = sidebarHtml;
+  
+  // 隐藏旧的 header-nav（如果存在）
+  const oldNav = document.getElementById('mainNav');
+  if (oldNav) oldNav.style.display = 'none';
 }
 
 // ===== 暗黑模式 =====
@@ -273,7 +261,6 @@ function renderUserInfo() {
   const role = getUserRole();
   const roleLabel = ROLE_LABEL_MAP[role] || role;
   const roleClass = 'hui-role-' + role;
-  // 真实头像 or emoji 兜底
   const avatarHtml = user.picture
     ? `<span class="hui-avatar"><img src="${escapeHtml(user.picture)}" alt="" /></span>`
     : `<span class="hui-avatar">👤</span>`;
@@ -283,8 +270,13 @@ function renderUserInfo() {
       <span class="hui-name">${escapeHtml(user.name)}</span>
       <span class="hui-role ${roleClass}">${roleLabel}</span>
     </div>`;
-  const nav = headerInner.querySelector('.header-nav');
-  if (nav) nav.insertAdjacentHTML('beforebegin', infoHtml);
+  // 插入到 header-inner 右侧（不再依赖 .header-nav）
+  const headerLeft = headerInner.querySelector('.header-left');
+  if (headerLeft) {
+    headerLeft.insertAdjacentHTML('afterend', infoHtml);
+  } else {
+    headerInner.insertAdjacentHTML('beforeend', infoHtml);
+  }
 }
 // pending 用户隐藏所有操作按钮
 // 非 admin 隐藏 admin-only
@@ -602,13 +594,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (_) {}
   
-  renderNav();           // 统一渲染导航栏
+  renderNav();           // 渲染侧边栏导航
   renderUserInfo();       // 在顶部 banner 注入用户名和角色
   applyNavPermissions(); // 非管理员隐藏 admin-only
   applyReadOnlyMode();   // operator 隐藏写入按钮
   FeedbackBtn.init();
   
-  // 注入“阿饱提示”帮助按钮
+  // 注入"阿饱提示"帮助按钮
   const path = window.location.pathname;
   let pageKey = 'home';
   if (path.includes('post-assistant')) pageKey = 'post-assistant';
@@ -616,13 +608,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   else if (path.includes('admin')) pageKey = 'admin';
   else if (path.includes('terminology')) pageKey = 'terminology';
   AbaoTip.injectButton(pageKey);
-  
-  // 点击外部关闭汉堡菜单
-  document.addEventListener('click', (e) => {
-    const nav = document.getElementById('mainNav');
-    const dropdown = document.getElementById('navDropdown');
-    if (nav && dropdown && dropdown.classList.contains('open') && !nav.contains(e.target)) {
-      dropdown.classList.remove('open');
-    }
-  });
 });

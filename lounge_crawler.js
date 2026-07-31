@@ -9,6 +9,48 @@
 const puppeteer = require('puppeteer');
 const log = require('./logger');
 
+// ===== 自动查找 Chrome 路径 =====
+function findChromePath() {
+  const fs = require('fs');
+  const paths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+  ];
+  for (const p of paths) {
+    try { if (fs.existsSync(p)) return p; } catch (_) {}
+  }
+  return undefined; // 找不到就用 Puppeteer 自带的
+}
+
+// ===== 解析代理配置 =====
+function getProxyArgs() {
+  const proxyUrl = process.env.HTTP_PROXY || '';
+  if (!proxyUrl) return { args: [], auth: null };
+  try {
+    const url = new URL(proxyUrl);
+    const server = `${url.protocol}//${url.hostname}:${url.port}`;
+    const auth = url.username ? {
+      username: decodeURIComponent(url.username),
+      password: decodeURIComponent(url.password),
+    } : null;
+    return { args: [`--proxy-server=${server}`], auth };
+  } catch (_) {
+    return { args: [], auth: null };
+  }
+}
+
+// ===== 创建带代理认证的页面 =====
+async function createPage(browser) {
+  const page = await browser.newPage();
+  const { auth } = getProxyArgs();
+  if (auth) {
+    await page.authenticate(auth);
+  }
+  return page;
+}
+
 // ===== 配置 =====
 const LOUNGE_CONFIG = {
   // 监控的游戏列表（可扩展多个游戏）
@@ -21,11 +63,11 @@ const LOUNGE_CONFIG = {
     },
   ],
   // 每次最多抓多少条帖子
-  maxPosts: 50,
+  maxPosts: 300,
   // 每条帖子最多抓多少条评论
   maxComments: 30,
   // 页面加载超时（毫秒）
-  pageTimeout: 30000,
+  pageTimeout: 60000,
   // 操作间隔（毫秒），太快会被封
   delayBetween: 2000,
   // 浏览器 User-Agent（伪装成手机）
@@ -86,8 +128,8 @@ async function safeAttr(page, selector, attr) {
  * @param {Object} game - 游戏配置对象
  * @returns {Array} 帖子列表 [{id, title, author, time, commentCount, viewCount, url}]
  */
-async function crawlPostList(browser, game) {
-  const page = await browser.newPage();
+async function crawlPostList(browser, game, options = {}) {
+  const page = await createPage(browser);
   const posts = [];
 
   try {
@@ -97,7 +139,7 @@ async function crawlPostList(browser, game) {
 
     console.log(`📋 正在打开 ${game.name} 的 Lounge 页面...`);
     await page.goto(game.url, {
-      waitUntil: 'networkidle2',
+      waitUntil: 'domcontentloaded',
       timeout: LOUNGE_CONFIG.pageTimeout,
     });
 
@@ -115,7 +157,8 @@ async function crawlPostList(browser, game) {
     await sleep(3000);
 
     // 滚动加载更多帖子（Lounge 是无限滚动/分页的）
-    for (let i = 0; i < 3; i++) {
+    const scrollTimes = options.scrollTimes || 3;
+    for (let i = 0; i < scrollTimes; i++) {
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await sleep(1500);
     }
@@ -147,35 +190,47 @@ async function crawlPostList(browser, game) {
         // 从链接的父容器中提取信息
         const container = link.closest('[class*="board"]') || link.closest('[class*="item"]') || link.parentElement;
 
-        // 标题：链接文本或容器内的标题元素
-        let title = link.textContent.trim();
-        if (!title || title.length < 2) {
-          const titleEl = container?.querySelector('[class*="title"], [class*="subject"], strong, h3, h4');
-          title = titleEl ? titleEl.textContent.trim() : '';
-        }
+        // 标题：精确匹配 strong[class*="title"]（Naver Lounge 的标准标题元素）
+        const titleEl = link.querySelector('strong[class*="title"]');
+        let title = titleEl ? titleEl.textContent.trim() : '';
+        // 兜底：用链接文本
+        if (!title) title = link.textContent.trim().substring(0, 200);
 
-        // 作者
-        const authorEl = container?.querySelector('[class*="author"], [class*="nick"], [class*="writer"], [class*="name"]');
+        // 分类标签
+        const labelEl = link.querySelector('span[class*="label"]');
+        const category = labelEl ? labelEl.textContent.trim() : '';
+
+        // 作者：精确匹配 span[class*="name"]
+        const authorEl = link.querySelector('span[class*="name"]') || container?.querySelector('span[class*="name"]');
         const author = authorEl ? authorEl.textContent.trim() : '';
 
-        // 时间
-        const timeEl = container?.querySelector('[class*="date"], [class*="time"], time');
-        const time = timeEl ? (timeEl.getAttribute('datetime') || timeEl.textContent.trim()) : '';
+        // 时间：找 span[class*="sub"] 中不含 버프/조회수 的那个
+        let time = '';
+        const subSpans = link.querySelectorAll('span[class*="sub"]');
+        for (const sp of subSpans) {
+          const t = sp.textContent.trim();
+          if (t && !t.includes('버프') && !t.includes('조회수')) {
+            time = t;
+            break;
+          }
+        }
 
-        // 评论数
-        const commentEl = container?.querySelector('[class*="comment"], [class*="reply"], em');
+        // 评论数：精确匹配 span[class*="reply"] 或 span[class*="number"]
         let commentCount = 0;
-        if (commentEl) {
-          const numMatch = commentEl.textContent.match(/\d+/);
+        const replyEl = link.querySelector('span[class*="reply"]');
+        if (replyEl) {
+          const numMatch = replyEl.textContent.match(/\d+/);
           commentCount = numMatch ? parseInt(numMatch[0]) : 0;
         }
 
-        // 浏览量
-        const viewEl = container?.querySelector('[class*="view"], [class*="count"], [class*="hit"]');
+        // 浏览量：找含 조회수 的 span[class*="sub"]
         let viewCount = 0;
-        if (viewEl) {
-          const numMatch = viewEl.textContent.match(/[\d,]+/);
-          viewCount = numMatch ? parseInt(numMatch[0].replace(/,/g, '')) : 0;
+        for (const sp of subSpans) {
+          if (sp.textContent.includes('조회수')) {
+            const numMatch = sp.textContent.match(/[\d,]+/);
+            viewCount = numMatch ? parseInt(numMatch[0].replace(/,/g, '')) : 0;
+            break;
+          }
         }
 
         results.push({
@@ -237,7 +292,7 @@ async function crawlPostList(browser, game) {
  * @returns {Object} {content, images, comments: [{author, text, time, likes}]}
  */
 async function crawlPostDetail(browser, post) {
-  const page = await browser.newPage();
+  const page = await createPage(browser);
   const detail = { content: '', images: [], comments: [] };
 
   try {
@@ -298,8 +353,8 @@ async function crawlPostDetail(browser, post) {
         }
       }
 
-      // 标题（详情页可能有更完整的标题）
-      const titleEl = document.querySelector('[class*="title"], h1, h2, h3');
+      // 标题：精确匹配详情页标题元素
+      const titleEl = document.querySelector('strong[class*="feed_title"]') || document.querySelector('strong[class*="title"]');
       if (titleEl) result.detailTitle = titleEl.textContent.trim();
 
       // 作者
@@ -400,8 +455,10 @@ async function crawlLounge(options = {}) {
     console.log('\n🚀 ===== Naver Lounge 爬虫启动 =====');
 
     // 启动无头浏览器
+    const { args: proxyArgs } = getProxyArgs();
     browser = await puppeteer.launch({
       headless: 'new',
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || findChromePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -409,6 +466,7 @@ async function crawlLounge(options = {}) {
         '--disable-gpu',
         '--disable-web-security',
         '--lang=ko-KR',
+        ...proxyArgs,
       ],
     });
 
@@ -425,7 +483,7 @@ async function crawlLounge(options = {}) {
       console.log(`\n🎮 开始抓取: ${game.name}`);
 
       // 第一步：抓帖子列表
-      const postList = await crawlPostList(browser, game);
+      const postList = await crawlPostList(browser, game, options);
       if (postList.length === 0) {
         console.log(`⚠️ ${game.name} 没有抓到任何帖子`);
         continue;
@@ -461,6 +519,20 @@ async function crawlLounge(options = {}) {
       }
 
       result.totalPosts += postList.length;
+
+      // 未抓详情的帖子也加入结果（只更新标题、作者、时间等基本信息）
+      const remainingPosts = postList.slice(maxDetail);
+      for (const post of remainingPosts) {
+        result.posts.push({
+          ...post,
+          gameCode: game.code,
+          gameName: game.name,
+          content: '',
+          images: [],
+          comments: [],
+          crawledAt: new Date().toISOString(),
+        });
+      }
     }
 
     result.success = true;

@@ -66,11 +66,6 @@ router.get('/terminology', ensureLoggedIn, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'terminology.html'));
 });
 
-// ===== 韩国社区监控（所有角色）=====
-router.get('/lounge', ensureLoggedIn, (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'views', 'lounge.html'));
-});
-
 // ===== 贴文助手（operator + admin + super_admin，需有 postAssistant 权限）=====
 router.get('/post-assistant', ensureLoggedIn, (req, res) => {
   // admin/super_admin 默认有权限

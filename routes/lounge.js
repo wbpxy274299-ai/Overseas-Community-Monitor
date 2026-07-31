@@ -113,6 +113,7 @@ function initLoungeTables() {
     )
   `);
 
+  db.saveDb();
   console.log('✅ Lounge 监控数据表已初始化');
 }
 
@@ -128,13 +129,20 @@ function saveCrawlResult(crawlResult) {
   let newPosts = 0, newComments = 0;
 
   for (const post of crawlResult.posts) {
-    // 帖子入库（已存在则跳过）
+    // 帖子入库（已存在则更新标题、作者等字段）
     try {
       db.getDb().run(
-        `INSERT OR IGNORE INTO lounge_posts
+        `INSERT INTO lounge_posts
          (post_id, game_code, game_name, title, author, content, images,
           post_time, comment_count, view_count, url, crawled_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(post_id, game_code) DO UPDATE SET
+           title = excluded.title,
+           author = excluded.author,
+           post_time = excluded.post_time,
+           comment_count = excluded.comment_count,
+           view_count = excluded.view_count,
+           content = CASE WHEN lounge_posts.content IS NULL OR lounge_posts.content = '' THEN excluded.content ELSE lounge_posts.content END`,
         [
           post.id, post.gameCode, post.gameName, post.title, post.author,
           post.content, JSON.stringify(post.images || []),
@@ -144,11 +152,11 @@ function saveCrawlResult(crawlResult) {
       );
       newPosts++;
     } catch (e) {
-      // 已存在的帖子，更新浏览量和评论数
+      // 兆底：如果 ON CONFLICT 不支持，回退到 UPDATE
       try {
         db.getDb().run(
-          `UPDATE lounge_posts SET comment_count = ?, view_count = ? WHERE post_id = ? AND game_code = ?`,
-          [post.commentCount, post.viewCount, post.id, post.gameCode]
+          `UPDATE lounge_posts SET title = ?, author = ?, post_time = ?, comment_count = ?, view_count = ? WHERE post_id = ? AND game_code = ?`,
+          [post.title, post.author, post.time, post.commentCount, post.viewCount, post.id, post.gameCode]
         );
       } catch (_) {}
     }
@@ -444,6 +452,9 @@ router.get('/api/lounge/posts', ensureLoggedIn, (req, res) => {
   let where = 'WHERE 1=1';
   const params = [];
 
+  // 过滤 GM 官方帖子
+  where += " AND author != 'GM 티메이' AND author != 'GM티메이'";
+
   if (game) { where += ' AND game_code = ?'; params.push(game); }
   if (sentiment) { where += ' AND sentiment = ?'; params.push(sentiment); }
   if (keyword) {
@@ -452,22 +463,26 @@ router.get('/api/lounge/posts', ensureLoggedIn, (req, res) => {
     params.push(kw, kw, kw);
   }
 
-  const total = db.queryOne(`SELECT COUNT(*) as cnt FROM lounge_posts ${where}`, params);
-  const posts = db.queryAll(
-    `SELECT * FROM lounge_posts ${where} ORDER BY crawled_at DESC LIMIT ? OFFSET ?`,
-    [...params, parseInt(size), offset]
-  );
+  try {
+    const total = db.queryOne(`SELECT COUNT(*) as cnt FROM lounge_posts ${where}`, params);
+    const posts = db.queryAll(
+      `SELECT * FROM lounge_posts ${where} ORDER BY COALESCE(post_time, crawled_at) DESC LIMIT ? OFFSET ?`,
+      [...params, parseInt(size), offset]
+    );
 
-  res.json({
-    success: true,
-    data: posts,
-    pagination: {
-      page: parseInt(page),
-      size: parseInt(size),
-      total: total?.cnt || 0,
-      totalPages: Math.ceil((total?.cnt || 0) / parseInt(size)),
-    },
-  });
+    res.json({
+      success: true,
+      data: posts,
+      pagination: {
+        page: parseInt(page),
+        size: parseInt(size),
+        total: total?.cnt || 0,
+        totalPages: Math.ceil((total?.cnt || 0) / parseInt(size)),
+      },
+    });
+  } catch (_) {
+    res.json({ success: true, data: [], pagination: { page: 1, size: 20, total: 0, totalPages: 0 } });
+  }
 });
 
 // 获取帖子详情（含评论）
@@ -475,46 +490,60 @@ router.get('/api/lounge/posts/:postId', ensureLoggedIn, (req, res) => {
   const { postId } = req.params;
   const { game } = req.query;
 
-  const post = db.queryOne(
-    'SELECT * FROM lounge_posts WHERE post_id = ? AND game_code = ?',
-    [postId, game || 'Tree_Of_Savior_Neverland']
-  );
+  try {
+    const post = db.queryOne(
+      'SELECT * FROM lounge_posts WHERE post_id = ? AND game_code = ?',
+      [postId, game || 'Tree_Of_Savior_Neverland']
+    );
 
-  if (!post) {
-    return res.json({ success: false, message: '帖子不存在' });
+    if (!post) {
+      return res.json({ success: false, message: '帖子不存在' });
+    }
+
+    const comments = db.queryAll(
+      'SELECT * FROM lounge_comments WHERE post_id = ? AND game_code = ? ORDER BY crawled_at ASC',
+      [postId, game || 'Tree_Of_Savior_Neverland']
+    );
+
+    res.json({ success: true, data: { ...post, comments } });
+  } catch (_) {
+    res.json({ success: false, message: '数据表尚未初始化' });
   }
-
-  const comments = db.queryAll(
-    'SELECT * FROM lounge_comments WHERE post_id = ? AND game_code = ? ORDER BY crawled_at ASC',
-    [postId, game || 'Tree_Of_Savior_Neverland']
-  );
-
-  res.json({ success: true, data: { ...post, comments } });
 });
 
 // 获取每日报告
 router.get('/api/lounge/reports', ensureLoggedIn, (req, res) => {
   const { game, days = 7 } = req.query;
-  const reports = db.queryAll(
-    `SELECT * FROM lounge_daily_reports
-     WHERE game_code = ?
-     ORDER BY report_date DESC LIMIT ?`,
-    [game || 'Tree_Of_Savior_Neverland', parseInt(days)]
-  );
-  res.json({ success: true, data: reports });
+  try {
+    const reports = db.queryAll(
+      `SELECT * FROM lounge_daily_reports
+       WHERE game_code = ?
+       ORDER BY report_date DESC LIMIT ?`,
+      [game || 'Tree_Of_Savior_Neverland', parseInt(days)]
+    );
+    res.json({ success: true, data: reports });
+  } catch (_) {
+    res.json({ success: true, data: [] });
+  }
 });
 
 // 获取爬虫状态
 router.get('/api/lounge/status', ensureLoggedIn, (req, res) => {
   const status = getCrawlStatus();
-  const stats = db.queryOne(`
-    SELECT
-      COUNT(*) as total_posts,
-      SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END) as positive,
-      SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END) as negative,
-      SUM(CASE WHEN content_zh IS NOT NULL THEN 1 ELSE 0 END) as translated
-    FROM lounge_posts
-  `);
+  let stats = null;
+  try {
+    stats = db.queryOne(`
+      SELECT
+        COUNT(*) as total_posts,
+        SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END) as positive,
+        SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END) as negative,
+        SUM(CASE WHEN content_zh IS NOT NULL THEN 1 ELSE 0 END) as translated
+      FROM lounge_posts
+      WHERE author != 'GM 티메이' AND author != 'GM티메이'
+    `);
+  } catch (_) {
+    stats = { total_posts: 0, positive: 0, negative: 0, translated: 0 };
+  }
   res.json({ success: true, data: { ...status, stats } });
 });
 

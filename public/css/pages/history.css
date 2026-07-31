@@ -2,6 +2,37 @@
  * 舆情历史数据 — 页面专用样式
  */
 
+/* ===== Tab 切换栏 ===== */
+.history-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--color-surface, #fff);
+  border-radius: var(--radius-lg, 12px);
+  padding: 4px;
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--space-lg, 24px);
+}
+.history-tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #666);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.history-tab:hover {
+  background: var(--color-border-light, #f0f2f5);
+}
+.history-tab.active {
+  background: var(--color-gradient, linear-gradient(135deg, #667eea, #764ba2));
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
 /* 筛选器 */
 .filters-bar {
   background: var(--color-surface);
@@ -230,13 +261,30 @@
 .lounge-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
-.lounge-header h2 {
+.lounge-header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lounge-header-info h2 {
   margin: 0;
   font-size: 16px;
+}
+.lounge-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lounge-crawl-status {
+  font-size: 12px;
+  color: var(--color-text-muted, #999);
+  max-width: 200px;
 }
 .lounge-subtitle {
   font-size: 12px;

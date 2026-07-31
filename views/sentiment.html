@@ -130,6 +130,7 @@
           <div class="brief-msg-tabs" id="briefMsgTabs" onclick="event.stopPropagation()">
             <button id="msgTabTwitter" class="brief-msg-tab active" onclick="switchMsgTab('twitter')">🐦 Twitter</button>
             <button id="msgTabDiscord" class="brief-msg-tab" onclick="switchMsgTab('discord')">💬 Discord</button>
+            <button id="msgTabKorean" class="brief-msg-tab" onclick="switchMsgTab('korean')">🇰🇷 Naver</button>
           </div>
           <span class="brief-msg-count" id="msgCountInfo">加载中...</span>
         </div>
@@ -193,7 +194,7 @@
           <h2 style="font-size:16px;">🔥 七日热门话题</h2>
           <span style="color:var(--color-text-muted,#999);font-size:12px;">7日数据聚合，发现持续热点</span>
         </div>
-        <div class="weekly-topics-grid">
+        <div class="weekly-topics-grid" style="grid-template-columns: 1fr 1fr 1fr;">
           <div class="weekly-topics-col">
             <div class="wtp-header wtp-tw">🐦 日服 Twitter</div>
             <div id="weeklyTwitterTopics"><div class="loading">加载中...</div></div>
@@ -201,6 +202,10 @@
           <div class="weekly-topics-col">
             <div class="wtp-header wtp-dc">💬 繁中 Discord</div>
             <div id="weeklyDiscordTopics"><div class="loading">加载中...</div></div>
+          </div>
+          <div class="weekly-topics-col">
+            <div class="wtp-header wtp-kr">🇰🇷 韩国 Naver</div>
+            <div id="weeklyLoungeTopics"><div class="loading">加载中...</div></div>
           </div>
         </div>
       </div>

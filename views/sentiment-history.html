@@ -22,6 +22,14 @@
   </header>
 
   <div class="container">
+    <!-- Tab 切换栏 -->
+    <div class="history-tabs">
+      <button class="history-tab active" data-tab="tw-dc" onclick="switchHistoryTab('tw-dc')">🐦 Twitter + 💬 Discord</button>
+      <button class="history-tab" data-tab="korean" onclick="switchHistoryTab('korean')">🇰🇷 韩国社区</button>
+    </div>
+
+    <!-- ===== Tab 1: Twitter + Discord ===== -->
+    <div class="history-tab-content" id="tabTwDc">
     <!-- 数据管理（采集 + 上传 + 筛选 整合为一个卡片） -->
     <div class="data-management super-admin-only">
       <!-- 顶部操作行：启动抓取 + 手动上传 -->
@@ -107,13 +115,43 @@
         <button onclick="changePage(1)" id="nextBtn">下一页</button>
       </div>
     </div>
+    </div><!-- /#tabTwDc -->
 
-    <!-- 韩国社区板块 -->
+    <!-- ===== Tab 2: 韩国社区 ===== -->
+    <div class="history-tab-content" id="tabKorean" style="display:none;">
     <div class="lounge-section">
       <div class="lounge-header">
-        <h2>🇰🇷 韩国社区帖子</h2>
-        <span class="lounge-subtitle">Naver Game Lounge · Tree of Savior</span>
-        <span class="lounge-count" id="loungeTotal">-</span>
+        <div class="lounge-header-info">
+          <h2>🇰🇷 韩国社区帖子</h2>
+          <span class="lounge-subtitle">Naver Game Lounge · Tree of Savior</span>
+          <span class="lounge-count" id="loungeTotal">-</span>
+        </div>
+        <div class="lounge-actions">
+          <span class="lounge-crawl-status" id="loungeCrawlStatus">--</span>
+          <button class="btn btn-primary btn-sm" id="btnLoungeCrawl" onclick="triggerLoungeCrawl()">🔄 立即抓取</button>
+          <button class="btn btn-secondary btn-sm" onclick="initLoungeDates();loadLoungePosts()">🔃 刷新</button>
+        </div>
+      </div>
+      <!-- 韩国帖子筛选 -->
+      <div class="mgmt-filters" style="margin-top:0; padding-top:0; border-top:none;">
+        <select id="loungeSentimentFilter" onchange="loadLoungePosts()">
+          <option value="">全部情感</option>
+          <option value="negative">😠 负面</option>
+          <option value="neutral">😐 中性</option>
+          <option value="positive">😊 正面</option>
+        </select>
+        <select id="loungeCategoryFilter" onchange="loadLoungePosts()">
+          <option value="">全部分类</option>
+          <option value="bug">🐛 Bug</option>
+          <option value="complaint">😤 投诉</option>
+          <option value="question">❓ 提问</option>
+          <option value="suggestion">💡 建议</option>
+          <option value="praise">👍 好评</option>
+        </select>
+        <input type="date" id="loungeStartDate">
+        <span class="filter-sep">~</span>
+        <input type="date" id="loungeEndDate">
+        <button class="btn btn-sm btn-query" onclick="loadLoungePosts()">🔍 查询</button>
       </div>
       <div id="loungeLoading" class="loading">加载中...</div>
       <div id="loungeEmpty" class="empty-state" style="display:none;">
@@ -127,6 +165,7 @@
         <button onclick="changeLoungePage(1)" id="loungeNextBtn">下一页</button>
       </div>
     </div>
+    </div><!-- /#tabKorean -->
 
     <!-- 韩国评论弹窗 -->
     <div id="loungeModal" class="lounge-modal" style="display:none;" onclick="if(event.target===this)closeLoungeModal()">

@@ -209,8 +209,25 @@ async function uploadDiscordText() {
   }
 }
 
+// ===== Tab 切换 =====
+let currentHistoryTab = 'tw-dc';
+
+function switchHistoryTab(tab) {
+  currentHistoryTab = tab;
+  document.querySelectorAll('.history-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  document.getElementById('tabTwDc').style.display = tab === 'tw-dc' ? '' : 'none';
+  document.getElementById('tabKorean').style.display = tab === 'korean' ? '' : 'none';
+  // 切到韩国tab时自动加载数据
+  if (tab === 'korean' && document.getElementById('loungeList').innerHTML === '') {
+    initLoungeDates();
+    loadLoungePosts();
+  }
+}
+
 // 页面加载时初始化
-window.onload = () => { initDates(); loadData(); loadLoungePosts(); checkRunningCollection(); };
+window.onload = () => { initDates(); loadData(); checkRunningCollection(); loadLoungeCrawlStatus(); };
 
 // ===== 数据采集（从舆情页面搬过来） =====
 let collectPollTimer = null;
@@ -358,15 +375,96 @@ async function checkRunningCollection() {
   } catch (_) {}
 }
 
+// ===== 韩国社区爬虫触发 =====
+async function triggerLoungeCrawl() {
+  const btn = document.getElementById('btnLoungeCrawl');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = '⏳ 启动中...';
+  try {
+    const res = await fetch('/api/lounge/crawl', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const result = await res.json();
+    if (result.success) {
+      btn.textContent = '⏳ 抓取中...';
+      startLoungeCrawlPolling();
+    } else {
+      alert(result.message || '启动失败');
+      btn.disabled = false;
+      btn.textContent = '🔄 立即抓取';
+    }
+  } catch (e) {
+    alert('抓取请求失败: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '🔄 立即抓取';
+  }
+}
+
+let loungeCrawlPollTimer = null;
+
+function startLoungeCrawlPolling() {
+  if (loungeCrawlPollTimer) clearInterval(loungeCrawlPollTimer);
+  loungeCrawlPollTimer = setInterval(loadLoungeCrawlStatus, 3000);
+  // 最多轮询5分钟
+  setTimeout(() => {
+    if (loungeCrawlPollTimer) { clearInterval(loungeCrawlPollTimer); loungeCrawlPollTimer = null; }
+    const btn = document.getElementById('btnLoungeCrawl');
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 立即抓取'; }
+  }, 300000);
+}
+
+async function loadLoungeCrawlStatus() {
+  try {
+    const res = await fetch('/api/lounge/status');
+    const result = await res.json();
+    if (!result.success) return;
+    const data = result.data;
+    const statusEl = document.getElementById('loungeCrawlStatus');
+    const btn = document.getElementById('btnLoungeCrawl');
+    if (statusEl) {
+      const stats = data.stats || {};
+      const parts = [];
+      if (stats.total_posts) parts.push(`📝 ${stats.total_posts} 条帖子`);
+      if (stats.translated) parts.push(`🌐 ${stats.translated} 条已翻译`);
+      statusEl.textContent = parts.join(' · ') || '--';
+    }
+    if (btn) {
+      if (data.isCrawling) {
+        btn.disabled = true;
+        btn.textContent = '⏳ 抓取中...';
+        if (!loungeCrawlPollTimer) startLoungeCrawlPolling();
+      } else {
+        btn.disabled = false;
+        btn.textContent = '🔄 立即抓取';
+        if (loungeCrawlPollTimer) {
+          clearInterval(loungeCrawlPollTimer);
+          loungeCrawlPollTimer = null;
+          // 抓取完成后刷新帖子列表
+          if (currentHistoryTab === 'korean') loadLoungePosts();
+        }
+      }
+    }
+  } catch (_) {}
+}
+
 // ===== 韩国社区帖子 =====
 let loungePage = 1;
 const loungePageSize = 20;
 let loungeTotal = 0;
 
+function initLoungeDates() {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 7);
+  document.getElementById('loungeEndDate').value = formatDateInput(endDate);
+  document.getElementById('loungeStartDate').value = formatDateInput(startDate);
+}
+
 async function loadLoungePosts(page = 1) {
   loungePage = page;
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
+  const sentiment = document.getElementById('loungeSentimentFilter')?.value || '';
+  const category = document.getElementById('loungeCategoryFilter')?.value || '';
+  const startDate = document.getElementById('loungeStartDate')?.value || '';
+  const endDate = document.getElementById('loungeEndDate')?.value || '';
 
   document.getElementById('loungeLoading').style.display = 'block';
   document.getElementById('loungeEmpty').style.display = 'none';
@@ -375,6 +473,8 @@ async function loadLoungePosts(page = 1) {
 
   try {
     const params = new URLSearchParams({ page: loungePage, pageSize: loungePageSize, startDate, endDate });
+    if (sentiment) params.append('sentiment', sentiment);
+    if (category) params.append('category', category);
     const res = await fetch(`/api/sentiment/lounge-posts?${params}`);
     const result = await res.json();
     if (!result.success) throw new Error(result.error);
@@ -395,26 +495,27 @@ function renderLoungePosts(posts) {
     document.getElementById('loungeEmpty').style.display = 'block';
     return;
   }
-  const sentIcon = s => s === 'negative' ? '😟' : s === 'positive' ? '😊' : '😐';
+  const sentIcon = s => s === 'negative' ? '😠' : s === 'positive' ? '😊' : '😐';
   const sentColor = s => s === 'negative' ? '#ef4444' : s === 'positive' ? '#22c55e' : '#6b7280';
-  const catLabel = c => ({ bug:'🐛Bug', suggestion:'💡建议', complaint:'😤投诉', praise:'👍好评', question:'❓提问', other:'其他' }[c] || c || '');
+  const sentLabel = s => s === 'negative' ? '负面' : s === 'positive' ? '正面' : '中性';
+  const catLabel = c => ({ bug:'🐛 Bug', suggestion:'💡 建议', complaint:'😤 投诉', praise:'👍 好评', question:'❓ 提问', other:'其他' }[c] || c || '');
 
   let html = '';
   for (const p of posts) {
     const title = p.title_zh || p.title || '';
-    const summary = p.ai_summary || p.content_zh || '';
     const sIcon = sentIcon(p.sentiment);
     const sColor = sentColor(p.sentiment);
+    const sLabel = sentLabel(p.sentiment);
     const cat = catLabel(p.ai_category);
     const cmtCount = p._comment_count || p.comment_count || 0;
+    const time = (p.post_time || p.crawled_at || '').substring(5, 16);
     html += `<div class="lounge-card" onclick="openLoungePost('${p.post_id}','${escapeHtml(p.game_code)}')">
       <div class="lounge-card-top">
-        <span class="lounge-sent-badge" style="background:${sColor}15;color:${sColor};">${sIcon} ${p.sentiment}</span>
+        <span class="lounge-sent-badge" style="background:${sColor}15;color:${sColor};">${sIcon} ${sLabel}</span>
         ${cat ? `<span class="lounge-cat-badge">${cat}</span>` : ''}
-        <span class="lounge-time">${p.crawled_at || ''}</span>
+        <span class="lounge-time">${time}</span>
       </div>
       <div class="lounge-card-title">${escapeHtml(title)}</div>
-      ${summary ? `<div class="lounge-card-summary">${escapeHtml(summary.length > 100 ? summary.substring(0,100)+'...' : summary)}</div>` : ''}
       <div class="lounge-card-meta">
         👤 ${escapeHtml(p.author || '匿名')} · 👁 ${p.view_count||0} · 💬 ${cmtCount}条评论
         ${p.url ? ` · <a href="${p.url}" target="_blank" onclick="event.stopPropagation()">原帖↗</a>` : ''}
@@ -446,30 +547,63 @@ async function openLoungePost(postId, gameCode) {
   const body = document.getElementById('loungeModalBody');
   modal.style.display = 'flex';
   title.textContent = '加载中...';
-  body.innerHTML = '<div class="loading">加载评论中...</div>';
+  body.innerHTML = '<div class="loading">加载中...</div>';
   try {
     const res = await fetch(`/api/sentiment/lounge-comments/${postId}`);
     const result = await res.json();
     if (!result.success) throw new Error(result.error);
-    title.textContent = `💬 评论 (${result.data.length} 条)`;
-    if (result.data.length === 0) {
-      body.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">暂无评论</div>';
-      return;
-    }
-    const sentIcon = s => s === 'negative' ? '😟' : s === 'positive' ? '😊' : '😐';
+    const post = result.post;
+    const comments = result.data || [];
+    // 帖子内容区
     let html = '';
-    for (const c of result.data) {
-      const text = c.content_zh || c.content || '';
-      html += `<div class="lounge-comment">
-        <div class="lounge-cmt-header">
-          <span class="lounge-cmt-author">👤 ${escapeHtml(c.author || '匿名')}</span>
-          <span class="lounge-cmt-sent">${sentIcon(c.sentiment)}</span>
-          <span class="lounge-cmt-time">${c.comment_time || ''}</span>
-          ${c.likes > 0 ? `<span class="lounge-cmt-likes">👍 ${c.likes}</span>` : ''}
-        </div>
-        <div class="lounge-cmt-text">${escapeHtml(text)}</div>
+    if (post) {
+      const catLabel = c => ({ bug:'🐛 Bug', suggestion:'💡 建议', complaint:'😤 投诉', praise:'👍 好评', question:'❓ 提问', other:'其他' }[c] || '');
+      const sentLabel = s => s === 'negative' ? '😠 负面' : s === 'positive' ? '😊 正面' : '😐 中性';
+      title.textContent = post.title_zh || post.title || '帖子详情';
+      html += `<div class="lounge-post-detail">`;
+      html += `<div class="lounge-post-meta">
+        <span class="lounge-sent-badge">${sentLabel(post.sentiment)}</span>
+        ${post.ai_category ? `<span class="lounge-cat-badge">${catLabel(post.ai_category)}</span>` : ''}
+        <span>👤 ${escapeHtml(post.author||'匿名')} · 👁 ${post.view_count||0} · 💬 ${post.comment_count||0}</span>
       </div>`;
+      if (post.title_zh && post.title && post.title_zh !== post.title) {
+        html += `<div class="lounge-post-korean-title" style="font-size:12px;color:#888;margin:8px 0;">原标题: ${escapeHtml(post.title)}</div>`;
+      }
+      if (post.content_zh) {
+        html += `<div class="lounge-post-content" style="font-size:13px;line-height:1.8;color:#333;margin:12px 0;padding:12px;background:#f9fafb;border-radius:8px;">${escapeHtml(post.content_zh)}</div>`;
+      }
+      if (post.content && post.content !== post.content_zh) {
+        html += `<div class="lounge-post-original" style="font-size:12px;color:#999;margin:8px 0;font-style:italic;">原文: ${escapeHtml(post.content.substring(0,200))}${post.content.length>200?'...':''}</div>`;
+      }
+      if (post.url) {
+        html += `<div style="margin:8px 0;"><a href="${post.url}" target="_blank" style="color:#667eea;font-size:12px;">查看原帖↗</a></div>`;
+      }
+      html += `</div>`;
+    } else {
+      title.textContent = '帖子详情';
     }
+    // 评论区
+    html += `<div style="border-top:1px solid #e5e7eb;margin-top:16px;padding-top:12px;">`;
+    html += `<div style="font-size:14px;font-weight:600;margin-bottom:10px;">💬 评论 (${comments.length} 条)</div>`;
+    if (comments.length === 0) {
+      html += '<div style="text-align:center;color:#999;padding:12px;">暂无评论</div>';
+    } else {
+      const sentIcon = s => s === 'negative' ? '😟' : s === 'positive' ? '😊' : '😐';
+      for (const c of comments) {
+        const text = c.content_zh || c.content || '';
+        html += `<div class="lounge-comment">
+          <div class="lounge-cmt-header">
+            <span class="lounge-cmt-author">👤 ${escapeHtml(c.author || '匿名')}</span>
+            <span class="lounge-cmt-sent">${sentIcon(c.sentiment)}</span>
+            <span class="lounge-cmt-time">${c.comment_time || ''}</span>
+            ${c.likes > 0 ? `<span class="lounge-cmt-likes">👍 ${c.likes}</span>` : ''}
+          </div>
+          <div class="lounge-cmt-text">${escapeHtml(text)}</div>
+          ${c.content_zh && c.content && c.content_zh !== c.content ? `<div style="font-size:11px;color:#999;font-style:italic;margin-top:2px;">原文: ${escapeHtml(c.content.substring(0,100))}</div>` : ''}
+        </div>`;
+      }
+    }
+    html += '</div>';
     body.innerHTML = html;
   } catch (e) {
     body.innerHTML = `<div style="color:#ef4444;">加载失败: ${e.message}</div>`;
