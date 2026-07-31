@@ -314,87 +314,199 @@ async function crawlPostDetail(browser, post) {
     );
     await sleep(2000);
 
-    // 提取正文内容
+    // 提取正文内容（精准提取，排除页面导航/页脚等噪音）
     const extracted = await page.evaluate((maxComments) => {
       const result = { content: '', images: [], comments: [], detailTitle: '', detailAuthor: '', detailTime: '' };
 
-      // 正文：找最大的文本块
-      const contentSelectors = [
-        '[class*="content"]', '[class*="body"]', '[class*="article"]',
-        '[class*="post"]', '[class*="detail"]', '[class*="text"]',
+      // ===== 噪音黑名单：这些文字不是帖子内容，是网页自带的 =====
+      // 比喻：抄作业时，这些是课本背面的广告，不该抄
+      const NOISE_PATTERNS = [
+        '关闭', '去休息室', '用App查看', '用Chzzk',
+        '更新公告', '问答', '直播', '热门帖子',
+        '查看更多', '回到顶部',
+        'Naver使用条款', '个人信息处理政策', 'Naver游戏客服中心',
+        'NAVER Corp', '代表电话', '服务介绍',
+        '登录后才能', '클린봇', '清洁机器人',
+        '暂无评论', '第一个评论', '댓글이 없습니다', '첫번째 댓글',
+        '로그인 후', '등록순',
+        '버프', '너프',  // 投票按钮文字
       ];
-      for (const sel of contentSelectors) {
-        const els = document.querySelectorAll(sel);
-        for (const el of els) {
-          const text = el.textContent.trim();
-          if (text.length > result.content.length && text.length > 10) {
-            result.content = text;
+
+      // 噪音标签：这些 HTML 元素里的文字一律不抄
+      const NOISE_TAGS = new Set(['NAV', 'FOOTER', 'HEADER']);
+
+      function isNoise(text) {
+        const t = text.trim();
+        if (t.length < 5) return true;  // 太短的碎片不要
+        for (const p of NOISE_PATTERNS) {
+          if (t.includes(p)) return true;
+        }
+        return false;
+      }
+
+      function isInsideNoiseTag(el) {
+        let node = el;
+        while (node) {
+          if (NOISE_TAGS.has(node.tagName)) return true;
+          node = node.parentElement;
+        }
+        return false;
+      }
+
+      // ===== 第1步：找帖子正文容器 =====
+      // 优先级：article标签 > feed_body类 > root直接子元素中最大的非噪音块
+      const articleEl = document.querySelector('article') || document.querySelector('[role="article"]');
+
+      // 尝试找到帖子正文区域（排除评论区和侧边栏）
+      let bodyContainer = null;
+      if (articleEl) {
+        bodyContainer = articleEl;
+      } else {
+        // 兜底：找 #root 里包含帖子标题的那个容器
+        const titleEl = document.querySelector('strong[class*="feed_title"]') || document.querySelector('strong[class*="title"]');
+        if (titleEl) {
+          // 从标题元素向上找，找到包含帖子内容的合理容器（不要太大）
+          let parent = titleEl.parentElement;
+          for (let i = 0; i < 5 && parent; i++) {
+            const text = parent.textContent || '';
+            // 容器文本长度合理（不能是整个页面的量级）
+            if (text.length > 20 && text.length < 10000) {
+              bodyContainer = parent;
+              break;
+            }
+            parent = parent.parentElement;
           }
         }
       }
 
-      // 如果上面没抓到，用 body 的 main 区域
-      if (!result.content) {
-        const main = document.querySelector('main, [role="main"], #root > div > div');
-        if (main) result.content = main.textContent.trim().substring(0, 5000);
+      // ===== 第2步：从容器中提取纯文本 =====
+      if (bodyContainer) {
+        // 收集所有文本块（p、span、div 的叶子节点）
+        const blocks = bodyContainer.querySelectorAll('p, span, div');
+        const textParts = [];
+        const seen = new Set();
+
+        for (const el of blocks) {
+          // 跳过导航/页脚标签内的元素
+          if (isInsideNoiseTag(el)) continue;
+
+          // 只取叶子文本节点（没有子元素的文本块）
+          const directText = Array.from(el.childNodes)
+            .filter(n => n.nodeType === 3)
+            .map(n => n.textContent.trim())
+            .join('')
+            .trim();
+
+          if (!directText || isNoise(directText)) continue;
+          if (seen.has(directText)) continue;
+          seen.add(directText);
+          textParts.push(directText);
+        }
+
+        result.content = textParts.join('\n');
       }
+
+      // 兜底：如果上面没拿到，用 TreeWalker 逐字扫描
+      if (!result.content || result.content.length < 10) {
+        const root = document.getElementById('root');
+        if (root) {
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          const parts = [];
+          const seen2 = new Set();
+          while (walker.nextNode()) {
+            const t = walker.currentNode.textContent.trim();
+            if (!t || isNoise(t)) continue;
+            if (isInsideNoiseTag(walker.currentNode.parentElement)) continue;
+            if (seen2.has(t)) continue;
+            seen2.add(t);
+            parts.push(t);
+          }
+          result.content = parts.join('\n');
+        }
+      }
+
+      // 末尾清洗：去掉可能残留的法律/版权文字
+      result.content = result.content.replace(/[\s\S]*(?:NAVER Corp|Naver使用条款|个人信息处理政策)[\s\S]*/i, '').trim();
 
       // 截断过长内容
       if (result.content.length > 5000) {
         result.content = result.content.substring(0, 5000) + '\n...(内容已截断)';
       }
 
-      // 图片
-      const imgs = document.querySelectorAll('[class*="content"] img, [class*="article"] img, [class*="body"] img');
-      for (const img of imgs) {
-        const src = img.getAttribute('src') || img.getAttribute('data-src') || '';
-        if (src && !src.includes('emoji') && !src.includes('icon')) {
-          result.images.push(src);
+      // ===== 图片（只取正文区域的图） =====
+      const imgContainer = bodyContainer || document.getElementById('root');
+      if (imgContainer) {
+        const imgs = imgContainer.querySelectorAll('img');
+        for (const img of imgs) {
+          const src = img.getAttribute('src') || img.getAttribute('data-src') || '';
+          if (src && !src.includes('emoji') && !src.includes('icon') && !src.includes('badge') && !src.includes('logo')) {
+            result.images.push(src);
+          }
         }
       }
 
-      // 标题：精确匹配详情页标题元素
+      // ===== 标题 =====
       const titleEl = document.querySelector('strong[class*="feed_title"]') || document.querySelector('strong[class*="title"]');
       if (titleEl) result.detailTitle = titleEl.textContent.trim();
 
-      // 作者
-      const authorEl = document.querySelector('[class*="author"], [class*="nick"], [class*="writer"], [class*="profile"] [class*="name"]');
+      // ===== 作者 =====
+      const authorEl = document.querySelector('[class*="nick"], [class*="writer"], [class*="profile"] [class*="name"]');
       if (authorEl) result.detailAuthor = authorEl.textContent.trim();
 
-      // 时间
-      const timeEl = document.querySelector('[class*="date"], [class*="time"], time');
+      // ===== 时间 =====
+      const timeEl = document.querySelector('time, [class*="date"]');
       if (timeEl) result.detailTime = timeEl.getAttribute('datetime') || timeEl.textContent.trim();
 
-      // 评论：找评论区域
-      const commentSelectors = [
-        '[class*="comment"]', '[class*="reply"]', '[class*="cmt"]',
-      ];
+      // ===== 评论（只取真实评论，排除输入框和提示文字）=====
       const seenComments = new Set();
+      // 找每条评论的容器（通常是评论列表里的每一项）
+      const commentItems = document.querySelectorAll(
+        '[class*="comment_item"], [class*="comment-item"], [class*="cmt_item"], [class*="cmt-item"], [class*="reply_item"]'
+      );
 
-      for (const sel of commentSelectors) {
-        const commentEls = document.querySelectorAll(sel);
-        for (const el of commentEls) {
-          if (result.comments.length >= maxComments) break;
+      for (const item of commentItems) {
+        if (result.comments.length >= maxComments) break;
 
-          const text = el.textContent.trim();
-          if (!text || text.length < 2 || seenComments.has(text)) continue;
+        // 从每条评论里提取作者 + 文字
+        const cAuthor = item.querySelector('[class*="nick"], [class*="name"], [class*="writer"]');
+        const cText = item.querySelector('[class*="text"], [class*="content"], [class*="body"], p');
+        const cTime = item.querySelector('[class*="date"], [class*="time"], time');
+        const cLikes = item.querySelector('[class*="like"], [class*="good"], [class*="thumb"]');
 
-          // 排除评论输入框等非评论内容
-          if (el.querySelector('input, textarea, button[class*="submit"]')) continue;
+        const text = cText ? cText.textContent.trim() : '';
+        if (!text || text.length < 2 || seenComments.has(text)) continue;
+        if (isNoise(text)) continue;
+        seenComments.add(text);
 
-          seenComments.add(text);
+        result.comments.push({
+          author: cAuthor ? cAuthor.textContent.trim() : '',
+          text: text.substring(0, 1000),
+          time: cTime ? (cTime.getAttribute('datetime') || cTime.textContent.trim()) : '',
+          likes: cLikes ? (cLikes.textContent.match(/\d+/) || ['0'])[0] : '0',
+        });
+      }
 
-          // 尝试从评论元素内部提取结构化信息
-          const cAuthor = el.querySelector('[class*="nick"], [class*="name"], [class*="writer"], [class*="author"]');
-          const cTime = el.querySelector('[class*="date"], [class*="time"], time');
-          const cLikes = el.querySelector('[class*="like"], [class*="good"], [class*="thumb"]');
+      // 如果上面的选择器没匹配到评论，兜底：找评论区域下的直接文本块
+      if (result.comments.length === 0) {
+        const commentArea = document.querySelector('[class*="comment_list"], [class*="comment-list"], [class*="cmt_list"]');
+        if (commentArea) {
+          const divs = commentArea.children;
+          for (const div of divs) {
+            if (result.comments.length >= maxComments) break;
+            // 跳过输入框、提示等
+            if (div.querySelector('input, textarea')) continue;
+            const text = div.textContent.trim();
+            if (!text || text.length < 2 || seenComments.has(text) || isNoise(text)) continue;
+            seenComments.add(text);
 
-          result.comments.push({
-            author: cAuthor ? cAuthor.textContent.trim() : '',
-            text: text.substring(0, 1000),
-            time: cTime ? (cTime.getAttribute('datetime') || cTime.textContent.trim()) : '',
-            likes: cLikes ? (cLikes.textContent.match(/\d+/) || ['0'])[0] : '0',
-          });
+            const cAuthor = div.querySelector('[class*="nick"], [class*="name"]');
+            result.comments.push({
+              author: cAuthor ? cAuthor.textContent.trim() : '',
+              text: text.substring(0, 1000),
+              time: '',
+              likes: '0',
+            });
+          }
         }
       }
 
