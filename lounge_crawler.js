@@ -131,7 +131,8 @@ async function safeAttr(page, selector, attr) {
  */
 async function crawlPostList(browser, game, options = {}) {
   const page = await createPage(browser);
-  const posts = [];
+  const allPosts = [];
+  const seenIds = new Set();
 
   try {
     // 设置手机 UA（Naver 移动端页面结构更简单，更好抓）
@@ -145,7 +146,6 @@ async function crawlPostList(browser, game, options = {}) {
     });
 
     // 等待帖子列表加载（SPA 页面需要等 JS 渲染完）
-    // 比喻：餐厅开门了，但菜还没端上来，得等厨师做好
     await page.waitForFunction(
       () => {
         const root = document.getElementById('root');
@@ -153,124 +153,106 @@ async function crawlPostList(browser, game, options = {}) {
       },
       { timeout: LOUNGE_CONFIG.pageTimeout }
     );
-
-    // 额外等一下，确保异步数据加载完
     await sleep(3000);
 
-    // 滚动加载更多帖子（Lounge 是无限滚动/分页的）
-    const scrollTimes = options.scrollTimes || 3;
-    for (let i = 0; i < scrollTimes; i++) {
+    // ★ 智能滚动：分批抓取，遇到 DB 已有的重复帖子就停止
+    // 比喻：像翻相册，一页一页翻，发现照片都看过了就合上
+    const existingMap = getExistingPosts();
+    const existingIds = new Set(Object.keys(existingMap));
+    const batchSize = 15;          // 每批期望新帖子数
+    const maxScrollRounds = 15;    // 最多滚 15 轮
+    const maxDuplicateRounds = 2;  // 连续 2 轮没新帖子就停
+    let duplicateRounds = 0;
+
+    for (let round = 0; round < maxScrollRounds; round++) {
+      // 从当前页面 DOM 提取帖子列表（浏览器上下文内执行）
+      const batchPosts = await page.evaluate((maxPosts) => {
+        const results = [];
+        const seen = new Set();
+        const links = document.querySelectorAll('a[href*="/board/detail/"]');
+
+        for (const link of links) {
+          if (results.length >= maxPosts) break;
+          const href = link.getAttribute('href') || '';
+          const idMatch = href.match(/detail\/(\d+)/);
+          if (!idMatch) continue;
+          const postId = idMatch[1];
+          if (seen.has(postId)) continue;
+          seen.add(postId);
+
+          const container = link.closest('[class*="board"]') || link.closest('[class*="item"]') || link.parentElement;
+          const titleEl = link.querySelector('strong[class*="title"]');
+          let title = titleEl ? titleEl.textContent.trim() : '';
+          if (!title) title = link.textContent.trim().substring(0, 200);
+          const authorEl = link.querySelector('span[class*="name"]') || container?.querySelector('span[class*="name"]');
+          const author = authorEl ? authorEl.textContent.trim() : '';
+          let time = '';
+          const subSpans = link.querySelectorAll('span[class*="sub"]');
+          for (const sp of subSpans) {
+            const t = sp.textContent.trim();
+            if (t && !t.includes('버프') && !t.includes('조회수')) { time = t; break; }
+          }
+          let commentCount = 0;
+          const replyEl = link.querySelector('span[class*="reply"]');
+          if (replyEl) { const m = replyEl.textContent.match(/\d+/); commentCount = m ? parseInt(m[0]) : 0; }
+          let viewCount = 0;
+          for (const sp of subSpans) {
+            if (sp.textContent.includes('조회수')) { const m = sp.textContent.match(/[\d,]+/); viewCount = m ? parseInt(m[0].replace(/,/g, '')) : 0; break; }
+          }
+          results.push({ id: postId, title: title || '(无标题)', author, time, commentCount, viewCount,
+            url: href.startsWith('http') ? href : `https://m.game.naver.com${href}` });
+        }
+
+        // 兆底策略2
+        if (results.length === 0) {
+          const allLinks = document.querySelectorAll('a[href*="/detail/"]');
+          for (const link of allLinks) {
+            if (results.length >= maxPosts) break;
+            const href = link.getAttribute('href') || '';
+            const idMatch = href.match(/detail\/(\d+)/);
+            if (!idMatch || seen.has(idMatch[1])) continue;
+            seen.add(idMatch[1]);
+            results.push({ id: idMatch[1], title: link.textContent.trim() || '(无标题)',
+              author: '', time: '', commentCount: 0, viewCount: 0,
+              url: href.startsWith('http') ? href : `https://m.game.naver.com${href}` });
+          }
+        }
+        return results;
+      }, LOUNGE_CONFIG.maxPosts);
+
+      // 检查哪些是 DB 里没有的新帖子
+      let newInBatch = 0;
+      for (const p of batchPosts) {
+        if (!seenIds.has(p.id)) {
+          seenIds.add(p.id);
+          allPosts.push(p);
+          if (!existingIds.has(p.id)) newInBatch++;
+        }
+      }
+
+      console.log(`   📜 第${round + 1}轮：页面可见 ${batchPosts.length} 条，新增 ${newInBatch} 条（累计 ${allPosts.length}）`);
+
+      if (newInBatch === 0) {
+        duplicateRounds++;
+        if (duplicateRounds >= maxDuplicateRounds) {
+          console.log(`   🛑 连续 ${maxDuplicateRounds} 轮无新帖子，停止滚动`);
+          break;
+        }
+      } else {
+        duplicateRounds = 0;
+      }
+
+      if (allPosts.length >= LOUNGE_CONFIG.maxPosts) {
+        console.log(`   📊 已达最大帖子数 ${LOUNGE_CONFIG.maxPosts}，停止滚动`);
+        break;
+      }
+
+      // 滚动加载更多
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await sleep(1500);
     }
 
-    // 回到顶部
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await sleep(500);
-
-    // 提取帖子列表
-    // 注意：Naver 用 CSS Modules，类名带哈希（如 board_item__xxx），所以用模糊匹配
-    posts.push(...await page.evaluate((maxPosts) => {
-      const results = [];
-
-      // 策略1：找所有帖子链接（最可靠的方式）
-      const links = document.querySelectorAll('a[href*="/board/detail/"]');
-      const seen = new Set();
-
-      for (const link of links) {
-        if (results.length >= maxPosts) break;
-
-        const href = link.getAttribute('href') || '';
-        const idMatch = href.match(/detail\/(\d+)/);
-        if (!idMatch) continue;
-
-        const postId = idMatch[1];
-        if (seen.has(postId)) continue;
-        seen.add(postId);
-
-        // 从链接的父容器中提取信息
-        const container = link.closest('[class*="board"]') || link.closest('[class*="item"]') || link.parentElement;
-
-        // 标题：精确匹配 strong[class*="title"]（Naver Lounge 的标准标题元素）
-        const titleEl = link.querySelector('strong[class*="title"]');
-        let title = titleEl ? titleEl.textContent.trim() : '';
-        // 兜底：用链接文本
-        if (!title) title = link.textContent.trim().substring(0, 200);
-
-        // 分类标签
-        const labelEl = link.querySelector('span[class*="label"]');
-        const category = labelEl ? labelEl.textContent.trim() : '';
-
-        // 作者：精确匹配 span[class*="name"]
-        const authorEl = link.querySelector('span[class*="name"]') || container?.querySelector('span[class*="name"]');
-        const author = authorEl ? authorEl.textContent.trim() : '';
-
-        // 时间：找 span[class*="sub"] 中不含 버프/조회수 的那个
-        let time = '';
-        const subSpans = link.querySelectorAll('span[class*="sub"]');
-        for (const sp of subSpans) {
-          const t = sp.textContent.trim();
-          if (t && !t.includes('버프') && !t.includes('조회수')) {
-            time = t;
-            break;
-          }
-        }
-
-        // 评论数：精确匹配 span[class*="reply"] 或 span[class*="number"]
-        let commentCount = 0;
-        const replyEl = link.querySelector('span[class*="reply"]');
-        if (replyEl) {
-          const numMatch = replyEl.textContent.match(/\d+/);
-          commentCount = numMatch ? parseInt(numMatch[0]) : 0;
-        }
-
-        // 浏览量：找含 조회수 的 span[class*="sub"]
-        let viewCount = 0;
-        for (const sp of subSpans) {
-          if (sp.textContent.includes('조회수')) {
-            const numMatch = sp.textContent.match(/[\d,]+/);
-            viewCount = numMatch ? parseInt(numMatch[0].replace(/,/g, '')) : 0;
-            break;
-          }
-        }
-
-        results.push({
-          id: postId,
-          title: title || '(无标题)',
-          author,
-          time,
-          commentCount,
-          viewCount,
-          url: href.startsWith('http') ? href : `https://m.game.naver.com${href}`,
-        });
-      }
-
-      // 策略2：如果策略1没抓到，尝试更宽泛的选择器
-      if (results.length === 0) {
-        const allLinks = document.querySelectorAll('a[href*="/detail/"]');
-        for (const link of allLinks) {
-          if (results.length >= maxPosts) break;
-          const href = link.getAttribute('href') || '';
-          const idMatch = href.match(/detail\/(\d+)/);
-          if (!idMatch || seen.has(idMatch[1])) continue;
-          seen.add(idMatch[1]);
-
-          results.push({
-            id: idMatch[1],
-            title: link.textContent.trim() || '(无标题)',
-            author: '',
-            time: '',
-            commentCount: 0,
-            viewCount: 0,
-            url: href.startsWith('http') ? href : `https://m.game.naver.com${href}`,
-          });
-        }
-      }
-
-      return results;
-    }, LOUNGE_CONFIG.maxPosts));
-
-    console.log(`✅ 帖子列表抓取完成：共 ${posts.length} 条`);
+    console.log(`✅ 帖子列表抓取完成：共 ${allPosts.length} 条`);
 
   } catch (err) {
     console.error(`❌ 帖子列表抓取失败: ${err.message}`);
@@ -279,7 +261,7 @@ async function crawlPostList(browser, game, options = {}) {
     await page.close();
   }
 
-  return posts;
+  return allPosts;
 }
 
 // ===== 核心：抓取帖子详情 + 评论 =====
