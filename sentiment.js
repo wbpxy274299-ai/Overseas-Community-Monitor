@@ -2696,9 +2696,10 @@ async function getWeeklyHotTopics() {
 
   // === 韩国社区七日热门话题 ===
   async function buildLoungeTopics() {
+    // 韩国 ai_category → 统一标题（与 Twitter/Discord 格式对齐，无 emoji）
     const catLabels = {
-      bug: '🐛 Bug', suggestion: '💡 建议', complaint: '😤 投诉',
-      praise: '👍 好评', question: '❓ 提问', other: '其他',
+      bug: 'Bug反馈', suggestion: '建议反馈', complaint: '玩家投诉',
+      praise: '好评反馈', question: '玩家提问', other: '其他讨论',
     };
     // lounge_posts 的 crawled_at 是 ISO 格式，需要用 T 分隔
     const lwStart = wStart.replace(' ', 'T');
@@ -2715,7 +2716,7 @@ async function getWeeklyHotTopics() {
          AND crawled_at >= ? AND crawled_at <= ?
          GROUP BY ai_category
          ORDER BY cnt DESC
-         LIMIT 6`,
+         LIMIT 8`,
         [lwStart, lwEnd]
       );
       const topics = [];
@@ -2724,11 +2725,12 @@ async function getWeeklyHotTopics() {
           `SELECT title_zh, title, author, url, sentiment
            FROM lounge_posts
            WHERE ai_category = ? AND crawled_at >= ? AND crawled_at <= ?
-           ORDER BY comment_count DESC LIMIT 3`,
+           ORDER BY comment_count DESC LIMIT 5`,
           [r.ai_category, lwStart, lwEnd]
         );
         const dominant = r.neg_cnt > r.pos_cnt ? 'negative' : r.pos_cnt > r.neg_cnt ? 'positive' : 'neutral';
-        const heat = Math.min(10, Math.max(1, Math.round((r.cnt / 7) * 1.5) + (dominant === 'negative' ? 2 : 0)));
+        // 热度公式与 Twitter/Discord 统一：(条数/7)*2 + 负面加2
+        const heat = Math.min(10, Math.max(1, Math.round((r.cnt / 7) * 2) + (dominant === 'negative' ? 2 : 0)));
         topics.push({
           tag: r.ai_category,
           title: catLabels[r.ai_category] || r.ai_category,
@@ -2737,7 +2739,7 @@ async function getWeeklyHotTopics() {
           sentiment: dominant,
           neg: r.neg_cnt, pos: r.pos_cnt, neu: r.neu_cnt || 0,
           overview: '', // 稍后用 AI 填充
-          voices: samples.map(s => ({
+          voices: samples.slice(0, 3).map(s => ({
             text: s.title_zh || s.title || '',
             url: s.url || '',
             author: s.author || '匿名',
