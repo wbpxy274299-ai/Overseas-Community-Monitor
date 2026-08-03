@@ -73,4 +73,41 @@ router.put('/api/feedback/:id/status', requireRole('admin'), (req, res) => {
   }
 });
 
+// 删除单条反馈（仅管理员）
+router.delete('/api/feedback/:id', requireRole('admin'), (req, res) => {
+  const { id } = req.params;
+  try {
+    db.getDb().run('DELETE FROM feedbacks WHERE id = ?', [id]);
+    db.saveDb();
+    log.info(`管理员删除了反馈 #${id}`);
+    res.json({ ok: true, message: '已删除' });
+  } catch (e) {
+    log.error('删除反馈失败', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 批量删除指定日期之前的反馈（仅管理员，用于清理旧数据）
+router.delete('/api/feedback/batch/before', requireRole('admin'), (req, res) => {
+  const { before } = req.query; // 格式: 2026-07-27
+  if (!before || !/^\d{4}-\d{2}-\d{2}$/.test(before)) {
+    return res.status(400).json({ error: '请提供有效日期，格式: YYYY-MM-DD' });
+  }
+  try {
+    const cutoff = before + ' 00:00:00';
+    const row = db.queryOne('SELECT COUNT(*) as cnt FROM feedbacks WHERE created_at < ?', [cutoff]);
+    const count = row ? row.cnt : 0;
+    if (count === 0) {
+      return res.json({ ok: true, deleted: 0, message: '没有需要删除的数据' });
+    }
+    db.getDb().run('DELETE FROM feedbacks WHERE created_at < ?', [cutoff]);
+    db.saveDb();
+    log.info(`管理员批量删除了 ${count} 条 ${before} 之前的反馈`);
+    res.json({ ok: true, deleted: count, message: `已删除 ${count} 条旧反馈` });
+  } catch (e) {
+    log.error('批量删除反馈失败', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;

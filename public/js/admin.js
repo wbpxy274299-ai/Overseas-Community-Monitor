@@ -500,6 +500,7 @@ function renderFeedbackList(items) {
       <div class="fai-actions">
         ${item.status === 'unread' ? `<button class="btn btn-sm" onclick="markFeedbackRead(${item.id})">标为已读</button>` : ''}
         ${item.status !== 'resolved' ? `<button class="btn btn-sm btn-success" onclick="markFeedbackResolved(${item.id})">标为已处理</button>` : ''}
+        <button class="btn btn-sm" style="background:#ef4444;color:#fff;" onclick="deleteFeedback(${item.id})">🗑️ 删除</button>
       </div>
     </div>`;
   }).join('');
@@ -526,6 +527,34 @@ async function markFeedbackResolved(id) {
     const data = await res.json();
     if (data.ok) { Toast.success('已标为已处理'); loadFeedback(); }
     else Toast.error('操作失败');
+  } catch (e) { Toast.error('网络错误'); }
+}
+
+async function deleteFeedback(id) {
+  if (!confirm('确定删除这条反馈吗？')) return;
+  try {
+    const res = await fetch(`/api/feedback/${id}`, {
+      method: 'DELETE', credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) { Toast.success('已删除'); loadFeedback(); }
+    else Toast.error('删除失败');
+  } catch (e) { Toast.error('网络错误'); }
+}
+
+async function cleanOldFeedback() {
+  if (!confirm('确定删除2026年7月27日之前的所有旧反馈吗？此操作不可恢复！')) return;
+  try {
+    const res = await fetch('/api/feedback/batch/before?before=2026-07-27', {
+      method: 'DELETE', credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      Toast.success(data.message || '清理完成');
+      loadFeedback();
+    } else {
+      Toast.error(data.error || '清理失败');
+    }
   } catch (e) { Toast.error('网络错误'); }
 }
 
