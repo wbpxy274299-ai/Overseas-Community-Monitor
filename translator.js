@@ -223,7 +223,7 @@ async function translateKoreanToChinese(text) {
       ? protectedText.substring(0, 4000) + '\n...(截断)'
       : protectedText;
 
-    const systemPrompt = [
+    let systemPrompt = [
       '你是一个专业的韩语到中文翻译助手，专门翻译游戏社区内容。',
       '规则：',
       '1. 将韩语翻译成简体中文，保持原意不变',
@@ -233,6 +233,15 @@ async function translateKoreanToChinese(text) {
       '5. __KRGAME1__、__KRGAME2__、__KRGAME3__ 是游戏名称占位符，必须原样保留',
       '6. 韩语网络缩写要还原意思再翻译（如 ㄹㅇ=真的, ㄷㄷ=震惊, ㅈㄱ=标题即内容）',
     ].join('\n');
+
+    // 从术语库提取命中的韩文术语（和日文翻译一样的机制）
+    const matchedTerms = terminology.findTermsInText(text, 20, 'kr');
+    if (matchedTerms.length > 0) {
+      systemPrompt += '\n\n以下是本文中包含的游戏术语，请严格按对照表翻译：\n';
+      for (const term of matchedTerms) {
+        systemPrompt += `- ${term.kr} → ${term.zh}\n`;
+      }
+    }
 
     const response = await axios.post(
       DEEPSEEK_API_URL,
