@@ -3,9 +3,6 @@
  */
 const express = require('express');
 const router = express.Router();
-const path = require('path');
-const fs = require('fs');
-
 const { getDiscordToken } = require('../config');
 const db = require('../db');
 const sentiment = require('../sentiment');
@@ -422,14 +419,6 @@ router.post('/api/sentiment/force-analyze', requireRole('super_admin'), async (r
     dailyAnalysisLock = { date: null, analyzing: true };
     try {
       const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
-      const dedupByTag = (topics) => {
-        const seen = new Set();
-        return (topics || []).filter(t => {
-          if (seen.has(t.tag)) return false;
-          seen.add(t.tag);
-          return true;
-        });
-      };
       result.twitter_topics = dedupByTag(result.twitter_topics);
       result.discord_topics = dedupByTag(result.discord_topics);
       sortByHeat(result.twitter_topics);
@@ -538,10 +527,6 @@ router.post('/api/sentiment/refresh-analysis', requireRole('operator'), async (r
     dailyAnalysisLock = { date: null, analyzing: true };
     try {
       const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
-      const dedupByTag = (topics) => {
-        const seen = new Set();
-        return (topics || []).filter(t => { if (seen.has(t.tag)) return false; seen.add(t.tag); return true; });
-      };
       result.twitter_topics = dedupByTag(result.twitter_topics);
       result.discord_topics = dedupByTag(result.discord_topics);
       sortByHeat(result.twitter_topics);
@@ -630,6 +615,8 @@ router.get('/api/sentiment/daily-snapshots/:date', (req, res) => {
 // ===== AI 热门话题（优先读已有分析，不重复调AI）=====
 // 排序：热度高→低，发言多→少
 const sortByHeat = (topics) => topics.sort((a, b) => (b.heat || 0) - (a.heat || 0) || (b.count || 0) - (a.count || 0));
+// 按 tag 去重（同一个话题不重复展示）
+const dedupByTag = (topics) => { const seen = new Set(); return (topics || []).filter(t => { if (seen.has(t.tag)) return false; seen.add(t.tag); return true; }); }
 
 // 诊断函数：用大白话解释为什么没数据
 function buildDiagnosisMessage(cs, twitterCount, discordCount) {
@@ -720,14 +707,6 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
       }
       console.log(`   📝 高质量数据: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条`);
       const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
-      const dedupByTag = (topics) => {
-        const seen = new Set();
-        return (topics || []).filter(t => {
-          if (seen.has(t.tag)) return false;
-          seen.add(t.tag);
-          return true;
-        });
-      };
       result.twitter_topics = dedupByTag(result.twitter_topics);
       result.discord_topics = dedupByTag(result.discord_topics);
       sortByHeat(result.twitter_topics);
@@ -833,35 +812,6 @@ router.post('/api/sentiment/clear', requireRole('admin'), (req, res) => {
   } catch (e) {
     log.error('清理数据失败', e.message);
     res.status(500).json({ error: `清理失败: ${e.message}` });
-  }
-});
-
-// ===== 手动生成周报（admin）=====
-router.post('/api/sentiment/generate-report', requireRole('admin'), async (req, res) => {
-  try {
-    console.log('📋 手动触发周报生成...');
-    const result = await weeklyReport.generateWeeklyReport();
-    if (!result.success) {
-      return res.status(400).json({ ok: false, error: result.message || '生成失败' });
-    }
-    const now = formatCst(nowCst());
-    const title = `舆情周报 - ${result.stats.dateRange.start.substring(0, 10)}`;
-    const riskMap = { '🔴 高': 'high', '🟡 中': 'medium', '🟢 低': 'low' };
-    const riskLevel = riskMap[result.stats.riskLevel] || 'low';
-    
-    const existingReport = db.queryOne('SELECT id FROM weekly_reports WHERE title = ?', [title]);
-    if (existingReport) {
-      db.getDb().run(`UPDATE weekly_reports SET content=?, risk_level=?, twitter_count=?, discord_count=?, summary=?, created_at=? WHERE id=?`,
-        [result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.summary ? result.summary.substring(0, 200) : '', now, existingReport.id]);
-    } else {
-      db.getDb().run(`INSERT INTO weekly_reports (title, content, risk_level, twitter_count, discord_count, summary, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [title, result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.summary ? result.summary.substring(0, 200) : '', now]);
-    }
-    db.saveDb();
-    res.json({ ok: true, message: '周报生成成功' });
-  } catch (e) {
-    log.error('生成周报失败', e.message);
-    res.status(500).json({ error: `生成失败: ${e.message}` });
   }
 });
 

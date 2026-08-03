@@ -12,7 +12,6 @@ const log = require('../logger');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { getDiscordToken, getProxyConfig, ENV_PATH, loadChannels } = require('../config');
 const sentiment = require('../sentiment');
-const aiAnalyzer = require('../ai_analyzer');
 
 // Discord 服务器列表
 const SERVERS = [

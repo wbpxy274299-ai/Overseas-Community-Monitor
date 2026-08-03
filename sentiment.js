@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { CHANNELS, getDiscordToken, getProxyConfig } = require('./config');
+const { getProxyConfig } = require('./config');
 const db = require('./db');
 const log = require('./logger');
 const translator = require('./translator');
