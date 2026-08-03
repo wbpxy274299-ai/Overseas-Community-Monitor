@@ -2699,18 +2699,112 @@ async function getWeeklyHotTopics() {
 
   // === 韩国社区七日热门话题 ===
   async function buildLoungeTopics() {
-    // 韩国 ai_category → 统一标题（与 Twitter/Discord 格式对齐，无 emoji）
-    const catLabels = {
-      bug: 'Bug反馈', suggestion: '建议反馈', complaint: '玩家投诉',
-      praise: '好评反馈', question: '玩家提问', other: '其他讨论',
-    };
     // lounge_posts 的 crawled_at 是 ISO 格式，需要用 T 分隔
     const lwStart = wStart.replace(' ', 'T');
     const lwEnd = wEnd.replace(' ', 'T');
     try {
+      // ★ 查询原始帖子（不按 ai_category 分组），让 AI 识别具体话题
+      const posts = db.queryAll(
+        `SELECT content_zh, title_zh, content, title, author, url, sentiment, crawled_at
+         FROM lounge_posts
+         WHERE author != 'GM 티메이' AND author != 'GM티메이'
+         AND crawled_at >= ? AND crawled_at <= ?
+         ORDER BY (comment_count + view_count) DESC LIMIT 30`,
+        [lwStart, lwEnd]
+      );
+      if (!posts || posts.length === 0) return [];
+
+      // 构建记录格式（与 getLoungeRecordsForAnalysis 一致）
+      const records = posts.map(p => ({
+        content: p.content_zh || p.title_zh || p.content || p.title || '',
+        translated_content: p.content_zh || p.title_zh || '',
+        url: p.url || '',
+        author: p.author || '',
+        sentiment: p.sentiment || 'neutral',
+        topic_tag: 'general', // 不预设分类，让 AI 识别具体话题
+        created_at: p.crawled_at || '',
+      }));
+
+      // ★ 使用与 Twitter/Discord 相同的 AI 话题识别
+      let aiTopics;
+      try {
+        aiTopics = await aiAnalyzer.aiSummarizeHotTopics(records);
+      } catch (e) {
+        log.warn('韩国七日话题 AI 分析失败', e.message);
+        aiTopics = [];
+      }
+
+      if (!aiTopics || aiTopics.length === 0) {
+        // AI 失败时兜底：用 ai_category 分组（旧逻辑）
+        return buildLoungeTopicsFallback(lwStart, lwEnd);
+      }
+
+      // 转换为七日话题展示格式（与 buildPlatformTopics 输出一致）
+      const topics = [];
+      for (const t of aiTopics) {
+        // 从原帖中查找匹配该 tag 的帖子作为原声
+        const tagRecords = records.filter((r, i) => {
+          // representative_quotes 中的原文匹配
+          if (t.representative_quotes && t.representative_quotes.length > 0) {
+            for (const q of t.representative_quotes) {
+              if (q.text && r.content.includes(q.text.substring(0, 20))) return true;
+            }
+          }
+          return false;
+        });
+
+        // 原声：优先用 AI 引用的原帖，不够则从帖子列表补充
+        const voiceTexts = [];
+        if (t.representative_quotes) {
+          for (const q of t.representative_quotes) {
+            if (q.text) voiceTexts.push({ text: q.text, sentiment: t.sentiment || 'neutral' });
+          }
+        }
+        // 补充原声：从帖子中找相关内容
+        if (voiceTexts.length < 3) {
+          for (const p of posts) {
+            if (voiceTexts.length >= 3) break;
+            const text = p.content_zh || p.title_zh || p.content || p.title || '';
+            if (text && !voiceTexts.some(v => v.text === text)) {
+              voiceTexts.push({ text, url: p.url || '', author: p.author || '匿名', sentiment: p.sentiment || 'neutral' });
+            }
+          }
+        }
+
+        topics.push({
+          tag: t.tag || 'general',
+          title: t.title || tagLabels[t.tag] || t.tag,
+          count: t.count || 0,
+          heat: t.heat || 1,
+          sentiment: t.sentiment || 'neutral',
+          neg: 0, pos: 0, neu: 0, // AI 不返回细分计数
+          overview: t.summary || '',
+          voices: voiceTexts.slice(0, 3).map(v => ({
+            text: v.text || '',
+            url: v.url || '',
+            author: v.author || '匿名',
+            sentiment: v.sentiment || 'neutral',
+          })),
+          daily_avg: Math.round((t.count || 0) / 7 * 10) / 10,
+        });
+      }
+
+      return topics;
+    } catch (e) {
+      log.warn('韩国七日话题统计失败', e.message);
+      return [];
+    }
+  }
+
+  // 兜底：按 ai_category 分组（AI 分析失败时使用）
+  function buildLoungeTopicsFallback(lwStart, lwEnd) {
+    const catLabels = {
+      bug: 'Bug反馈', suggestion: '建议反馈', complaint: '玩家投诉',
+      praise: '好评反馈', question: '玩家提问', other: '其他讨论',
+    };
+    try {
       const rows = db.queryAll(
-        `SELECT ai_category,
-                COUNT(*) as cnt,
+        `SELECT ai_category, COUNT(*) as cnt,
                 SUM(CASE WHEN sentiment = 'negative' THEN 1 ELSE 0 END) as neg_cnt,
                 SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) as pos_cnt,
                 SUM(CASE WHEN sentiment = 'neutral' THEN 1 ELSE 0 END) as neu_cnt
@@ -2718,64 +2812,32 @@ async function getWeeklyHotTopics() {
          WHERE ai_category IS NOT NULL AND ai_category != 'other'
          AND author != 'GM 티메이' AND author != 'GM티메이'
          AND crawled_at >= ? AND crawled_at <= ?
-         GROUP BY ai_category
-         ORDER BY cnt DESC
-         LIMIT 8`,
+         GROUP BY ai_category ORDER BY cnt DESC LIMIT 8`,
         [lwStart, lwEnd]
       );
-      const topics = [];
-      for (const r of rows) {
+      return rows.map(r => {
         const samples = db.queryAll(
           `SELECT content_zh, title_zh, content, title, author, url, sentiment
-           FROM lounge_posts
-           WHERE ai_category = ? AND author != 'GM 티메이' AND author != 'GM티메이' AND crawled_at >= ? AND crawled_at <= ?
-           ORDER BY comment_count DESC LIMIT 5`,
+           FROM lounge_posts WHERE ai_category = ? AND author != 'GM 티메이' AND author != 'GM티메이'
+           AND crawled_at >= ? AND crawled_at <= ? ORDER BY comment_count DESC LIMIT 5`,
           [r.ai_category, lwStart, lwEnd]
         );
         const dominant = r.neg_cnt > r.pos_cnt ? 'negative' : r.pos_cnt > r.neg_cnt ? 'positive' : 'neutral';
-        // 热度公式与 Twitter/Discord 统一：(条数/7)*2 + 负面加2
         const heat = Math.min(10, Math.max(1, Math.round((r.cnt / 7) * 2) + (dominant === 'negative' ? 2 : 0)));
-        topics.push({
-          tag: r.ai_category,
-          title: catLabels[r.ai_category] || r.ai_category,
-          count: r.cnt,
-          heat,
-          sentiment: dominant,
+        return {
+          tag: r.ai_category, title: catLabels[r.ai_category] || r.ai_category,
+          count: r.cnt, heat, sentiment: dominant,
           neg: r.neg_cnt, pos: r.pos_cnt, neu: r.neu_cnt || 0,
-          overview: '', // 稍后用 AI 填充
+          overview: `${r.cnt}条关于「${catLabels[r.ai_category] || r.ai_category}」的讨论`,
           voices: samples.slice(0, 3).map(s => ({
             text: s.content_zh || s.title_zh || s.content || s.title || '',
-            url: s.url || '',
-            author: s.author || '匿名',
-            sentiment: s.sentiment || 'neutral',
+            url: s.url || '', author: s.author || '匿名', sentiment: s.sentiment || 'neutral',
           })),
           daily_avg: Math.round(r.cnt / 7 * 10) / 10,
-        });
-      }
-
-      // ★ 调用 AI 生成韩国话题概述（格式与 Twitter/Discord 统一）
-      try {
-        const topicsByTag = {};
-        for (const t of topics) {
-          topicsByTag[t.tag] = {
-            messages: t.voices.map(v => ({ content: v.text, translated_content: v.text, url: v.url })),
-            count: t.count,
-          };
-        }
-        const aiSummaries = await aiAnalyzer.aiSummarizeWeeklyTopics(topicsByTag, 'lounge');
-        for (const topic of topics) {
-          topic.overview = aiSummaries[topic.tag] || `${topic.count}条关于「${topic.title}」的讨论`;
-        }
-      } catch (e) {
-        log.warn('韩国七日话题 AI 概述失败', e.message);
-        for (const topic of topics) {
-          topic.overview = `${topic.count}条关于「${topic.title}」的讨论`;
-        }
-      }
-
-      return topics;
+        };
+      });
     } catch (e) {
-      log.warn('韩国七日话题统计失败', e.message);
+      log.warn('韩国七日话题兜底也失败', e.message);
       return [];
     }
   }
