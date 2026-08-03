@@ -414,13 +414,13 @@ function checkScheduledJobs() {
     }
   }
 
-  // 5. 韩国社区抓取（每天 9:00~9:59 和 21:00~21:59 各执行一次，1小时窗口防错过）
+  // 5. 韩国社区额外补抓（21:00~21:59，因为韩国帖子更新频繁，早晚各一次不够）
+  // 零点和14:00 的韩国采集已随全平台统一执行，这里只是晚上补一次
   if (loungeModule && loungeModule.fullCrawlPipeline) {
-    const loungeKey = `loungeCrawl_${currentHour < 12 ? 'am' : 'pm'}`;
-    if (lastRunDates[loungeKey] !== today) {
-      if ((currentHour === 9 || currentHour === 21) && !sentiment.getIsCollecting()) {
-        console.log('⏰ 触发韩国社区定时抓取');
-        lastRunDates[loungeKey] = today;
+    if (lastRunDates.loungeCrawlEvening !== today) {
+      if (currentHour === 21 && !sentiment.getIsCollecting()) {
+        console.log('⏰ 触发韩国社区晚间补抓');
+        lastRunDates.loungeCrawlEvening = today;
         saveState();
         loungeCrawlTask().then((result) => {
           taskRunLog.loungeCrawl = { lastRun: new Date().toISOString(), success: result?.success || false, message: result?.message || '完成' };
@@ -496,14 +496,7 @@ async function dailyAnalysisTask() {
         if (loungeStats) {
           console.log(`   韩国帖子: ${loungeStats.posts || 0} 条, 已翻译: ${loungeStats.translated || 0} 条`);
         }
-        // 如果今天还没抓过韩国数据，补抓一次
-        const loungeKey = `loungeCrawl_${new Date().getHours() < 12 ? 'am' : 'pm'}`;
-        if (lastRunDates[loungeKey] !== todayStr()) {
-          console.log('   ⏰ 今日未抓取韩国社区，补充抓取...');
-          lastRunDates[loungeKey] = todayStr();
-          saveState();
-          await loungeCrawlTask();
-        }
+        // 韩国采集已对齐到零点/14:00，8:30分析时不再额外触发爬虫
       } catch (e) {
         console.warn('   ⚠️ 韩国数据统计异常:', e.message);
       }
@@ -550,6 +543,21 @@ async function midnightFullCollectTask() {
       console.log(`   新增: ${result.saved} 条`);
     } else {
       console.error(`❌ 每日零点全量采集失败:`, result.error);
+    }
+    
+    // ★ 韩国社区同步采集（全平台对齐）
+    if (loungeModule && loungeModule.fullCrawlPipeline) {
+      console.log('\n🇰🇷 韩国社区同步采集...');
+      try {
+        const loungeResult = await loungeModule.fullCrawlPipeline();
+        if (loungeResult?.success) {
+          console.log('   ✅ 韩国社区采集完成');
+        } else {
+          console.warn('   ⚠️ 韩国社区采集异常:', loungeResult?.error || '');
+        }
+      } catch (le) {
+        console.warn('   ⚠️ 韩国社区采集失败（不影响主流程）:', le.message);
+      }
     }
   } catch (e) {
     console.error('❌ 每日零点全量采集任务异常:', e.message);
@@ -607,6 +615,19 @@ async function afternoonBackupTask() {
     if (allData.length > 0) {
       const saved = await sentiment.batchSaveRecords(allData, true);
       console.log(`   ✅ 保存: 新增 ${saved.saved || saved.success || 0} 条`);
+    }
+
+    // ★ 韩国社区同步采集（全平台对齐）
+    if (loungeModule && loungeModule.fullCrawlPipeline) {
+      console.log('\n🇰🇷 韩国社区同步采集...');
+      try {
+        const loungeResult = await loungeModule.fullCrawlPipeline();
+        if (loungeResult?.success) {
+          console.log('   ✅ 韩国社区采集完成');
+        }
+      } catch (le) {
+        console.warn('   ⚠️ 韩国社区采集失败（不影响主流程）:', le.message);
+      }
     }
 
     // 第二步：AI 分析
