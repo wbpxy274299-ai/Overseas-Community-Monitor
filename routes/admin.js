@@ -300,26 +300,25 @@ router.delete('/api/admin/channels/:name', requireRole('admin', 'super_admin'), 
 router.post('/api/admin/insights/analyze', requireRole('super_admin'), async (req, res) => {
   ensureInsightsTable();
   try {
-    // 计算时间范围：上周五 00:00 ~ 本周四 23:59
+    // 计算时间范围：最近的周五 00:00 ~ 下周四 23:59
     const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ..., 4=Thu, 5=Fri
-    // 本周五
-    const thisFriday = new Date(now);
-    const diffToFri = (5 - dayOfWeek + 7) % 7;
-    thisFriday.setDate(now.getDate() - (diffToFri === 0 && dayOfWeek === 5 ? 0 : diffToFri === 0 ? 7 : (dayOfWeek > 5 ? dayOfWeek - 5 : dayOfWeek + 2)));
-    // 简化：直接找上周五
+    const day = now.getDay(); // 0=Sun, 5=Fri
     const lastFriday = new Date(now);
-    const daysBack = (dayOfWeek - 5 + 7) % 7 + (dayOfWeek < 5 ? 7 : 0);
-    lastFriday.setDate(now.getDate() - daysBack);
-    if (dayOfWeek === 5) lastFriday.setDate(now.getDate()); // 如果今天就是周五
+    // 周五/周六 → 本周五；周日~周四 → 上周五
+    if (day >= 5) {
+      lastFriday.setDate(now.getDate() - (day - 5));
+    } else {
+      lastFriday.setDate(now.getDate() - (day + 2));
+    }
     lastFriday.setHours(0, 0, 0, 0);
 
     const thisThursday = new Date(lastFriday);
     thisThursday.setDate(lastFriday.getDate() + 6);
     thisThursday.setHours(23, 59, 59, 999);
 
-    const startDate = lastFriday.getFullYear() + '-' + String(lastFriday.getMonth()+1).padStart(2,'0') + '-' + String(lastFriday.getDate()).padStart(2,'0');
-    const endDate = thisThursday.getFullYear() + '-' + String(thisThursday.getMonth()+1).padStart(2,'0') + '-' + String(thisThursday.getDate()).padStart(2,'0');
+    const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const startDate = fmt(lastFriday);
+    const endDate = fmt(thisThursday);
 
     const periodLabel = `${startDate} ~ ${endDate}`;
 

@@ -542,22 +542,6 @@ async function deleteFeedback(id) {
   } catch (e) { Toast.error('网络错误'); }
 }
 
-async function cleanOldFeedback() {
-  if (!confirm('确定删除2026年7月27日之前的所有旧反馈吗？此操作不可恢复！')) return;
-  try {
-    const res = await fetch('/api/feedback/batch/before?before=2026-07-27', {
-      method: 'DELETE', credentials: 'same-origin',
-    });
-    const data = await res.json();
-    if (data.ok) {
-      Toast.success(data.message || '清理完成');
-      loadFeedback();
-    } else {
-      Toast.error(data.error || '清理失败');
-    }
-  } catch (e) { Toast.error('网络错误'); }
-}
-
 // ===== 数据库管理 =====
 let dbState = { table: null, page: 1, search: '', columns: [] };
 
