@@ -478,7 +478,8 @@ async function dailyAnalysisTask() {
       console.log(`✅ 每日日报任务完成`);
       console.log(`   Twitter: ${result.twitter || 0} 个话题`);
       console.log(`   Discord: ${result.discord || 0} 个话题`);
-      taskResult = { success: true, twitter: result.twitter || 0, discord: result.discord || 0 };
+      console.log(`   韩国: ${result.lounge || 0} 个话题`);
+      taskResult = { success: true, twitter: result.twitter || 0, discord: result.discord || 0, lounge: result.lounge || 0 };
     } else {
       console.error('❌ 分析失败:', result.message || result.error);
       taskResult = { success: false, message: result.message || result.error };
@@ -634,9 +635,9 @@ async function afternoonBackupTask() {
     console.log('\n🤖 AI 分析热门话题...');
     const result = await sentiment.runDailyHotTopicsAnalysis();
 
-    const topicCount = (result.twitter || 0) + (result.discord || 0);
+    const topicCount = (result.twitter || 0) + (result.discord || 0) + (result.lounge || 0);
     if (topicCount > 0) {
-      console.log(`✅ 下午备份完成: ${topicCount} 个话题`);
+      console.log(`✅ 下午备份完成: ${topicCount} 个话题（Twitter ${result.twitter||0}, Discord ${result.discord||0}, 韩国 ${result.lounge||0}）`);
       return { success: true, message: `采集 ${allData.length} 条, 生成 ${topicCount} 个话题` };
     } else {
       console.log('⚠️ 下午备份采集完成但未生成话题');

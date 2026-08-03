@@ -6,7 +6,8 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { getProxyConfig } = require('./config');
+const { getDiscordToken, getProxyConfig } = require('./config');
+const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const db = require('./db');
 const log = require('./logger');
 const translator = require('./translator');
@@ -629,6 +630,44 @@ function getQualityFeedback(limit = 30, platform = null, startDate = null, endDa
   }));
 }
 
+// ===== 韩国社区数据查询（用于热门话题分析）=====
+// 打个比方：韩国数据住在另一个“表”里，需要单独叫它来开会
+function getLoungeRecordsForAnalysis(startDate, endDate, limit = 30) {
+  try {
+    const rows = db.queryAll(`
+      SELECT 
+        id, post_id, title, title_zh, content, content_zh, 
+        author, post_time, crawled_at, url, sentiment, 
+        ai_category, ai_summary, comment_count, view_count, game_name
+      FROM lounge_posts
+      WHERE crawled_at >= ? AND crawled_at <= ?
+        AND (title_zh IS NOT NULL AND title_zh != '')
+      ORDER BY (comment_count + view_count) DESC
+      LIMIT ?
+    `, [startDate, endDate, limit]);
+    
+    // ai_category → topic_tag 映射
+    const categoryToTag = {
+      bug: 'bug_report', suggestion: 'gameplay_balance', complaint: 'general',
+      praise: 'general', question: 'general', other: 'general'
+    };
+    
+    return rows.map(r => ({
+      ...r,
+      platform: 'lounge',
+      content: r.content_zh || r.title_zh || r.content || r.title || '',
+      translated_content: r.content_zh || r.title_zh || '',
+      topic_tag: categoryToTag[r.ai_category] || 'general',
+      source: 'lounge',
+      created_at: r.crawled_at,
+      keywords: '',
+    }));
+  } catch (e) {
+    console.warn('⚠️ 韩国数据查询失败:', e.message);
+    return [];
+  }
+}
+
 // ===== 回溯标记历史数据 =====
 function backfillExistingRecords() {
   console.log('🔄 开始回溯标记历史数据...');
@@ -912,7 +951,7 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
 // ===== Discord 数据采集（只繁中服）=====
 // 打个比方：快递员每次出发前先看小本子——上次送到哪户了？
 // 如果本子上有记录，就从那户往后继续取（增量追新）
-// 如果没记录（第一次来），就先跑一趟大的，把整条街都走一遍（回填历史）
+// 如果没记录（第一次来），就每次敲50户，发现已经来过的就停（智能回填）
 async function collectFromDiscord() {
   console.log('💬 开始从 Discord 采集数据...');
   
@@ -923,103 +962,135 @@ async function collectFromDiscord() {
     { id: '1320748853732970556', name: '👂八卦吃瓜' },
   ];
   
-  // 用于去重的 Map：key = author + contentHash, value = { channels: [], firstMessage }
+  const BATCH_SIZE = 50; // 每批50条，发现重复就停
   const messageMap = new Map();
   
   console.log(`\n   正在采集 TC（繁中服）Discord 数据...`);
   
   for (const channel of tcChannels) {
-    let messages = null;
+    let allNewMessages = [];
     let retries = 0;
     const maxRetries = 2;
     
-    // 查看这个频道上次追到哪条消息了
     const cursor = db.getCollectionCursor(channel.id, DISCORD_SERVER);
     const isBackfill = !cursor;
-    const fetchLimit = isBackfill ? 2000 : 2000; // 回填和增量都设2000，确保不遗漏
     
     if (isBackfill) {
-      console.log(`     📡 频道: ${channel.name}（首次采集，回填历史数据）`);
+      console.log(`     📡 频道: ${channel.name}（首次采集，智能回填模式）`);
     } else {
       console.log(`     📡 频道: ${channel.name}（增量采集，上次追到: ${cursor.last_message_id}）`);
     }
     
-    while (retries < maxRetries && !messages) {
-      try {
-        let result;
-        if (cursor) {
-          // 有游标：只取游标之后的新消息
-          result = await fetchMessagesAfter(channel.id, DISCORD_SERVER, cursor.last_message_id, fetchLimit);
-        } else {
-          // 无游标：首次采集，取最近2000条回填历史
-          result = await fetchMessages(channel.id, DISCORD_SERVER, fetchLimit);
-        }
+    if (isBackfill) {
+      // ═══ 智能回填：每次50条，发现重复就停 ═══
+      let before = null;
+      let batchNum = 0;
+      let totalFetched = 0;
+      
+      while (true) {
+        batchNum++;
+        let batch = null;
+        let batchRetries = 0;
         
-        if (Array.isArray(result)) {
-          messages = result;
-        } else {
-          console.log(`        ⚠️  返回数据格式异常`);
-          if (retries === 0) {
-            console.log('        🔄 5秒后重试...');
-            await new Promise(r => setTimeout(r, 5000));
+        while (batchRetries < maxRetries && !batch) {
+          try {
+            // 单次 API 调用取 BATCH_SIZE 条
+            const url = `${DISCORD_API_BASE}/channels/${channel.id}/messages?limit=${BATCH_SIZE}${before ? `&before=${before}` : ''}`;
+            const axiosConfig = {
+              headers: { 'Authorization': `Bot ${getDiscordToken(DISCORD_SERVER)}`, 'Content-Type': 'application/json' },
+              timeout: 30000,
+              proxy: getProxyConfig(),
+            };
+            const resp = await axios.get(url, axiosConfig);
+            if (Array.isArray(resp.data) && resp.data.length > 0) {
+              batch = resp.data;
+            } else {
+              batch = []; // 空数组 = 没有更多消息
+            }
+          } catch (e) {
+            batchRetries++;
+            if (e.response?.status === 401) {
+              recordError('Discord采集', `${DISCORD_SERVER} Bot Token无效或已过期！`);
+              break;
+            }
+            if (batchRetries < maxRetries) {
+              console.log(`        ⚠️ 第${batchNum}批获取失败，重试... (${e.message})`);
+              await new Promise(r => setTimeout(r, 5000));
+            }
           }
         }
-      } catch (e) {
-        const errMsg = `Discord频道${channel.name}采集失败: ${e.message}`;
-        if (e.response?.status === 401) {
-          recordError('Discord采集', `${DISCORD_SERVER} Bot Token无效或已过期！${e.message}`);
-        } else if (retries === 0) {
-          console.log(`        ❌ ${e.message}，5秒后重试...`);
-          await new Promise(r => setTimeout(r, 5000));
-        } else {
-          recordError('Discord采集', errMsg);
+        
+        if (!batch || batch.length === 0) {
+          console.log(`        📭 第${batchNum}批: 没有更多消息，频道到底`);
+          break;
         }
-      }
-      retries++;
-    }
-    
-    if (messages && messages.length > 0) {
-      console.log(`        ✅ 获取到 ${messages.length} 条原始消息${isBackfill ? '（历史回填）' : '（增量）'}`);
-      const emptyCount = messages.filter(m => !(m.content || '').trim()).length;
-      const botCount = messages.filter(m => m.author?.bot).length;
-      console.log(`        🔍 诊断: 空内容 ${emptyCount} 条, Bot消息 ${botCount} 条`);
-      if (messages.length > 0) {
-        const sample = messages[0];
-        console.log(`        📋 样本: content="${(sample.content||'').substring(0,50)}", author=${sample.author?.username}, bot=${sample.author?.bot}`);
-        // 详细诊断：打印完整消息结构，排查 content 为空的原因
-        const keys = Object.keys(sample);
-        console.log(`        🔬 消息字段: [${keys.join(', ')}]`);
-        console.log(`        🔬 type=${sample.type}, flags=${sample.flags}, pinned=${sample.pinned}`);
-        if (sample.embeds?.length) console.log(`        🔬 embeds: ${sample.embeds.length} 个`);
-        if (sample.components?.length) console.log(`        🔬 components: ${sample.components.length} 个`);
-        // 找一条有内容的消息看看
-        const withContent = messages.find(m => m.content && m.content.trim());
-        if (withContent) {
-          console.log(`        ✅ 有内容的消息: "${withContent.content.substring(0,80)}"`);
-        } else {
-          console.log(`        ❌ 2000条消息全部 content 为空！可能原因：Bot 未开启 MESSAGE_CONTENT Intent`);
+        
+        totalFetched += batch.length;
+        
+        // 检查这批中有多少已存在于数据库
+        let dupCount = 0;
+        for (const msg of batch) {
+          if (msg.author?.bot || !(msg.content || '').trim()) continue;
+          const exists = db.queryOne('SELECT id FROM sentiment_records WHERE platform = ? AND source_id = ?', ['discord', msg.id]);
+          if (exists) dupCount++;
         }
+        
+        console.log(`        📦 第${batchNum}批: ${batch.length} 条（新增 ${batch.length - dupCount}，重复 ${dupCount}）`);
+        
+        if (dupCount > 0) {
+          // 发现重复 → 停止，这批的新消息仍然收进来
+          const newInBatch = batch.filter(m => {
+            if (m.author?.bot || !(m.content || '').trim()) return false;
+            return !db.queryOne('SELECT id FROM sentiment_records WHERE platform = ? AND source_id = ?', ['discord', m.id]);
+          });
+          allNewMessages.push(...newInBatch);
+          console.log(`        🛑 发现${dupCount}条重复，停止往更早时间抓取`);
+          break;
+        }
+        
+        // 全部是新消息，收下，继续往更早翻
+        allNewMessages.push(...batch);
+        
+        if (batch.length < BATCH_SIZE) {
+          console.log(`        📭 第${batchNum}批: 返回不足${BATCH_SIZE}条，频道到底`);
+          break;
+        }
+        
+        before = batch[batch.length - 1].id; // 最旧的消息作为下一批游标
+        await new Promise(r => setTimeout(r, 300)); // 防限流
       }
       
+      console.log(`        📊 总计: 获取 ${totalFetched} 条，其中新增 ${allNewMessages.length} 条`);
+    } else {
+      // ═══ 增量采集：从游标之后取新消息 ═══
+      try {
+        allNewMessages = await fetchMessagesAfter(channel.id, DISCORD_SERVER, cursor.last_message_id, 500);
+        if (!Array.isArray(allNewMessages)) allNewMessages = [];
+        console.log(`        ✅ 增量获取 ${allNewMessages.length} 条`);
+      } catch (e) {
+        if (e.response?.status === 401) {
+          recordError('Discord采集', `${DISCORD_SERVER} Bot Token无效或已过期！`);
+        } else {
+          recordError('Discord采集', `Discord增量采集失败: ${e.message}`);
+        }
+        allNewMessages = [];
+      }
+    }
+    
+    // ═══ 处理消息（去重 + 过滤 + 游标更新）═══
+    if (allNewMessages.length > 0) {
       let validCount = 0;
       let newestMsgId = cursor ? cursor.last_message_id : null;
       
-      for (const msg of messages) {
+      for (const msg of allNewMessages) {
         const content = msg.content || '';
-        
-        // 跳过空消息和 Bot 消息
-        if (!content.trim() || msg.author?.bot) {
-          continue;
-        }
+        if (!content.trim() || msg.author?.bot) continue;
         
         validCount++;
-        
-        // 记录最新的消息 ID（用于下次增量采集的游标）
         if (!newestMsgId || BigInt(msg.id) > BigInt(newestMsgId)) {
           newestMsgId = msg.id;
         }
         
-        // 生成作者+内容的唯一标识（用于去重）
         const author = msg.author?.global_name || msg.author?.username || '未知用户';
         const crypto = require('crypto');
         const contentPreview = content.substring(0, 100);
@@ -1028,9 +1099,7 @@ async function collectFromDiscord() {
         
         if (messageMap.has(uniqueKey)) {
           const existing = messageMap.get(uniqueKey);
-          if (!existing.channels.includes(channel.name)) {
-            existing.channels.push(channel.name);
-          }
+          if (!existing.channels.includes(channel.name)) existing.channels.push(channel.name);
           if (msg.timestamp && (!existing.firstMessage.timestamp || msg.timestamp < existing.firstMessage.timestamp)) {
             existing.firstMessage.timestamp = msg.timestamp;
             existing.firstMessage.source_id = msg.id;
@@ -1038,48 +1107,36 @@ async function collectFromDiscord() {
         } else {
           let cstTimeStr;
           try {
-            const discordTime = new Date(msg.timestamp);
-            cstTimeStr = formatCst(discordTime);
+            cstTimeStr = formatCst(new Date(msg.timestamp));
           } catch (e) {
             cstTimeStr = formatCst(nowCst());
           }
-          
           messageMap.set(uniqueKey, {
             channels: [channel.name],
-            firstMessage: {
-              platform: 'discord',
-              source_id: msg.id,
-              content: content,
-              author: author,
-              timestamp: cstTimeStr,
-              region: 'tc'
-            }
+            firstMessage: { platform: 'discord', source_id: msg.id, content, author, timestamp: cstTimeStr, region: 'tc' }
           });
         }
       }
       
-      // 更新游标：记住这个频道追到哪了
       if (newestMsgId && validCount > 0) {
         const oldTotal = cursor ? cursor.total_collected : 0;
         db.updateCollectionCursor(channel.id, 'TC', channel.name, newestMsgId, oldTotal + validCount);
         console.log(`         📌 游标已更新: ${newestMsgId}（累计 ${oldTotal + validCount} 条）`);
       }
-      
       console.log(`         有效消息: ${validCount} 条`);
-    } else if (!messages) {
-      console.log(`        ❌ 频道 ${channel.name} 采集失败（已重试）`);
-    } else if (messages.length === 0 && cursor) {
-      console.log(`        ✅ 没有新消息（游标已是最新）`);
+    } else if (isBackfill) {
+      console.log(`        ⚠️ 智能回填未获取到任何新消息`);
+    } else {
+      console.log(`        ✅ 没有新消息`);
     }
   }
   
-  // 转换为最终结果，合并频道标记
+  // 转换为最终结果
   const collected = Array.from(messageMap.values()).map(item => ({
     ...item.firstMessage,
     channel_name: item.channels.join(', ')
   }));
   
-  // 更新采集状态记录
   collectionStatus.discord.lastRun = fmtLocalDate(new Date());
   collectionStatus.discord.lastCount = collected.length;
   if (collected.length === 0) {
@@ -1972,7 +2029,20 @@ function getTodayHotTopics() {
     ORDER BY heat_score DESC
   `, [todayStr, todayStr]);
   
-  if (twitterRows.length === 0 && discordRows.length === 0) {
+  const loungeRows = db.queryAll(`
+    SELECT topic_title, sentiment, heat_score, record_count, topic_tag,
+           action_suggestion, summary, detail, representative_quotes, urls
+    FROM topic_history
+    WHERE platform = 'lounge' AND DATE(created_at) = ?
+      AND id IN (
+        SELECT MAX(id) FROM topic_history
+        WHERE platform = 'lounge' AND DATE(created_at) = ?
+        GROUP BY topic_tag
+      )
+    ORDER BY heat_score DESC
+  `, [todayStr, todayStr]);
+
+  if (twitterRows.length === 0 && discordRows.length === 0 && loungeRows.length === 0) {
     return null; // 今天还没分析过
   }
   
@@ -2006,7 +2076,8 @@ function getTodayHotTopics() {
   
   return {
     twitter_topics: dedupByTag(twitterRows.map(mapRow)),
-    discord_topics: dedupByTag(discordRows.map(mapRow))
+    discord_topics: dedupByTag(discordRows.map(mapRow)),
+    lounge_topics: dedupByTag(loungeRows.map(mapRow))
   };
 }
 
@@ -2035,12 +2106,14 @@ async function runDailyHotTopicsAnalysis() {
   // 读取这个周期的数据（锁死时间窗口）
   const twitterRecords = getQualityFeedback(30, 'twitter', startDate, endDate);
   const discordRecords = getQualityFeedback(30, 'discord', startDate, endDate);
+  const loungeRecords = getLoungeRecordsForAnalysis(startDate, endDate, 30);
   
   const twCount = twitterRecords?.length || 0;
   const dcCount = discordRecords?.length || 0;
-  console.log(`   数据: Twitter ${twCount} 条, Discord ${dcCount} 条`);
+  const lgCount = loungeRecords?.length || 0;
+  console.log(`   数据: Twitter ${twCount} 条, Discord ${dcCount} 条, 韩国 ${lgCount} 条`);
   
-  if (twCount === 0 && dcCount === 0) {
+  if (twCount === 0 && dcCount === 0 && lgCount === 0) {
     // 诊断日志：为什么没有数据？
     try {
       const totalInRange = db.queryOne(
@@ -2064,7 +2137,7 @@ async function runDailyHotTopicsAnalysis() {
   
   // 调用 AI 分析
   const aiAnalyzer = require('./ai_analyzer');
-  const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
+  const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords, loungeRecords);
   
   // 存入 topic_history
   // ★ 关键修复：传入 skipDedup=true，因为 result 已经是 AI 去重后的结果
@@ -2074,9 +2147,12 @@ async function runDailyHotTopicsAnalysis() {
   if (result.discord_topics.length > 0) {
     saveTopicHistory(result.discord_topics, 'discord', true);
   }
+  if (result.lounge_topics && result.lounge_topics.length > 0) {
+    saveTopicHistory(result.lounge_topics, 'lounge', true);
+  }
   
-  console.log(`✅ 每日分析完成: Twitter ${result.twitter_topics.length} 个话题, Discord ${result.discord_topics.length} 个话题`);
-  if (result.twitter_topics.length === 0 && result.discord_topics.length === 0) {
+  console.log(`✅ 每日分析完成: Twitter ${result.twitter_topics.length} 个话题, Discord ${result.discord_topics.length} 个话题, 韩国 ${result.lounge_topics?.length || 0} 个话题`);
+  if (result.twitter_topics.length === 0 && result.discord_topics.length === 0 && (!result.lounge_topics || result.lounge_topics.length === 0)) {
     console.log('   ⚠️ AI 返回了 0 个话题，可能原因: AI API 超时/返回空结果/解析失败');
   }
   
@@ -2109,7 +2185,8 @@ async function runDailyHotTopicsAnalysis() {
   return {
     success: true,
     twitter: result.twitter_topics.length,
-    discord: result.discord_topics.length
+    discord: result.discord_topics.length,
+    lounge: result.lounge_topics?.length || 0
   };
 }
 
@@ -2863,6 +2940,7 @@ module.exports = {
   getRecentFeedback,
   getTodayPeriod,            // 获取今日时间窗口（前日8:30~今日8:30）
   getQualityFeedback,        // 高质量反馈（用于 AI 分析）
+  getLoungeRecordsForAnalysis, // 韩国社区数据查询（用于 AI 分析）
   getDailySentiment,         // 一日内舆情
   getRealtimeFeedback,       // 实时玩家发言
   markAsProcessed,

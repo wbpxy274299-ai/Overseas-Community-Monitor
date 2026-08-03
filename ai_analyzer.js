@@ -97,7 +97,7 @@ function safeJsonParse(text, context = '') {
   // 第2次：清理常见 AI 格式错误后再解析
   try {
     let cleaned = text
-      // 去掉 markdown 代码块标记
+      // 去掉代码块标记
       .replace(/```json\s*/gi, '').replace(/```\s*/g, '')
       // 去掉尾部多余的逗号（如 ,} 或 ,]）
       .replace(/,\s*([\]}])/g, '$1')
@@ -362,24 +362,24 @@ function groupRecordsByTag(records, prefix = '', truncate = false) {
     if (!groups[tag]) groups[tag] = [];
     let text = r.translated_content || r.content || '';
     if (truncate) text = text.substring(0, 100);
-    const url = r.url ? ` (链接:${r.url})` : '';
+    const url = r.url ? ` (リンク:${r.url})` : '';
     // 把发帖时间也带上，AI 才能知道真实日期
-    const timeStr = r.created_at ? ` (时间:${r.created_at})` : '';
+    const timeStr = r.created_at ? ` (時間:${r.created_at})` : '';
     groups[tag].push(`[${prefix}${i+1}] ${text}${timeStr}${url}`);
   }
   
-  // 格式化为文本
+  // 格式化为テキスト
   const lines = [];
   const tagLabels = {
-    bug_report: 'Bug/问题反馈', gacha: '抽卡/ガチャ', knight_order: '骑士团/公会',
-    tree_bond: '树缘系统', event: '活动/狂潮', cosmetic: '时装/皮肤',
-    world_boss: '世界Boss', photo: '拍照功能', pricing: '充值/价格',
-    server: '服务器/合服', general: '其他讨论'
+    bug_report: 'Bug/問題フィードバック', gacha: 'ガチャ', knight_order: '騎士団/ギルド',
+    tree_bond: 'ツリーボンドシステム', event: 'イベント/マッドセイドン', cosmetic: '衣装/スキン',
+    world_boss: 'ワールドボス', photo: '撮影機能', pricing: '課金/価格',
+    server: 'サーバー/合併', general: 'その他のディスカッション'
   };
   
   for (const [tag, msgs] of Object.entries(groups)) {
     const label = tagLabels[tag] || tag;
-    lines.push(`\n【${label}】(${msgs.length}条)`);
+    lines.push(`\n【${label}】(${msgs.length}件)`);
     lines.push(...msgs);
   }
   
@@ -395,11 +395,9 @@ function isOperationsTopic(topic) {
   const text = `${topic.title || ''} ${topic.summary || ''} ${topic.detail || ''} ${topic.action || ''}`.toLowerCase();
   // 运营相关关键词（中/日/繁中）
   const opsKeywords = [
-    '运营', '營運', '運営', '客服', 'gm', '官方态度', '官方信用', '官方回应',
-    '官方溝通', '官方溝通', '运营团队', '運營團隊', '运营信用', '營運信用',
-    '运营不作为', '運營不作為', '运营失信', '營運失信', '官方失信',
-    '客服态度', '客服態度', '客服回应', '客服回應', '官方回应', '官方回應',
-    '运营团队', '運營團隊', '运营策略', '運營策略'
+    '运营', '營運', '運営', '客服', 'gm', '官方態度', '官方信用', '官方返答',
+    '官方コミュニケーション', '運営チーム', '運営信用', '運営不作為', '運営不信頼',
+    '客服態度', '客服返答', '官方返答', '運営チーム', '運営戦略'
   ];
   return opsKeywords.some(kw => text.includes(kw));
 }
@@ -417,91 +415,91 @@ async function aiSummarizeHotTopics(records) {
   const content = groupRecordsByTag(records.slice(0, 15), '', false);
   const platform = records[0]?.source === 'twitter' ? 'Twitter（日服）' : 'Discord（繁中服）';
   
-  const prompt = `你是《森之国度》(ツリネバ/TOS Neverland) 游戏的资深运营分析师。
+  const prompt = `你是《森の国度》(ツリネバ/TOS Neverland) 游戏の资深運営アナリスト。
 
-以下是${platform}玩家真实发言，已按话题分类。
+以下是${platform}プレイヤーのリアルな発言、既にトピック別に分類されています。
 
-游戏背景：
-- 树缘：核心社交结缘系统（玩家配对玩法）
-- 骑士团/骑士团战：公会和公会战玩法
-- 狂潮：限时挑战活动
-- ガチャ：抽卡系统
-- IP授权：灵犀互娱与韩国原厂的合作关系
+ゲーム背景：
+- ツリーボンド：コアソーシャルペアリングシステム（プレイヤーペアリングプレイ）
+- 騎士団/騎士団戦：ギルドとギルド戦プレイ
+- マッドセイドン：リミテッドチャレンジイベント
+- ガチャ：ガチャシステム
+- IPライセンス：リュシイムタエンと韓国原産とのコラボレーション関係
 
-❗❗❗ 核心要求（必须遵守）：
+❗❗❗ コア要件（遵守しなければならない）：
 
-1. **summary 必须具体**：用 2-3 句话说清楚玩家在聊什么、为什么聊、诉求是什么
-   ❌ 错误示范："玩家抱怨抽卡问题"
-   ✅ 正确示范："多名玩家质疑 SSR 掉率过低，有人 100 抽零收获，认为保底机制不透明"
+1. **summary 必須具体的**：2-3文でプレイヤーが何について話しているか、なぜ話しているか、何を求めているかを説明する
+   ❌ 間違いの例："プレイヤーがガチャ問題を抱怨している"
+   ✅ 正しい例："複数のプレイヤーがSSRドロップ率が低すぎると言っている、100ガチャでゼロSSRの人がいる、保証メカニズムが透明でないと思われている"
 
-2. **detail 字段**：用 3-5 句话展开分析：
-   - 具体发生了什么（事件描述）
-   - 玩家的核心情绪和诉求
-   - 影响范围（涉及多少玩家、哪个玩法）
-   - 潜在风险（是否会发酵、是否涉及付费）
+2. **detail フィールド**：3-5文で分析を展開する：
+   - 具体なことが起きた（イベントの説明）
+   - プレイヤーのコアな感情と要求
+   - 影響範囲（どのプレイヤー、どのプレイ）
+   - 潜在的なリスク（発酵する可能性、課金に関連しているかどうか）
 
-3. **representative_quotes 必须有**：直接引用 1-2 条玩家原话（中文），不要编造
-   格式为对象数组：[{"text": "玩家原话", "created_at": "2026/6/17 14:30"}]
-   created_at 从原始数据中获取，格式为 YYYY/MM/DD HH:mm
+3. **representative_quotes 必須ある**：1-2文のプレイヤーの原語を直接引用（偽造しない）
+   オブジェクト配列の形式：[{"text": "プレイヤーの原語", "created_at": "2026/6/17 14:30"}]
+   created_at は元データから取得し、YYYY/MM/DD HH:mm の形式
 
-4. **urls 必须有**：从原始数据的 url 字段提取，每个话题至少放 1 条代表性发言的链接（字符串数组）
+4. **urls 必須ある**：元データの url フィールドから抽出し、各トピックには少なくとも1つの代表的な発言のリンク（文字列配列）
 
-5. **每个有 ≥1 条讨论的标签都生成话题**，只有1条的归入“其他”
+5. **1件以上の議論があるタグごとにトピックを生成**、1件しかない場合は「その他」に分類する
 
-6. **情绪判断**：positive(赞美/期待) / neutral(讨论/询问) / negative(抱怨/批评)
+6. **感情判断**：positive(称賛/期待) / neutral(ディスカッション/質問) / negative(抱怨/批評)
 
-7. **过滤搜索词**："ツリネバ"是游戏名称/Yahoo搜索词，每条都有，不要作为热门话题。同理"TOSN""TOSNeverland"也不算。
+7. **検索ワードをフィルタリング**："ツリネバ"はゲーム名/Yahoo検索ワードであり、すべての行に含まれていますので、ホットトピックにはならない。同様に"TOSN""TOSNeverland"も該当しない。
 
-8. **❗❗ 运营相关内容必须跳过（不生成话题）**：
-   如果玩家讨论的核心是关于"运营/營運/運営/客服/官方态度/官方信用/官方回应/GM管理"等运营团队相关内容，**直接跳过，不要生成这个话题**。
-   判断标准：话题的核心诉求是针对运营团队的行为、态度、信用、沟通方式的批评或不满。
-   注意：如果是纯粹的游戏机制问题（如bug、数值平衡），即使玩家提到了"官方"，也不算运营话题，正常生成即可。
+8. **❗❗ 運営関連の内容はスキップ（トピックを生成しない）**：
+   プレイヤーが「運営/營運/運営/カスタマーサポート/公式態度/公式信用/公式返答/GM管理」などの運営チームに関する内容をコアとして議論している場合、**スキップし、トピックを生成しない**。
+   判断基準：トピックのコアな要求が運営チームの行動、態度、信用、コミュニケーション方法に対する批評や不満である。
+   注意：ゲームメカニズムの問題（バグ、バランス調整など）であっても、プレイヤーが「公式」と言及していても、運営トピックにはならないので、通常通り生成する。
 
-9. **❗❗ tag 必须从以下固定列表中选择（不允许自定义）**：
-   - bug_report (Bug/问题反馈)
-   - gacha (抽卡/ガチャ)
-   - knight_order (骑士团/公会)
-   - tree_bond (树缘系统)
-   - event (活动/狂潮)
-   - cosmetic (时装/皮肤)
-   - world_boss (世界Boss)
-   - photo (拍照功能)
-   - pricing (充值/价格)
-   - server (服务器/合服)
-   - social (社交互动)
-   - gameplay_balance (游戏平衡)
-   - general (其他讨论)
+9. **❗❗ tag は以下の固定リストから選択する（カスタムは許可しない）**：
+   - bug_report (Bug/問題フィードバック)
+   - gacha (ガチャ)
+   - knight_order (騎士団/ギルド)
+   - tree_bond (ツリーボンドシステム)
+   - event (イベント/マッドセイドン)
+   - cosmetic (衣装/スキン)
+   - world_boss (ワールドボス)
+   - photo (撮影機能)
+   - pricing (課金/価格)
+   - server (サーバー/合併)
+   - social (ソーシャルインタラクション)
+   - gameplay_balance (ゲームバランス)
+   - general (その他のディスカッション)
 
-返回 JSON 数组格式：
+返却 JSON 配列：
 [{
-  "title": "SSR掉率争议",  // 中文标题，具体到问题点
-  "summary": "多名玩家反馈百抽无收获，质疑掉率低于宣传的1%",  // 2-3句具体描述
-  "detail": "3名玩家分享抽卡经历，均为80-120抽零SSR。玩家认为官方未公开实际掉率，保底机制不透明，怀疑存在暗改。情绪偏愤怒，涉及付费相关内容，有公关风险。",  // 3-5句深度分析
+  "title": "SSRドロップ率の議論",  // 中文タイトル、具体的な問題点
+  "summary": "複数のプレイヤーが100ガチャでゼロSSRを報告し、ドロップ率が宣伝の1%より低いと疑問を投げている",  // 2-3文具体的な説明
+  "detail": "3人のプレイヤーが80-120ガチャでゼロSSRを経験した。プレイヤーは公式が実際のドロップ率を公開していないと主張し、保証メカニズムが透明でないと疑い、暗改を疑っている。感情は怒り、課金に関連しているため、PRリスクがある。",  // 3-5文の詳細な分析
   "sentiment": "negative",
   "tag": "gacha",
-  "action": "公开实际掉率数据，优化保底说明",
+  "action": "実際のドロップ率データを公開し、保証の説明を最適化する",
   "count": 3,
-  "representative_quotes": [{"text": "100抽了还是零，这掉率真的合理吗？", "created_at": "2026/6/17 14:30"}, {"text": "保底机制完全不透明", "created_at": "2026/6/17 15:45"}],
+  "representative_quotes": [{"text": "100ガチャしてもゼロ、このドロップ率は本当に適切ですか？", "created_at": "2026/6/17 14:30"}, {"text": "保証メカニズムは完全に透明ではありません", "created_at": "2026/6/17 15:45"}],
   "urls": ["https://twitter.com/xxx/status/123"]
 }]
 
-重要：请根据实际讨论内容生成，避免模板化表达！`;
+重要：実際のディスカッション内容に基づいて生成し、テンプレート化した表現を避ける！`;
 
   const result = await callAI(prompt, content, { maxTokens: 1500, jsonMode: true });
   
   if (!result) return fallbackTopicExtraction(records);
   
   try {
-    let parsed = safeJsonParse(result, '热门话题');
+    let parsed = safeJsonParse(result, 'ホットトピック');
     if (!parsed) {
       const m = result.match(/\[[\s\S]*\]/);
-      if (m) parsed = safeJsonParse(m[0], '热门话题-提取');
+      if (m) parsed = safeJsonParse(m[0], 'ホットトピック-抽出');
     }
     if (Array.isArray(parsed)) {
-      // 运营内容安全过滤：兜底删除 AI 可能遗漏的运营相关话题
+      // 運営内容安全フィルタリング：AIが見落としている可能性のある運営関連トピックを兜底的に削除する
       const filtered = parsed.filter(t => !isOperationsTopic(t));
       if (filtered.length < parsed.length) {
-        console.log(`🔒 运营内容过滤: 删除了 ${parsed.length - filtered.length} 个运营相关话题`);
+        console.log(`🔒 運営内容フィルタリング: ${parsed.length - filtered.length} 件の運営関連トピックを削除`);
       }
       return deduplicateTopics(filtered.map(t => ({
         title: t.title || '未命名',
@@ -517,42 +515,42 @@ async function aiSummarizeHotTopics(records) {
       })));
     }
   } catch (e) {
-    console.warn('⚠️ AI 话题解析失败:', e.message);
+    console.warn('⚠️ AI トピック解析に失敗:', e.message);
   }
   
   return fallbackTopicExtraction(records);
 }
 
 // ===== 全局 tag 标准化（唯一入口，所有环节共用）=====
-// ★ 这是防止热门话题重复的核心：AI 返回的 tag 必须在这里统一，
-//   后续的去重、存储、显示全部使用标准化后的值，不会再出现不一致。
+// ★ これはホットトピックの重複を防ぐコア：AIが返すtagはここで一括して標準化し、
+//   後続の重複除去、保存、表示はすべて標準化後の値を使用し、不一致は起こらない。
 const ALLOWED_TAGS = [
   'bug_report', 'gacha', 'knight_order', 'tree_bond', 'event',
   'cosmetic', 'world_boss', 'photo', 'pricing', 'server',
   'social', 'gameplay_balance', 'general'
 ];
 const TAG_MAP = {
-  'Bug/问题反馈': 'bug_report', 'bug/问题反馈': 'bug_report', 'Bug反馈': 'bug_report', 'bug反馈': 'bug_report', 'bug': 'bug_report', 'Bug': 'bug_report', '问题反馈': 'bug_report',
-  '抽卡/ガチャ': 'gacha', '抽卡': 'gacha', 'ガチャ': 'gacha',
-  '骑士团/公会': 'knight_order', '骑士团': 'knight_order', '公会': 'knight_order',
-  '树缘系统': 'tree_bond', '树缘': 'tree_bond',
-  '活动/狂潮': 'event', '狂潮': 'event', '活动': 'event', 'activity': 'event',
-  '时装/皮肤': 'cosmetic', '时装': 'cosmetic', '皮肤': 'cosmetic',
-  '世界Boss': 'world_boss', '世界boss': 'world_boss',
-  '拍照功能': 'photo', '拍照': 'photo',
-  '充值/价格': 'pricing', '充值': 'pricing', '价格': 'pricing',
-  '服务器/合服': 'server', '服务器': 'server', '合服': 'server',
-  '社交互动': 'social', '社交': 'social',
-  '游戏平衡': 'gameplay_balance', '平衡': 'gameplay_balance',
-  '其他讨论': 'general', '其他': 'general', 'other': 'general'
+  'Bug/問題フィードバック': 'bug_report', 'bug/問題フィードバック': 'bug_report', 'Bugフィードバック': 'bug_report', 'bugフィードバック': 'bug_report', 'bug': 'bug_report', 'Bug': 'bug_report', '問題フィードバック': 'bug_report',
+  'ガチャ': 'gacha', 'ガチャ': 'gacha',
+  '騎士団/ギルド': 'knight_order', '騎士団': 'knight_order', 'ギルド': 'knight_order',
+  'ツリーボンドシステム': 'tree_bond', 'ツリーボンド': 'tree_bond',
+  'イベント/マッドセイドン': 'event', 'マッドセイドン': 'event', 'イベント': 'event', 'activity': 'event',
+  '衣装/スキン': 'cosmetic', '衣装': 'cosmetic', 'スキン': 'cosmetic',
+  'ワールドボス': 'world_boss', 'ワールドボス': 'world_boss',
+  '撮影機能': 'photo', '撮影': 'photo',
+  '課金/価格': 'pricing', '課金': 'pricing', '価格': 'pricing',
+  'サーバー/合併': 'server', 'サーバー': 'server', '合併': 'server',
+  'ソーシャルインタラクション': 'social', 'ソーシャル': 'social',
+  'ゲームバランス': 'gameplay_balance', 'バランス': 'gameplay_balance',
+  'その他のディスカッション': 'general', 'その他の': 'general', 'other': 'general'
 };
 function standardizeTag(tag) {
   if (!tag) return 'general';
-  // ★ auto_ 前缀是 AI 哨兵发现的新话题，直接放行，不映射
+  // ★ auto_ プレフィックスはAI哨兵が見つけた新しいトピックであり、そのまま通す
   if (tag.startsWith('auto_')) return tag;
   if (ALLOWED_TAGS.includes(tag)) return tag;
   if (TAG_MAP[tag]) return TAG_MAP[tag];
-  // 模糊匹配：尝试小写/去空格
+  // 模糊マッチ：小文字化/スペース除去
   const lower = tag.trim().toLowerCase();
   for (const [alias, standard] of Object.entries(TAG_MAP)) {
     if (alias.toLowerCase() === lower) return standard;
@@ -561,14 +559,14 @@ function standardizeTag(tag) {
 }
 
 /**
- * 话题去重：合并 AI 返回的重复话题
- * AI 有时会把同一个话题生成多份几乎相同的报告，这里合并处理
- * ★ 先标准化 tag，再按 title+tag 去重，确保不会因为 tag 不一致而漏掉合并
+ * トピックの重複除去：AIが返す重複したトピックをマージする
+ * AIは同じトピックについて複数のほぼ同じレポートを生成することがあり、ここではマージ処理を行う
+ * ★ まずtagを標準化し、title+tagで重複除去し、tagの不一致によるマージ漏れを防ぐ
  */
 function deduplicateTopics(topics) {
   if (!topics || topics.length <= 1) return topics;
   
-  // 第一步：标准化所有 tag
+  // 第1ステップ：すべてのtagを標準化
   for (const topic of topics) {
     topic.tag = standardizeTag(topic.tag);
   }
@@ -576,19 +574,19 @@ function deduplicateTopics(topics) {
   const merged = new Map();
   
   for (const topic of topics) {
-    // 去重 key：标题（去掉空格、统一小写） + 标准化后的标签
+    // 重複キー：タイトル（スペース除去、小文字化）+ 標準化されたタグ
     const key = `${(topic.title || '').replace(/\s+/g, '').toLowerCase()}_${topic.tag}`;
     
     if (merged.has(key)) {
       const existing = merged.get(key);
-      // 合并：累加讨论数，重新计算热度
+      // マージ：議論数を累積し、熱度を再計算
       existing.count = (existing.count || 0) + (topic.count || 0);
       existing.heat = calculateHeat(existing.count, existing.sentiment, existing.tag);
-      // 保留更长的摘要
+      // より長い要約を保持
       if ((topic.summary || '').length > (existing.summary || '').length) {
         existing.summary = topic.summary;
       }
-      // 合并玩家原声
+      // プレイヤーの原声をマージ
       if (topic.representative_quotes && topic.representative_quotes.length > 0) {
         existing.representative_quotes = existing.representative_quotes || [];
         const existingQuotes = new Set(existing.representative_quotes);
@@ -596,7 +594,7 @@ function deduplicateTopics(topics) {
           if (!existingQuotes.has(q)) existing.representative_quotes.push(q);
         }
       }
-      // 合并链接
+      // リンクをマージ
       if (topic.urls && topic.urls.length > 0) {
         existing.urls = existing.urls || [];
         const existingUrls = new Set(existing.urls);
@@ -604,7 +602,7 @@ function deduplicateTopics(topics) {
           if (!existingUrls.has(u)) existing.urls.push(u);
         }
       }
-      // 保留更长的运营建议
+      // より長い運用アドバイスを保持
       if ((topic.action || '').length > (existing.action || '').length) {
         existing.action = topic.action;
       }
@@ -616,22 +614,24 @@ function deduplicateTopics(topics) {
   const result = Array.from(merged.values());
   
   if (result.length < topics.length) {
-    console.log(`   🧹 话题去重: ${topics.length} → ${result.length} 个（合并了 ${topics.length - result.length} 个重复）`);
+    console.log(`   🧹 トピックの重複除去: ${topics.length} → ${result.length} 件（${topics.length - result.length} 件をマージ）`);
   }
   
   return result;
 }
 
 /**
- * AI 热门话题总结（双平台一次性分析，带缓存）
+ * AI 热門话题总结（多平台一次性分析，带缓存）
+ * 支持 Twitter + Discord + 韓国 Lounge 三平台
  */
-async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
+async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords, loungeRecords) {
   const hasTwitter = twitterRecords && twitterRecords.length > 0;
   const hasDiscord = discordRecords && discordRecords.length > 0;
-  const totalRecords = (twitterRecords?.length || 0) + (discordRecords?.length || 0);
+  const hasLounge = loungeRecords && loungeRecords.length > 0;
+  const totalRecords = (twitterRecords?.length || 0) + (discordRecords?.length || 0) + (loungeRecords?.length || 0);
   
-  if (!hasTwitter && !hasDiscord) {
-    return { twitter_topics: [], discord_topics: [] };
+  if (!hasTwitter && !hasDiscord && !hasLounge) {
+    return { twitter_topics: [], discord_topics: [], lounge_topics: [] };
   }
   
   // 检查缓存（只使用有话题的缓存，0话题缓存视为失败）
@@ -639,134 +639,156 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
   if (topicCache.result && 
       (now - topicCache.lastUpdated) < CACHE_TTL_MS &&
       Math.abs(totalRecords - topicCache.recordCount) < 10) {
-    const cachedTotal = (topicCache.result.twitter_topics?.length || 0) + (topicCache.result.discord_topics?.length || 0);
+    const cachedTotal = (topicCache.result.twitter_topics?.length || 0) + (topicCache.result.discord_topics?.length || 0) + (topicCache.result.lounge_topics?.length || 0);
     if (cachedTotal > 0) {
-      console.log('📦 使用 AI 话题缓存结果（1小时内，数据变化小于10条）');
+      console.log('📦 使用 AI 话题缓存结果（1小时内，データ変化小于10条）');
       return topicCache.result;
     }
-    console.log('⚠️ 缓存结果为0话题，跳过缓存，重新分析');
+    console.log('⚠️ キャッシュ結果が0トピックなので、キャッシュをスキップし、再分析');
   }
   
-  // ★ 修复：只缓存有话题的结果，0话题不缓存（失败时允许重试）
   const cacheIfHasTopics = (result) => {
-    const total = (result.twitter_topics?.length || 0) + (result.discord_topics?.length || 0);
+    const total = (result.twitter_topics?.length || 0) + (result.discord_topics?.length || 0) + (result.lounge_topics?.length || 0);
     if (total > 0) {
       topicCache = { result, lastUpdated: now, recordCount: totalRecords };
     }
     return result;
   };
 
-  // 只有一个平台有数据
-  if (hasTwitter && !hasDiscord) {
-    const topics = await aiSummarizeHotTopics(twitterRecords);
-    const result = { twitter_topics: topics, discord_topics: [] };
-    cacheIfHasTopics(result);
-    return result;
+  // 只有一个プラットフォームにデータがある
+  const activePlatforms = [hasTwitter, hasDiscord, hasLounge].filter(Boolean).length;
+  if (activePlatforms === 1) {
+    if (hasTwitter) {
+      const topics = await aiSummarizeHotTopics(twitterRecords);
+      const result = { twitter_topics: topics, discord_topics: [], lounge_topics: [] };
+      cacheIfHasTopics(result);
+      return result;
+    }
+    if (hasDiscord) {
+      const topics = await aiSummarizeHotTopics(discordRecords);
+      const result = { twitter_topics: [], discord_topics: topics, lounge_topics: [] };
+      cacheIfHasTopics(result);
+      return result;
+    }
+    if (hasLounge) {
+      const topics = await aiSummarizeHotTopics(loungeRecords);
+      const result = { twitter_topics: [], discord_topics: [], lounge_topics: topics };
+      cacheIfHasTopics(result);
+      return result;
+    }
   }
-  if (!hasTwitter && hasDiscord) {
-    const topics = await aiSummarizeHotTopics(discordRecords);
-    const result = { twitter_topics: [], discord_topics: topics };
-    cacheIfHasTopics(result);
-    return result;
-  }
   
-  // 双平台：1 次 AI 调用（发完整内容给 DeepSeek）
-  console.log(`🤖 AI 双平台分析：Twitter ${twitterRecords.length} 条 + Discord ${discordRecords.length} 条`);
+  // 複数プラットフォーム：1回のAI呼び出し
+  const platformDesc = [
+    hasTwitter ? `Twitter ${twitterRecords.length} 件` : '',
+    hasDiscord ? `Discord ${discordRecords.length} 件` : '',
+    hasLounge ? `韓国 ${loungeRecords.length} 件` : ''
+  ].filter(Boolean).join(' + ');
+  console.log(`🤖 AI 多プラットフォーム分析：${platformDesc}`);
   
-  const twitterContent = groupRecordsByTag(twitterRecords.slice(0, 15), 'T', false);
-  const discordContent = groupRecordsByTag(discordRecords.slice(0, 15), 'D', false);
+  // コンテンツの構築
+  const contentParts = [];
+  if (hasTwitter) contentParts.push(`== Twitter（日服）プレイヤーのディスカッション ==\n${groupRecordsByTag(twitterRecords.slice(0, 15), 'T', false)}`);
+  if (hasDiscord) contentParts.push(`== Discord（繁中服）プレイヤーのディスカッション ==\n${groupRecordsByTag(discordRecords.slice(0, 15), 'D', false)}`);
+  if (hasLounge) contentParts.push(`== 韓国 Lounge プレイヤーのディスカッション ==\n${groupRecordsByTag(loungeRecords.slice(0, 15), 'K', false)}`);
+  const content = contentParts.join('\n\n');
   
-  const content = `== Twitter（日服）玩家讨论 ==\n${twitterContent}\n\n== Discord（繁中服）玩家讨论 ==\n${discordContent}`;
+  // 番号の説明の構築
+  const idDesc = [
+    hasTwitter ? '[T番号]=Twitter日服発言' : '',
+    hasDiscord ? '[D番号]=Discord繁中服発言' : '',
+    hasLounge ? '[K番号]=韓国Lounge発言' : ''
+  ].filter(Boolean).join('、');
   
-  const prompt = `你是《森之国度》(ツリネバ/TOS Neverland) 游戏的资深运营分析师。
+  // 返却フォーマットの例の構築
+  const returnExample = [];
+  if (hasTwitter) returnExample.push(`"twitter_topics": [{ "title": "SSRドロップ率の議論", "summary": "複数のプレイヤーが100ガチャでゼロSSRを報告", "detail": "3人のプレイヤーが80-120ガチャでゼロSSRを経験した...", "sentiment": "negative", "tag": "gacha", "action": "実際のドロップ率データを公開する", "count": 3, "representative_quotes": [{"text": "100ガチャしてもゼロ", "created_at": "2026/6/17 14:30"}], "urls": ["https://twitter.com/xxx/status/123"] }]`);
+  if (hasDiscord) returnExample.push(`"discord_topics": [同上フォーマット]`);
+  if (hasLounge) returnExample.push(`"lounge_topics": [同上フォーマット]`);
+  
+  const prompt = `你是《森の国度》(ツリネバ/TOS Neverland) 游戏の资深運営アナリスト。
 
-以下是玩家真实发言，已按话题分类。[T编号]=Twitter日服发言，[D编号]=Discord繁中服发言。
+以下是プレイヤーのリアルな発言、既にトピック別に分類されています。${idDesc}。
 
-游戏背景：
-- 树缘：核心社交结缘系统（玩家配对玩法）
-- 骑士团/骑士团战：公会和公会战玩法
-- 狂潮：限时挑战活动
-- ガチャ：抽卡系统
-- IP授权：灵犀互娱与韩国原厂的合作关系
+ゲーム背景：
+- ツリーボンド：コアソーシャルペアリングシステム
+- 騎士団/騎士団戦：ギルドとギルド戦プレイ
+- マッドセイドン：リミテッドチャレンジイベント
+- ガチャ：ガチャシステム
+- IPライセンス：リュシイムタエンと韓国原産とのコラボレーション関係
 
-❗❗❗ 核心要求（必须遵守）：
+❗❗❗ コア要件（遵守しなければならない）：
 
-1. **summary 必须具体**：用 2-3 句话说清楚玩家在聊什么、为什么聊、诉求是什么
-   ❌ 错误示范：“玩家抱怨抽卡问题”
-   ✅ 正确示范：“多名玩家质疑 SSR 掉率过低，有人 100 抽零收获，认为保底机制不透明”
+1. **summary 必須具体的**：2-3文でプレイヤーが何について話しているか、なぜ話しているか、诉求は何かを説明する
+   ❌ 間違いの例："プレイヤーがガチャ問題を抱怨している"
+   ✅ 正しい例："複数のプレイヤーがSSRドロップ率が低すぎると言っている、100ガチャでゼロSSRの人がいる、保証メカニズムが透明でないと思われている"
 
-2. **detail 字段**：用 3-5 句话展开分析：
-   - 具体发生了什么（事件描述）
-   - 玩家的核心情绪和诉求
-   - 影响范围（涉及多少玩家、哪个玩法）
-   - 潜在风险（是否会发酵、是否涉及付费）
+2. **detail フィールド**：3-5文で分析を展開する：
+   - 具体なことが起きた（イベントの説明）
+   - プレイヤーのコアな感情と要求
+   - 影響範囲（どのプレイヤー、どのプレイ）
+   - 潜在的なリスク（発酵する可能性、課金に関連しているかどうか）
 
-3. **representative_quotes 必须有**：直接引用 1-2 条玩家原话（中文），不要编造
-   格式为对象数组：[{"text": "玩家原话", "created_at": "2026/6/17 14:30"}]
-   created_at 从原始数据中获取，格式为 YYYY/MM/DD HH:mm
+3. **representative_quotes 必須ある**：1-2文のプレイヤーの原語を直接引用（偽造しない）
+   オブジェクト配列の形式：[{"text": "プレイヤーの原語", "created_at": "2026/6/17 14:30"}]
+   created_at は元データから取得し、YYYY/MM/DD HH:mm の形式
 
-4. **urls 必须有**：从原始数据的 url 字段提取，每个话题至少放 1 条代表性发言的链接（字符串数组）
+4. **urls 必須ある**：元データの url フィールドから抽出し、各トピックには少なくとも1つの代表的な発言のリンク（文字列配列）
 
-5. **每个有 ≥1 条讨论的标签都生成话题**，只有1条的归入“其他”
+5. **1件以上の議論があるタグごとにトピックを生成**、1件しかない場合は「その他」に分類する
 
-6. **情绪判断**：positive(赞美/期待) / neutral(讨论/询问) / negative(抱怨/批评)
+6. **感情判断**：positive(称賛/期待) / neutral(ディスカッション/質問) / negative(抱怨/批評)
 
-7. **过滤搜索词**："ツリネバ"是游戏名称/Yahoo搜索词，每条都有，不要作为热门话题。同理"TOSN""TOSNeverland"也不算。
+7. **検索ワードをフィルタリング**："ツリネバ"はゲーム名/Yahoo検索ワードであり、すべての行に含まれていますので、ホットトピックにはならない。同様に"TOSN""TOSNeverland"も該当しない。
 
-8. **❗❗ 运营相关内容必须跳过（不生成话题）**：
-   如果玩家讨论的核心是关于"运营/營運/運営/客服/官方态度/官方信用/官方回应/GM管理"等运营团队相关内容，**直接跳过，不要生成这个话题**。
-   判断标准：话题的核心诉求是针对运营团队的行为、态度、信用、沟通方式的批评或不满。
-   注意：如果是纯粹的游戏机制问题（如bug、数值平衡），即使玩家提到了"官方"，也不算运营话题，正常生成即可。
+8. **❗❗ 運営関連の内容はスキップ（トピックを生成しない）**：
+   プレイヤーが「運営/營運/運営/カスタマーサポート/公式態度/公式信用/公式返答/GM管理」などの運営チームに関する内容をコアとして議論している場合、**スキップし、トピックを生成しない**。
+   判断基準：トピックのコアな要求が運営チームの行動、態度、信用、コミュニケーション方法に対する批評や不満である。
+   注意：ゲームメカニズムの問題（バグ、バランス調整など）であっても、プレイヤーが「公式」と言及していても、運営トピックにはならないので、通常通り生成する。
 
-9. **❗❗ tag 必须从以下固定列表中选择（不允许自定义）**：
-   - bug_report (Bug/问题反馈)
-   - gacha (抽卡/ガチャ)
-   - knight_order (骑士团/公会)
-   - tree_bond (树缘系统)
-   - event (活动/狂潮)
-   - cosmetic (时装/皮肤)
-   - world_boss (世界Boss)
-   - photo (拍照功能)
-   - pricing (充值/价格)
-   - server (服务器/合服)
-   - social (社交互动)
-   - gameplay_balance (游戏平衡)
-   - general (其他讨论)
+9. **❗❗ tag は以下の固定リストから選択する（カスタムは許可しない）**：
+   - bug_report (Bug/問題フィードバック)
+   - gacha (ガチャ)
+   - knight_order (騎士団/ギルド)
+   - tree_bond (ツリーボンドシステム)
+   - event (イベント/マッドセイドン)
+   - cosmetic (衣装/スキン)
+   - world_boss (ワールドボス)
+   - photo (撮影機能)
+   - pricing (課金/価格)
+   - server (サーバー/合併)
+   - social (ソーシャルインタラクション)
+   - gameplay_balance (ゲームバランス)
+   - general (その他のディスカッション)
 
-返回 JSON 格式（热度由系统代码计算，你不需要返回 heat 字段）：
+返却 JSON フォーマット（熱度はシステムコードによって計算され、返却しない）：
 {
-  "twitter_topics": [{
-    "title": "SSR掉率争议",  // 中文标题，具体到问题点
-    "summary": "多名玩家反馈百抽无收获，质疑掉率低于宣传的1%",  // 2-3句具体描述
-    "detail": "3名玩家分享抽卡经历，均为80-120抽零SSR。玩家认为官方未公开实际掉率，保底机制不透明，怀疑存在暗改。情绪偏愤怒，涉及付费相关内容，有公关风险。",  // 3-5句深度分析
-    "sentiment": "negative",
-    "tag": "gacha",
-    "action": "公开实际掉率数据，优化保底说明",
-    "count": 3,
-    "representative_quotes": [{"text": "100抽了还是零，这掉率真的合理吗？", "created_at": "2026/6/17 14:30"}, {"text": "保底机制完全不透明", "created_at": "2026/6/17 15:45"}],
-    "urls": ["https://twitter.com/xxx/status/123"]
-  }],
-  "discord_topics": [同上格式]
+  ${returnExample.join(',\n  ')}
 }`;
 
-  const result = await callAI(prompt, content, { maxTokens: 2500, jsonMode: true });
+  const result = await callAI(prompt, content, { maxTokens: 3000, jsonMode: true });
   
   if (!result) {
-    console.log('⚠️ 双平台 AI 失败，降级分别分析');
-    const [tw, dc] = await Promise.all([
-      aiSummarizeHotTopics(twitterRecords),
-      aiSummarizeHotTopics(discordRecords)
+    console.log('⚠️ 多プラットフォーム AI 失敗、降格してそれぞれ分析');
+    const [tw, dc, lg] = await Promise.all([
+      hasTwitter ? aiSummarizeHotTopics(twitterRecords) : Promise.resolve([]),
+      hasDiscord ? aiSummarizeHotTopics(discordRecords) : Promise.resolve([]),
+      hasLounge ? aiSummarizeHotTopics(loungeRecords) : Promise.resolve([])
     ]);
-    const finalResult = { twitter_topics: tw, discord_topics: dc };
+    const finalResult = {
+      twitter_topics: tw,
+      discord_topics: dc,
+      lounge_topics: lg
+    };
     cacheIfHasTopics(finalResult);
     return finalResult;
   }
   
   try {
-    let parsed = safeJsonParse(result, '双平台话题');
+    let parsed = safeJsonParse(result, '多プラットフォームトピック');
     if (!parsed) {
       const m = result.match(/\{[\s\S]*\}/);
-      if (m) parsed = safeJsonParse(m[0], '双平台话题-提取');
+      if (m) parsed = safeJsonParse(m[0], '多プラットフォームトピック-抽出');
     }
     
     if (parsed) {
@@ -783,9 +805,10 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
         urls: t.urls || []
       });
       
-      // 代码校验：按 topic_tag 重新统计真实 count，覆盖 AI 的 count
+      // 代码校验：按 topic_tag で実際の count を再集計し、AIの count を上書き
       const realCounts = {};
-      for (const r of [...twitterRecords, ...discordRecords]) {
+      const allRecords = [...(twitterRecords||[]), ...(discordRecords||[]), ...(loungeRecords||[])];
+      for (const r of allRecords) {
         const tag = r.topic_tag || 'general';
         realCounts[tag] = (realCounts[tag] || 0) + 1;
       }
@@ -797,30 +820,31 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords) {
       
       const filterOps = (topics) => topics.filter(t => !isOperationsTopic(t));
       const finalResult = {
-        twitter_topics: filterOps(applyRealCounts(deduplicateTopics((parsed.twitter_topics || []).map(mapTopic)))),
-        discord_topics: filterOps(applyRealCounts(deduplicateTopics((parsed.discord_topics || []).map(mapTopic))))
+        twitter_topics: hasTwitter ? filterOps(applyRealCounts(deduplicateTopics((parsed.twitter_topics || []).map(mapTopic)))) : [],
+        discord_topics: hasDiscord ? filterOps(applyRealCounts(deduplicateTopics((parsed.discord_topics || []).map(mapTopic)))) : [],
+        lounge_topics: hasLounge ? filterOps(applyRealCounts(deduplicateTopics((parsed.lounge_topics || []).map(mapTopic)))) : []
       };
       cacheIfHasTopics(finalResult);
       return finalResult;
     }
   } catch (e) {
-    console.warn('⚠️ 双平台话题解析失败:', e.message);
+    console.warn('⚠️ 多プラットフォームトピック解析に失敗:', e.message);
   }
   
-  // 降级结果不缓存（每次都重新判断，避免缓存低质量降级数据）
-  const fallback = {
-    twitter_topics: fallbackTopicExtraction(twitterRecords),
-    discord_topics: fallbackTopicExtraction(discordRecords)
+  // 降格結果はキャッシュしない
+  return {
+    twitter_topics: fallbackTopicExtraction(twitterRecords || []),
+    discord_topics: fallbackTopicExtraction(discordRecords || []),
+    lounge_topics: fallbackTopicExtraction(loungeRecords || [])
   };
-  return fallback;
 }
 
 /**
- * 降级方案：基于关键词频率统计话题（简化版）
+ * 降格方案：キーワード頻度に基づいたトピック抽出（簡易版）
  */
 function fallbackTopicExtraction(records) {
   const topicMap = {};
-  // 搜索词黑名单：这些是 Yahoo 搜索关键词，每条都有，不算热门话题
+  // 検索ワードブラックリスト：これらはYahoo検索キーワードであり、すべての行に含まれているので、ホットトピックにはならない
   const blacklist = ['ツリネバ', 'tosn', 'tosneverland', 'tos neverland'];
   
   for (const record of records) {
@@ -830,7 +854,7 @@ function fallbackTopicExtraction(records) {
     for (const kw of keywords) {
       if (!kw || kw.trim().length < 2) continue;
       const normalizedKw = kw.trim().toLowerCase();
-      if (blacklist.includes(normalizedKw)) continue; // 跳过搜索词
+      if (blacklist.includes(normalizedKw)) continue; // 検索ワードをスキップ
       if (!topicMap[normalizedKw]) topicMap[normalizedKw] = { count: 0 };
       topicMap[normalizedKw].count++;
     }
@@ -841,7 +865,7 @@ function fallbackTopicExtraction(records) {
     .slice(0, 8)
     .map(([title, data]) => ({
       title,
-      summary: `共有 ${data.count} 条相关讨论`,
+      summary: `共有 ${data.count} 件の関連ディスカッション`,
       heat: calculateHeat(data.count, 'neutral', ''),
       sentiment: 'neutral',
       tag: 'general',
@@ -851,60 +875,60 @@ function fallbackTopicExtraction(records) {
 }
 
 /**
- * AI 哨兵：从 general 桶中发现新话题集群
- * 每天跑一次，自动归纳总结，自动保存，不需要人工确认
+ * AI 哨兵：'general' バケットから新しいトピッククラスタを発見する
+ * 毎日実行し、自動的に要約し、自動的に保存し、手動確認不要
  * 
- * @param {Array} generalRecords - topic_tag 为 'general' 的发言记录
- * @returns {Promise<Array>} 新发现的话题（tag 带 auto_ 前缀）
+ * @param {Array} generalRecords - topic_tag が 'general' の発言レコード
+ * @returns {Promise<Array>} 新しく見つけたトピック（tag には auto_ プレフィックス）
  */
 async function aiScoutNewTopics(generalRecords) {
   if (!generalRecords || generalRecords.length < 3) {
-    return [];  // 少于 3 条不分析，不值得调 AI
+    return [];  // 3件未満は分析しない、意味がない
   }
   
-  console.log(`🔍 AI 哨兵: 分析 ${generalRecords.length} 条'其他讨论'，探测新话题...`);
+  console.log(`🔍 AI 哨兵: ${generalRecords.length} 件の'その他のディスカッション'を分析し、新しいトピックを検出...`);
   
-  // 准备内容
+  // コンテンツの準備
   const lines = generalRecords.slice(0, 20).map((r, i) => {
     const text = (r.translated_content || r.content || '').substring(0, 120);
-    const url = r.url ? ` (链接:${r.url})` : '';
+    const url = r.url ? ` (リンク:${r.url})` : '';
     return `[${i + 1}] ${text}${url}`;
   });
   const content = lines.join('\n');
   
   const knownTags = 'bug_report, gacha, knight_order, tree_bond, event, cosmetic, world_boss, photo, pricing, server, social, gameplay_balance, general';
   
-  const prompt = `你是《森之国度》游戏的舆情分析师。
+  const prompt = `你是《森の国度》ゲームの舆情アナリスト。
 
-以下是玩家发言中无法归入已知分类（${knownTags}）的部分。
+以下は既知の分類（${knownTags}）に属さないプレイヤーの発言です。
 
-请判断：这里面有没有聚集性的新话题？即多条发言在讨论同一个新内容（比如新系统、新活动、新联动等）。
+新しいトピックが集約されているかどうかを判断してください。つまり、複数の発言が同じ新しい内容（新しいシステム、新しいイベント、新しいコラボなど）について話しているかどうかです。
 
-要求：
-1. 只有明显聚集的话题才返回（至少 3 条发言讨论同一件事）
-2. 如果没有明显的新话题集群，返回空数组 []
-3. 每个新话题用 2-3 句话总结，必须具体
-4. representative_quotes 直接引用玩家原话，不要编造
-5. urls 从原始数据提取
-6. tag 用英文 snake_case，简洁描述新话题（如 pet_system, arena, collab）
+要件：
+1. 明らかに集約されたトピックのみを返す（少なくとも3つの発言が同じことを話している）
+2. 明確な新しいトピッククラスタがない場合は、空配列 [] を返す
+3. 各新しいトピックを2-3文で要約する。具体的でなければなりません
+4. representative_quotes はプレイヤーの原語を直接引用する（偽造しない）
+5. urls は元データから抽出する
+6. tag は英語の snake_case で、新しいトピックを簡潔に説明する（例：pet_system, arena, collab）
 
-返回 JSON 数组：
+返却 JSON 配列：
 [{
-  "title": "宠物系统期待",  // 中文标题
-  "summary": "多名玩家讨论即将上线的宠物系统...",  // 2-3句具体描述
+  "title": "ペットシステム期待",  // 中文タイトル
+  "summary": "複数のプレイヤーが近々リリースされるペットシステムについて...",  // 2-3文具体的な説明
   "sentiment": "positive",
   "tag": "pet_system",
   "count": 5,
-  "representative_quotes": [{"text": "玩家原话", "created_at": "2026/6/10 14:30"}],
+  "representative_quotes": [{"text": "プレイヤーの原語", "created_at": "2026/6/10 14:30"}],
   "urls": ["https://..."]
 }]
 
-如果没有发现新话题集群，返回 []`;
+新しいトピッククラスタが見つからない場合は、[]`;
   
   const result = await callAI(prompt, content, { maxTokens: 1000, jsonMode: true });
   
   if (!result) {
-    console.log('   🔍 AI 哨兵: 调用失败，跳过');
+    console.log('   🔍 AI 哨兵: 呼び出しに失敗、スキップ');
     return [];
   }
   
@@ -912,40 +936,40 @@ async function aiScoutNewTopics(generalRecords) {
     let parsed = safeJsonParse(result, 'AI哨兵');
     if (!parsed) {
       const m = result.match(/\[[\s\S]*\]/);
-      if (m) parsed = safeJsonParse(m[0], 'AI哨兵-提取');
+      if (m) parsed = safeJsonParse(m[0], 'AI哨兵-抽出');
     }
     
     if (Array.isArray(parsed) && parsed.length > 0) {
       const topics = parsed.map(t => ({
         title: t.title || '未命名',
         summary: t.summary || '',
-        detail: t.summary || '',  // 哨兵模式下 summary 作为 detail
+        detail: t.summary || '',  // 哨兵モードでは summary が detail
         sentiment: t.sentiment || 'neutral',
-        tag: `auto_${(t.tag || 'new').replace(/^auto_/, '')}`,  // 强制 auto_ 前缀
+        tag: `auto_${(t.tag || 'new').replace(/^auto_/, '')}`,  // auto_ プレフィックスを強制
         action: '',
         count: t.count || 0,
         heat: calculateHeat(t.count || 0, t.sentiment || 'neutral', ''),
         representative_quotes: t.representative_quotes || [],
         urls: t.urls || []
       }));
-      console.log(`   🆕 AI 哨兵: 发现 ${topics.length} 个新话题`);
-      topics.forEach(t => console.log(`      - ${t.tag}: ${t.title} (${t.count}条)`));
+      console.log(`   🆕 AI 哨兵: ${topics.length} 件の新しいトピックを発見`);
+      topics.forEach(t => console.log(`      - ${t.tag}: ${t.title} (${t.count}件)`));
       return topics;
     } else {
-      console.log('   🔍 AI 哨兵: 未发现新话题集群');
+      console.log('   🔍 AI 哨兵: 新しいトピッククラスタが見つからない');
     }
   } catch (e) {
-    console.warn('   ⚠️ AI 哨兵解析失败:', e.message);
+    console.warn('   ⚠️ AI 哨兵解析に失敗:', e.message);
   }
   
   return [];
 }
 
 /**
- * 七日热门话题 AI 概述（为每个话题生成真正的 summary）
+ * 七日热门话题 AI 概述（各トピックに対して実際の summary を生成する）
  * @param {Object} topicsByTag - { tag: { messages: [...], count, neg, pos, neu } }
  * @param {string} platform - 'twitter' | 'discord'
- * @returns {Object} - { tag: aiSummary } 每个话题的 AI 概述
+ * @returns {Object} - { tag: aiSummary } 各トピックの AI 概要
  */
 let weeklySummaryCache = { result: null, lastUpdated: 0, recordCount: 0 };
 
@@ -953,79 +977,79 @@ async function aiSummarizeWeeklyTopics(topicsByTag, platform) {
   const tags = Object.keys(topicsByTag);
   if (tags.length === 0) return {};
   
-  // 缓存检查（2小时有效）
+  // キャッシュチェック（2時間有効）
   const totalMessages = tags.reduce((sum, tag) => sum + (topicsByTag[tag].count || 0), 0);
   const now = Date.now();
   if (weeklySummaryCache.result && 
       weeklySummaryCache.platform === platform &&
       (now - weeklySummaryCache.lastUpdated) < 2 * 60 * 60 * 1000 &&
       Math.abs(totalMessages - weeklySummaryCache.recordCount) < 5) {
-    console.log('📦 使用七日话题 AI 缓存（2小时内）');
+    console.log('📦 使用七日トピック AI キャッシュ（2時間以内）');
     return weeklySummaryCache.result;
   }
   
   const platformName = platform === 'twitter' ? 'Twitter（日服）' : 'Discord（繁中服）';
   
-  // 构建输入：每个话题取最多8条代表性发言
+  // 入力の構築：各トピックから最大8件の代表的な発言を取得
   let content = '';
   for (const tag of tags) {
     const { messages, count } = topicsByTag[tag];
     const samples = messages.slice(0, 8);
-    content += `\n【${tag}】(${count}条讨论)\n`;
+    content += `\n【${tag}】(${count}件のディスカッション)\n`;
     for (let i = 0; i < samples.length; i++) {
       const m = samples[i];
       const text = m.translated_content || m.content || '';
-      const url = m.url ? ` [链接:${m.url}]` : '';
+      const url = m.url ? ` [リンク:${m.url}]` : '';
       content += `  ${i+1}. "${text.substring(0, 150)}"${url}\n`;
     }
   }
   
-  const prompt = `你是《森之国度》(ツリネバ/TOS Neverland) 游戏的社区运营分析师。
+  const prompt = `你是《森の国度》(ツリネバ/TOS Neverland) 游戏のコミュニティ運営アナリスト。
 
-以下是${platformName}玩家7日内的讨论，已按话题分组。
+以下は${platformName}プレイヤーの7日間のディスカッションで、既にトピック別に分類されています。
 
-游戏背景：
-- 树缘：核心社交结缘系统
-- 骑士团/骑士团战：公会和公会战玩法
-- 狂潮：限时挑战活动
-- ガチャ：抽卡系统
+ゲーム背景：
+- ツリーボンド：コアソーシャルペアリングシステム
+- 騎士団/騎士団戦：ギルドとギルド戦プレイ
+- マッドセイドン：リミテッドチャレンジイベント
+- ガチャ：ガチャシステム
 
-❗❗ 核心要求：
+❗❗ 核心要件：
 
-1. 为每个话题生成 **summary**（概述）：
-   - 用 2-3 句话总结玩家在聊什么、为什么聊、核心诉求是什么
-   - ❌ 错误：“玩家讨论骑士团”
-   - ✅ 正确：“多名玩家分享骑士团战排名经历，对积分机制和花御培养策略展开讨论，部分玩家对未能拿到第一感到遗憾”
+1. 各トピックに対して **summary**（要約）を生成する：
+   - 2-3文でプレイヤーが何について話しているか、なぜ話しているか、コアな要求は何かを説明する
+   - ❌ 間違いの例："プレイヤーが騎士団について話している"
+   - ✅ 正しい例："複数のプレイヤーが騎士団戦のランキング経験を共有し、ポイントメカニズムと花御の育成戦略について議論し、一部のプレイヤーが1位にならなかったことに残念を表している"
 
-2. 返回 JSON 对象，key 为话题 tag，value 为概述字符串：
+2. JSONオブジェクトを返却する。キーはトピックのtag、値は要約文字列：
 {
-  "knight_order": "2-3句概述",
-  "gacha": "2-3句概述",
+  "knight_order": "2-3文の要約",
+  "gacha": "2-3文の要約",
   ...
 }
 
-只返回 JSON，不要其他内容。`;
+他の内容は返却しない。`;
 
-  console.log(`🤖 AI 生成七日话题概述（${platformName}，${tags.length}个话题）`);
+  console.log(`🤖 AI 7日間トピックの要約を生成（${platformName}、${tags.length}件のトピック）`);
   const result = await callAI(prompt, content, { maxTokens: 1200, jsonMode: true });
   
   if (!result) {
-    console.warn('⚠️ 七日话题 AI 概述失败');
+    console.warn('⚠️ 7日間トピック AI 要約に失敗');
     return {};
   }
   
   try {
-    let parsed = safeJsonParse(result, '七日话题概述');
+    let parsed = safeJsonParse(result, '7日間トピックの要約');
     if (!parsed) {
       const m = result.match(/\{[\s\S]*\}/);
-      if (m) parsed = safeJsonParse(m[0], '七日话题概述-提取');
+      if (m) parsed = safeJsonParse(m[0], '7日間トピックの要約-抽出');
     }
     if (parsed && typeof parsed === 'object') {
       weeklySummaryCache = { result: parsed, lastUpdated: now, recordCount: totalMessages, platform };
       return parsed;
     }
   } catch (e) {
-    console.warn('⚠️ 七日话题概述解析失败:', e.message);
+    console.warn('⚠️ 7日間トピックの要約解析に失敗:', e.message);
   }
   
   return {};
@@ -1037,10 +1061,10 @@ module.exports = {
   aiGenerateSummary,
   aiClassifyFeedback,
   aiSummarizeHotTopics,
-  aiSummarizeHotTopicsDual,  // 双平台一次性分析
+  aiSummarizeHotTopicsDual,  // 多プラットフォーム一次性分析
   aiSummarizeWeeklyTopics,   // 七日热门话题AI概述
   batchAnalyze,
-  clearTopicCache,           // 清除话题缓存
-  standardizeTag,            // tag 标准化（全局唯一入口）
-  aiScoutNewTopics,          // AI 哨兵：从 general 桶探测新话题
+  clearTopicCache,           // トピックキャッシュのクリア
+  standardizeTag,            // tag 標準化（グローバル唯一入口）
+  aiScoutNewTopics,          // AI 哨兵：'general' バケットから新しいトピックを検出
 };

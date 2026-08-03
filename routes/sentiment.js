@@ -657,10 +657,11 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
     // 1. 先查今天是否已经有分析结果
     const existing = sentiment.getTodayHotTopics();
     if (existing && !force) {
-      const totalTopics = (existing.twitter_topics?.length || 0) + (existing.discord_topics?.length || 0);
+      const totalTopics = (existing.twitter_topics?.length || 0) + (existing.discord_topics?.length || 0) + (existing.lounge_topics?.length || 0);
       if (totalTopics > 0) {
         sortByHeat(existing.twitter_topics);
         sortByHeat(existing.discord_topics);
+        if (existing.lounge_topics) sortByHeat(existing.lounge_topics);
         console.log('📦 使用已有分析结果（不重复调AI）');
         return res.json({ ok: true, data: existing, cached: true });
       }
@@ -671,13 +672,13 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
     // 2. 检查当日分析锁：同一天只允许调一次 AI
     if (dailyAnalysisLock.date === today && !force) {
       console.log('🔒 今日 AI 分析已执行过，返回空结果（避免重复调用）');
-      return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [] }, cached: true, locked: true });
+      return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [], lounge_topics: [] }, cached: true, locked: true });
     }
     
     // 3. 如果正在分析中，避免并发
     if (dailyAnalysisLock.analyzing) {
       console.log('⏳ AI 分析正在进行中，请稍候...');
-      return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [] }, analyzing: true });
+      return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [], lounge_topics: [] }, analyzing: true });
     }
     
     // 4. 调 AI 分析（先不锁，等成功了再锁）
@@ -688,8 +689,10 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
       console.log(`   周期: ${periodLabel}`);
       const twitterRecords = sentiment.getQualityFeedback(30, 'twitter', startDate, endDate);
       const discordRecords = sentiment.getQualityFeedback(30, 'discord', startDate, endDate);
+      const loungeRecords = sentiment.getLoungeRecordsForAnalysis(startDate, endDate, 30);
       if ((!twitterRecords || twitterRecords.length === 0) &&
-          (!discordRecords || discordRecords.length === 0)) {
+          (!discordRecords || discordRecords.length === 0) &&
+          (!loungeRecords || loungeRecords.length === 0)) {
         dailyAnalysisLock.analyzing = false;
         // ★ 诊断：为什么没数据？
         const cs = sentiment.getCollectionStatus();
@@ -703,18 +706,21 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
           collectionTwitter: cs.twitter?.lastRun || null,
           collectionDiscord: cs.discord?.lastRun || null
         };
-        return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [] }, diagnosis });
+        return res.json({ ok: true, data: { twitter_topics: [], discord_topics: [], lounge_topics: [] }, diagnosis });
       }
-      console.log(`   📝 高质量数据: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条`);
-      const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
+      console.log(`   📝 高质量数据: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条, 韩国 ${loungeRecords.length} 条`);
+      const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords, loungeRecords);
       result.twitter_topics = dedupByTag(result.twitter_topics);
       result.discord_topics = dedupByTag(result.discord_topics);
+      result.lounge_topics = dedupByTag(result.lounge_topics || []);
       sortByHeat(result.twitter_topics);
       sortByHeat(result.discord_topics);
-      const totalTopics = result.twitter_topics.length + result.discord_topics.length;
-      console.log(`✅ AI 生成 ${result.twitter_topics.length} 个 Twitter 话题, ${result.discord_topics.length} 个 Discord 话题`);
+      sortByHeat(result.lounge_topics);
+      const totalTopics = result.twitter_topics.length + result.discord_topics.length + result.lounge_topics.length;
+      console.log(`✅ AI 生成 ${result.twitter_topics.length} 个 Twitter 话题, ${result.discord_topics.length} 个 Discord 话题, ${result.lounge_topics.length} 个韩国话题`);
       if (result.twitter_topics.length > 0) sentiment.saveTopicHistory(result.twitter_topics, 'twitter', true);
       if (result.discord_topics.length > 0) sentiment.saveTopicHistory(result.discord_topics, 'discord', true);
+      if (result.lounge_topics.length > 0) sentiment.saveTopicHistory(result.lounge_topics, 'lounge', true);
       
       // ★ 分析返回0个话题时，返回诊断信息而不是空数据
       if (totalTopics === 0) {
@@ -1019,7 +1025,7 @@ router.get('/api/system/status', (req, res) => {
     
     // 检查今日是否有热门话题分析
     const todayTopics = sentiment.getTodayHotTopics();
-    const hasTopics = todayTopics && (todayTopics.twitter_topics?.length > 0 || todayTopics.discord_topics?.length > 0);
+    const hasTopics = todayTopics && (todayTopics.twitter_topics?.length > 0 || todayTopics.discord_topics?.length > 0 || todayTopics.lounge_topics?.length > 0);
     
     res.json({
       ok: true,
