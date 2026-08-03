@@ -988,7 +988,7 @@ async function aiSummarizeWeeklyTopics(topicsByTag, platform) {
     return weeklySummaryCache.result;
   }
   
-  const platformName = platform === 'twitter' ? 'Twitter（日服）' : 'Discord（繁中服）';
+  const platformName = platform === 'twitter' ? 'Twitter（日服）' : platform === 'discord' ? 'Discord（繁中服）' : 'Naver（韩服）';
   
   // 入力の構築：各トピックから最大8件の代表的な発言を取得
   let content = '';
