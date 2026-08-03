@@ -630,6 +630,31 @@ function getQualityFeedback(limit = 30, platform = null, startDate = null, endDa
   }));
 }
 
+// ===== 韩国帖子正文清洗（与 routes/lounge.js 的 cleanLoungeContent 同步）=====
+function cleanLoungeContent(text) {
+  if (!text) return '';
+  let t = text;
+  t = t.replace(/\d{2,4}[.\/\-]\d{1,2}[.\/\-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/g, ' ');
+  t = t.replace(/\d{1,2}:\d{2}(?::\d{2})?/g, ' ');
+  t = t.replace(/(?:作者|작성자|writer|author)\s*[:：]?\s*\S{1,10}/gi, ' ');
+  t = t.replace(/\b(?:buff|nerf|버프|너프|추천|비추천|공감|비공감)\b/g, ' ');
+  const lines = t.split('\n');
+  const cleaned = [];
+  let prevLine = '', repeatCount = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === prevLine && trimmed.length < 50) {
+      repeatCount++;
+      if (repeatCount <= 2) cleaned.push(trimmed);
+    } else { repeatCount = 0; if (trimmed) cleaned.push(trimmed); }
+    prevLine = trimmed;
+  }
+  t = cleaned.join('\n');
+  t = t.split('\n').filter(l => l.trim().length >= 3).join('\n');
+  t = t.replace(/\n{3,}/g, '\n\n');
+  return t.trim();
+}
+
 // ===== 韩国社区数据查询（用于热门话题分析）=====
 // 打个比方：韩国数据住在另一个“表”里，需要单独叫它来开会
 function getLoungeRecordsForAnalysis(startDate, endDate, limit = 30) {
@@ -653,16 +678,20 @@ function getLoungeRecordsForAnalysis(startDate, endDate, limit = 30) {
       praise: 'general', question: 'general', other: 'general'
     };
     
-    return rows.map(r => ({
-      ...r,
-      platform: 'lounge',
-      content: r.content_zh || r.title_zh || r.content || r.title || '',
-      translated_content: r.content_zh || r.title_zh || '',
-      topic_tag: categoryToTag[r.ai_category] || 'general',
-      source: 'lounge',
-      created_at: r.crawled_at,
-      keywords: '',
-    }));
+    return rows.map(r => {
+      const rawContent = r.content_zh || r.title_zh || r.content || r.title || '';
+      const cleanedContent = cleanLoungeContent(rawContent);
+      return {
+        ...r,
+        platform: 'lounge',
+        content: cleanedContent,
+        translated_content: cleanLoungeContent(r.content_zh || r.title_zh || ''),
+        topic_tag: categoryToTag[r.ai_category] || 'general',
+        source: 'lounge',
+        created_at: r.crawled_at,
+        keywords: '',
+      };
+    });
   } catch (e) {
     console.warn('⚠️ 韩国数据查询失败:', e.message);
     return [];
@@ -2715,15 +2744,18 @@ async function getWeeklyHotTopics() {
       if (!posts || posts.length === 0) return [];
 
       // 构建记录格式（与 getLoungeRecordsForAnalysis 一致）
-      const records = posts.map(p => ({
-        content: p.content_zh || p.title_zh || p.content || p.title || '',
-        translated_content: p.content_zh || p.title_zh || '',
-        url: p.url || '',
-        author: p.author || '',
-        sentiment: p.sentiment || 'neutral',
-        topic_tag: 'general', // 不预设分类，让 AI 识别具体话题
-        created_at: p.crawled_at || '',
-      }));
+      const records = posts.map(p => {
+        const raw = p.content_zh || p.title_zh || p.content || p.title || '';
+        return {
+          content: cleanLoungeContent(raw),
+          translated_content: cleanLoungeContent(p.content_zh || p.title_zh || ''),
+          url: p.url || '',
+          author: p.author || '',
+          sentiment: p.sentiment || 'neutral',
+          topic_tag: 'general',
+          created_at: p.crawled_at || '',
+        };
+      });
 
       // ★ 使用与 Twitter/Discord 相同的 AI 话题识别
       let aiTopics;

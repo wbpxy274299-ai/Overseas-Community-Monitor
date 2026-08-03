@@ -181,6 +181,51 @@ function saveCrawlResult(crawlResult) {
   return { newPosts, newComments };
 }
 
+// ===== 帖子正文清洗 =====
+// 比喻：爬虫抓回来的内容像从垃圾桶里捡出来的，什么都有——评论、时间戳、作者名、按钮文字
+// 这个函数就是“垃圾分类员”，把有用的正文留下，噪音扔掉
+function cleanLoungeContent(text) {
+  if (!text) return '';
+  let t = text;
+
+  // 1. 去掉时间戳模式：07.18、07.19、2024.07.18、14:30、14:30:00
+  t = t.replace(/\d{2,4}[.\/\-]\d{1,2}[.\/\-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/g, ' ');
+  t = t.replace(/\d{1,2}:\d{2}(?::\d{2})?/g, ' ');
+
+  // 2. 去掉常见的作者名前缀模式："作者 xxx"、"xxx 作者"、"작성자 xxx"
+  t = t.replace(/(?:作者|작성자|writer|author)\s*[:：]?\s*\S{1,10}/gi, ' ');
+
+  // 3. 去掉 Naver 按钮/投票文字（这些不是帖子内容）
+  t = t.replace(/\b(?:buff|nerf|버프|너프|추천|비추천|공감|비공감)\b/g, ' ');
+
+  // 4. 去掉重复行（连续3次以上相同的短文本块）
+  const lines = t.split('\n');
+  const cleaned = [];
+  let prevLine = '';
+  let repeatCount = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === prevLine && trimmed.length < 50) {
+      repeatCount++;
+      if (repeatCount <= 2) cleaned.push(trimmed); // 最多保留2次重复
+    } else {
+      repeatCount = 0;
+      if (trimmed) cleaned.push(trimmed);
+    }
+    prevLine = trimmed;
+  }
+  t = cleaned.join('\n');
+
+  // 5. 去掉过短的行（少于3个字符的碎片）
+  t = t.split('\n').filter(l => l.trim().length >= 3).join('\n');
+
+  // 6. 压缩连续空行
+  t = t.replace(/\n{3,}/g, '\n\n');
+
+  // 7. 去掉首尾空白
+  return t.trim();
+}
+
 // ===== 韩文翻译 + AI 分析 =====
 
 /**
@@ -211,11 +256,14 @@ async function translateAndAnalyze(limit = 100) {
         titleZh = await translator.translateKoreanToChinese(post.title);
       }
 
-      // 翻译正文（截断到3000字，省API费用）
+      // 翻译正文（先清洗再去翻译，省API费用 + 提高翻译质量）
       let contentZh = '';
       if (post.content) {
-        const truncated = post.content.substring(0, 3000);
+        const cleaned = cleanLoungeContent(post.content);
+        const truncated = cleaned.substring(0, 3000);
         contentZh = await translator.translateKoreanToChinese(truncated);
+        // 翻译后再清洗一次（去掉翻译残留的噪音）
+        contentZh = cleanLoungeContent(contentZh);
       }
 
       // AI 情感分析 + 分类（简单规则 + DeepSeek 辅助）
@@ -567,6 +615,31 @@ router.post('/api/lounge/crawl', ensureLoggedIn, (req, res) => {
   });
 
   res.json({ success: true, message: '抓取任务已启动，请稍后刷新查看结果' });
+});
+
+// 批量清洗已有脏数据（content 和 content_zh）
+router.post('/api/lounge/clean-content', ensureLoggedIn, async (req, res) => {
+  try {
+    const posts = db.queryAll(
+      `SELECT id, content, content_zh FROM lounge_posts WHERE content IS NOT NULL AND content != ''`
+    );
+    let cleaned = 0;
+    for (const post of posts) {
+      const newContent = cleanLoungeContent(post.content);
+      const newContentZh = post.content_zh ? cleanLoungeContent(post.content_zh) : post.content_zh;
+      if (newContent !== post.content || newContentZh !== post.content_zh) {
+        db.getDb().run(
+          `UPDATE lounge_posts SET content = ?, content_zh = ? WHERE id = ?`,
+          [newContent, newContentZh, post.id]
+        );
+        cleaned++;
+      }
+    }
+    db.saveDb();
+    res.json({ success: true, message: `清洗完成，共处理 ${posts.length} 条，更新 ${cleaned} 条` });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // 获取游戏列表
