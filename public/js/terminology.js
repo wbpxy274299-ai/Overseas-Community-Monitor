@@ -77,7 +77,7 @@ function renderSearchResults(results, query, countEl, container) {
 
   let html = '<table class="data-table"><thead><tr>';
   LANG_COL_HEADERS.forEach(c => html += `<th>${c.label}</th>`);
-  html += '<th>📁 分类</th></tr></thead><tbody>';
+  html += '</tr></thead><tbody>';
 
   results.forEach(r => {
     html += '<tr>';
@@ -86,8 +86,7 @@ function renderSearchResults(results, query, countEl, container) {
       const hl = query && val ? val.replace(new RegExp(`(${escReg(query)})`, 'gi'), '<mark>$1</mark>') : esc(val);
       html += `<td>${hl}</td>`;
     });
-    const cat = [r.category, r.subCategory1, r.subCategory2].filter(Boolean).join(' > ');
-    html += `<td class="cat-cell">${esc(cat)}</td></tr>`;
+    html += '</tr>';
   });
   html += '</tbody></table>';
   container.innerHTML = html;
@@ -121,12 +120,12 @@ function renderCheckResult(matches, text, container) {
   let html = `<p class="found-count">发现 <strong>${matches.length}</strong> 个游戏术语</p>`;
   html += '<table class="data-table"><thead><tr><th>#</th>';
   LANG_COL_HEADERS.forEach(c => html += `<th>${c.label}</th>`);
-  html += '<th>📁 分类</th></tr></thead><tbody>';
+  html += '</tr></thead><tbody>';
 
   matches.forEach((m, i) => {
     html += `<tr><td>${i + 1}</td>`;
     LANG_COL_HEADERS.forEach(c => html += `<td>${esc(m[c.key] || '')}</td>`);
-    html += `<td class="cat-cell">${esc(m.category || '')}</td></tr>`;
+    html += '</tr>';
   });
   html += '</tbody></table>';
   container.innerHTML = html;

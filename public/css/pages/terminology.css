@@ -126,12 +126,15 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
 }
 .data-table th, .data-table td {
   padding: 6px 10px;
   border: 1px solid var(--color-border);
   text-align: left;
   color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .data-table th {
   background: var(--color-card-bg, var(--color-surface));
