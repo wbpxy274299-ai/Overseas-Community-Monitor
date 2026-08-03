@@ -32,6 +32,7 @@
       <button class="admin-tab active" onclick="switchTab('users')">👥 用户权限</button>
       <button class="admin-tab" onclick="switchTab('tokens')">🔑 Token 管理</button>
       <button class="admin-tab" onclick="switchTab('channels')">📡 DC 频道编辑</button>
+      <button class="admin-tab" onclick="switchTab('database')">🗄️ 数据库管理</button>
       <button class="admin-tab" id="feedbackTabBtn" onclick="switchTab('feedback')" style="display:none;">💬 意见反馈</button>
     </div>
 
@@ -92,6 +93,57 @@
       <!-- 频道列表 -->
       <div id="channelList" class="channel-list">
         <div class="loading">加载中...</div>
+      </div>
+    </div>
+
+    <!-- Tab: 数据库管理 -->
+    <div class="admin-tab-content" id="tab-database">
+      <!-- 概览层 -->
+      <div id="db-overview">
+        <div class="admin-section-header">
+          <h2>🗄️ 数据库管理</h2>
+          <p>查看所有数据表的存储情况，管理历史数据</p>
+        </div>
+        <div class="db-stats-bar" id="dbStatsBar">
+          <span class="db-stat-item">⚙️ 加载中...</span>
+        </div>
+        <div class="db-table-grid" id="dbTableGrid">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+      <!-- 详情层（初始隐藏） -->
+      <div id="db-detail" style="display:none;">
+        <div class="db-detail-header">
+          <button class="btn-db-back" onclick="showDbOverview()">← 返回概览</button>
+          <h3 id="dbDetailTitle" class="db-detail-title">表名</h3>
+        </div>
+        <div class="db-toolbar">
+          <input type="text" id="dbSearchInput" placeholder="搜索关键词..." class="db-search-input" onkeydown="if(event.key==='Enter')doDbSearch()">
+          <button class="btn-db-search" onclick="doDbSearch()">🔍 搜索</button>
+          <button class="btn-db-refresh" onclick="refreshDbTable()">↻ 刷新</button>
+          <button class="btn-db-batch-del" id="btnBatchDel" onclick="batchDeleteSelected()" style="display:none;">🗑️ 批量删除 (<span id="batchCount">0</span>)</button>
+        </div>
+        <div class="db-table-wrap">
+          <table class="db-data-table">
+            <thead id="dbTableHead"><tr></tr></thead>
+            <tbody id="dbTableBody"><tr><td class="loading">加载中...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="db-pagination" id="dbPagination"></div>
+      </div>
+      <!-- 编辑弹窗 -->
+      <div class="db-modal-overlay" id="dbEditModal" style="display:none;" onclick="if(event.target===this)closeDbEditModal()">
+        <div class="db-modal">
+          <div class="db-modal-header">
+            <h4 id="dbEditTitle">编辑记录</h4>
+            <button class="btn-modal-close" onclick="closeDbEditModal()">&times;</button>
+          </div>
+          <div class="db-modal-body" id="dbEditBody"></div>
+          <div class="db-modal-footer">
+            <button class="btn-db-save" onclick="saveDbEdit()">💾 保存</button>
+            <button class="btn-db-cancel" onclick="closeDbEditModal()">取消</button>
+          </div>
+        </div>
       </div>
     </div>
 

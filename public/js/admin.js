@@ -273,6 +273,7 @@ function switchTab(tab) {
   if (tab === 'tokens') loadTokens();
   if (tab === 'channels') loadChannels();
   if (tab === 'feedback') loadFeedback();
+  if (tab === 'database') loadDbOverview();
 }
 
 // ===== Token 管理 =====
@@ -528,6 +529,294 @@ async function markFeedbackResolved(id) {
   } catch (e) { Toast.error('网络错误'); }
 }
 
+// ===== 数据库管理 =====
+let dbState = { table: null, page: 1, search: '', columns: [] };
+
+async function loadDbOverview() {
+  showDbOverview();
+  try {
+    const [statsRes, tablesRes] = await Promise.all([
+      fetch('/api/admin/db/stats', { credentials: 'same-origin' }),
+      fetch('/api/admin/db/tables', { credentials: 'same-origin' }),
+    ]);
+    const stats = await statsRes.json();
+    const tables = await tablesRes.json();
+    
+    if (stats.ok) {
+      document.getElementById('dbStatsBar').innerHTML = `
+        <span class="db-stat-item">💾 文件大小: <strong>${stats.data.fileSizeHuman}</strong></span>
+        <span class="db-stat-item">📊 表数: <strong>${stats.data.totalTables}</strong></span>
+        <span class="db-stat-item">📝 总行数: <strong>${stats.data.totalRows.toLocaleString()}</strong></span>
+      `;
+    }
+    
+    if (tables.ok) {
+      renderDbTableGrid(tables.data);
+    }
+  } catch (e) {
+    document.getElementById('dbTableGrid').innerHTML = '<div class="empty-state">加载失败: ' + e.message + '</div>';
+  }
+}
+
+function renderDbTableGrid(tables) {
+  const grid = document.getElementById('dbTableGrid');
+  if (!tables.length) { grid.innerHTML = '<div class="empty-state">无可管理的表</div>'; return; }
+  
+  const ICONS = {
+    sentiment_records: '🐦', lounge_posts: '🇰🇷', lounge_comments: '💬',
+    lounge_daily_reports: '📊', topic_history: '🔥', daily_snapshots: '📸',
+    feedbacks: '💌', insights_reports: '🔍', weekly_reports: '📋',
+  };
+  
+  grid.innerHTML = tables.map(t => {
+    const icon = ICONS[t.name] || '📄';
+    const statusClass = t.rows === 0 ? 'db-card-empty' : t.rows > 1000 ? 'db-card-full' : 'db-card-normal';
+    const timeStr = t.latestAt ? formatTimestamp(t.latestAt) : '—';
+    return `
+    <div class="db-table-card ${statusClass}" onclick="openDbTable('${t.name}', '${escapeHtml(t.label)}')">
+      <div class="db-card-icon">${icon}</div>
+      <div class="db-card-info">
+        <div class="db-card-label">${escapeHtml(t.label)}</div>
+        <div class="db-card-name">${t.name}</div>
+      </div>
+      <div class="db-card-stats">
+        <span class="db-card-rows">${t.rows.toLocaleString()} 行</span>
+        <span class="db-card-time">${timeStr}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showDbOverview() {
+  document.getElementById('db-overview').style.display = '';
+  document.getElementById('db-detail').style.display = 'none';
+  dbState.table = null;
+}
+
+async function openDbTable(tableName, label) {
+  dbState.table = tableName;
+  dbState.page = 1;
+  dbState.search = '';
+  document.getElementById('dbSearchInput').value = '';
+  document.getElementById('db-overview').style.display = 'none';
+  document.getElementById('db-detail').style.display = '';
+  document.getElementById('dbDetailTitle').textContent = label || tableName;
+  await loadTableData();
+}
+
+async function loadTableData() {
+  if (!dbState.table) return;
+  const tbody = document.getElementById('dbTableBody');
+  tbody.innerHTML = '<tr><td class="loading">加载中...</td></tr>';
+  
+  try {
+    const params = new URLSearchParams({ page: dbState.page, size: 50 });
+    if (dbState.search) params.set('search', dbState.search);
+    
+    const res = await fetch(`/api/admin/db/tables/${dbState.table}?${params}`, { credentials: 'same-origin' });
+    const data = await res.json();
+    if (!data.ok) { tbody.innerHTML = `<tr><td class="empty-state">加载失败: ${data.error}</td></tr>`; return; }
+    
+    dbState.columns = data.data.columns || [];
+    renderDbTable(data.data);
+    renderDbPagination(data.data.pagination);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td class="empty-state">网络错误: ${e.message}</td></tr>`;
+  }
+}
+
+function renderDbTable(data) {
+  const thead = document.getElementById('dbTableHead');
+  const tbody = document.getElementById('dbTableBody');
+  const cols = data.columns || [];
+  const rows = data.rows || [];
+  const pk = cols.find(c => c.pk)?.name || 'id';
+  
+  // 表头
+  const showCols = cols.filter(c => !['content', 'content_zh', 'data_json', 'ai_topics_json', 'picture'].includes(c.name));
+  thead.innerHTML = '<tr>' +
+    '<th><input type="checkbox" onchange="toggleAllDbRows(this)"></th>' +
+    showCols.map(c => `<th title="${c.type}">${c.name}</th>`).join('') +
+    '<th>操作</th></tr>';
+  
+  // 表体
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="${showCols.length + 2}" class="empty-state">暂无数据</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = rows.map(row => {
+    const id = row[pk];
+    const cells = showCols.map(c => {
+      let val = row[c.name];
+      if (val === null || val === undefined) return '<td class="db-cell-null">NULL</td>';
+      val = String(val);
+      if (val.length > 80) val = val.substring(0, 80) + '...';
+      return `<td title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
+    }).join('');
+    
+    const isLoungePost = dbState.table === 'lounge_posts';
+    const actions = [
+      `<button class="btn-db-action btn-edit" onclick="editDbRecord(${id})">✏️</button>`,
+      `<button class="btn-db-action btn-del" onclick="deleteDbRecord(${id})">🗑️</button>`,
+      isLoungePost ? `<button class="btn-db-action btn-recrawl" onclick="recrawlDbPost('${row.post_id || ''}')" title="重爬">🔄</button>` : '',
+    ].join('');
+    
+    return `<tr><td><input type="checkbox" class="db-row-check" value="${id}" onchange="updateBatchCount()"></td>${cells}<td>${actions}</td></tr>`;
+  }).join('');
+}
+
+function renderDbPagination(pg) {
+  const el = document.getElementById('dbPagination');
+  if (!pg || pg.totalPages <= 1) { el.innerHTML = ''; return; }
+  let html = '';
+  if (pg.page > 1) html += `<button onclick="goDbPage(${pg.page - 1})">« 上一页</button>`;
+  html += `<span>第 ${pg.page} / ${pg.totalPages} 页 (${pg.total} 条)</span>`;
+  if (pg.page < pg.totalPages) html += `<button onclick="goDbPage(${pg.page + 1})">下一页 »</button>`;
+  el.innerHTML = html;
+}
+
+function goDbPage(page) { dbState.page = page; loadTableData(); }
+function doDbSearch() { dbState.search = document.getElementById('dbSearchInput').value.trim(); dbState.page = 1; loadTableData(); }
+function refreshDbTable() { loadTableData(); }
+
+function toggleAllDbRows(masterCb) {
+  document.querySelectorAll('.db-row-check').forEach(cb => { cb.checked = masterCb.checked; });
+  updateBatchCount();
+}
+
+function updateBatchCount() {
+  const checked = document.querySelectorAll('.db-row-check:checked').length;
+  const btn = document.getElementById('btnBatchDel');
+  document.getElementById('batchCount').textContent = checked;
+  btn.style.display = checked > 0 ? '' : 'none';
+}
+
+async function editDbRecord(id) {
+  try {
+    const res = await fetch(`/api/admin/db/tables/${dbState.table}/${id}`, { credentials: 'same-origin' });
+    const data = await res.json();
+    if (!data.ok) { Toast.error('加载失败: ' + data.error); return; }
+    
+    const row = data.data;
+    const cols = dbState.columns;
+    const pk = cols.find(c => c.pk)?.name || 'id';
+    
+    document.getElementById('dbEditTitle').textContent = `编辑 ${dbState.table} #${id}`;
+    document.getElementById('dbEditBody').innerHTML = cols.map(c => {
+      const val = row[c.name] ?? '';
+      const isPk = c.pk;
+      const isLong = c.type && c.type.toUpperCase().includes('TEXT') && String(val).length > 100;
+      if (isPk) {
+        return `<div class="db-edit-field"><label>${c.name} (主键)</label><input type="text" value="${escapeHtml(String(val))}" disabled></div>`;
+      }
+      if (isLong) {
+        return `<div class="db-edit-field"><label>${c.name}</label><textarea rows="4" data-col="${c.name}">${escapeHtml(String(val))}</textarea></div>`;
+      }
+      return `<div class="db-edit-field"><label>${c.name}</label><input type="text" data-col="${c.name}" value="${escapeHtml(String(val))}"></div>`;
+    }).join('');
+    
+    document.getElementById('dbEditModal').style.display = '';
+    document.getElementById('dbEditModal').dataset.id = id;
+  } catch (e) {
+    Toast.error('网络错误: ' + e.message);
+  }
+}
+
+function closeDbEditModal() {
+  document.getElementById('dbEditModal').style.display = 'none';
+}
+
+async function saveDbEdit() {
+  const id = document.getElementById('dbEditModal').dataset.id;
+  const fields = {};
+  document.querySelectorAll('#dbEditBody [data-col]').forEach(el => {
+    fields[el.dataset.col] = el.value;
+  });
+  
+  try {
+    const res = await fetch(`/api/admin/db/tables/${dbState.table}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+      credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      Toast.success('更新成功');
+      closeDbEditModal();
+      loadTableData();
+    } else {
+      Toast.error('更新失败: ' + data.error);
+    }
+  } catch (e) {
+    Toast.error('网络错误: ' + e.message);
+  }
+}
+
+async function deleteDbRecord(id) {
+  if (!confirm(`确定要删除这条记录吗？`)) return;
+  try {
+    const res = await fetch(`/api/admin/db/tables/${dbState.table}/${id}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      Toast.success('已删除');
+      loadTableData();
+    } else {
+      Toast.error('删除失败: ' + data.error);
+    }
+  } catch (e) {
+    Toast.error('网络错误: ' + e.message);
+  }
+}
+
+async function batchDeleteSelected() {
+  const ids = Array.from(document.querySelectorAll('.db-row-check:checked')).map(cb => parseInt(cb.value));
+  if (!ids.length) return;
+  if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？此操作不可撤销！`)) return;
+  
+  try {
+    const res = await fetch(`/api/admin/db/tables/${dbState.table}/batch-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+      credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      Toast.success(data.message);
+      loadTableData();
+    } else {
+      Toast.error('删除失败: ' + data.error);
+    }
+  } catch (e) {
+    Toast.error('网络错误: ' + e.message);
+  }
+}
+
+async function recrawlDbPost(postId) {
+  if (!postId) { Toast.warning('帖子无 ID'); return; }
+  if (!confirm(`确定要重新爬取帖子 ${postId} 吗？`)) return;
+  
+  try {
+    const res = await fetch(`/api/admin/db/recrawl/${postId}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      Toast.success(data.message);
+    } else {
+      Toast.error('重爬失败: ' + data.error);
+    }
+  } catch (e) {
+    Toast.error('网络错误: ' + e.message);
+  }
+}
+
 // 页面加载时初始化
 window.addEventListener('DOMContentLoaded', () => {
   const user = getCurrentUser();
@@ -541,5 +830,16 @@ window.addEventListener('DOMContentLoaded', () => {
   if (user.role === 'super_admin') {
     const fbBtn = document.getElementById('feedbackTabBtn');
     if (fbBtn) fbBtn.style.display = '';
+  }
+  // 如果 URL hash 是 #database，自动切换到数据库管理 Tab
+  if (location.hash === '#database') {
+    const dbTabBtn = document.querySelector('.admin-tab[onclick*="database"]');
+    if (dbTabBtn) {
+      document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+      dbTabBtn.classList.add('active');
+      document.getElementById('tab-database').classList.add('active');
+      loadDbOverview();
+    }
   }
 });

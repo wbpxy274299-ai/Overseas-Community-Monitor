@@ -187,7 +187,7 @@ function saveCrawlResult(crawlResult) {
  * 对未翻译的帖子进行韩文→中文翻译和AI情感分析
  * 比喻：间谍把情报带回来了，现在让翻译官和分析师处理
  */
-async function translateAndAnalyze(limit = 20) {
+async function translateAndAnalyze(limit = 100) {
   const untranslated = db.queryAll(
     `SELECT id, post_id, title, content FROM lounge_posts
      WHERE content_zh IS NULL AND content IS NOT NULL AND content != ''
@@ -423,7 +423,7 @@ async function fullCrawlPipeline(options = {}) {
   const saved = saveCrawlResult(crawlResult);
 
   // 第三步：翻译 + AI分析
-  const translated = await translateAndAnalyze(options.translateLimit || 20);
+  const translated = await translateAndAnalyze(options.translateLimit || 100);
 
   // 第四步：生成日报
   const reports = [];
@@ -583,3 +583,23 @@ module.exports.fullCrawlPipeline = fullCrawlPipeline;
 module.exports.saveCrawlResult = saveCrawlResult;
 module.exports.translateAndAnalyze = translateAndAnalyze;
 module.exports.generateDailyReport = generateDailyReport;
+
+// ===== 获取今日韩国数据统计（调度器调用）=====
+function getTodayStats() {
+  try {
+    const stats = db.queryOne(`
+      SELECT
+        COUNT(*) as posts,
+        SUM(CASE WHEN content_zh IS NOT NULL AND content_zh != '' THEN 1 ELSE 0 END) as translated,
+        SUM(CASE WHEN sentiment='positive' THEN 1 ELSE 0 END) as positive,
+        SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END) as negative,
+        SUM(CASE WHEN sentiment='neutral' THEN 1 ELSE 0 END) as neutral
+      FROM lounge_posts
+      WHERE author != 'GM 티메이' AND author != 'GM티메이'
+    `);
+    return stats || { posts: 0, translated: 0, positive: 0, negative: 0, neutral: 0 };
+  } catch (_) {
+    return null;
+  }
+}
+module.exports.getTodayStats = getTodayStats;

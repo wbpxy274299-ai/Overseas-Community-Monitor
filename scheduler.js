@@ -350,15 +350,16 @@ function checkScheduledJobs() {
     }
   }
   
-  // 2. 每日 9:00 舆情快照保存（需等待采集任务完成）
+  // 2. 每日舆情快照保存（安全网：10:00后如果还没存，自动存一份）
+  //    主触发点在 dailyAnalysisTask 分析完成后自动调，这里只是保险
   if (lastRunDates.dailySnapshot !== today) {
-    if (currentHour >= 9) {
+    if (currentHour >= 10) {
       if (sentiment.getIsCollecting()) {
         console.log('⏳ 采集进行中，快照等待下一轮...');
       } else {
-        console.log('⏰ 触发每日舆情快照保存（补跑/定时）');
+        console.log('⏰ 触发每日舆情快照保存（保险补跑）');
         lastRunDates.dailySnapshot = today;
-        saveState();  // 持久化
+        saveState();
         saveDailySnapshotTask().then(() => {
           taskRunLog.dailySnapshot = { lastRun: new Date().toISOString(), success: true, message: '完成' };
         }).catch(e => {
@@ -413,11 +414,11 @@ function checkScheduledJobs() {
     }
   }
 
-  // 5. 韩国社区抓取（每天 9:00 和 21:00 各执行一次）
+  // 5. 韩国社区抓取（每天 9:00~9:59 和 21:00~21:59 各执行一次，1小时窗口防错过）
   if (loungeModule && loungeModule.fullCrawlPipeline) {
     const loungeKey = `loungeCrawl_${currentHour < 12 ? 'am' : 'pm'}`;
     if (lastRunDates[loungeKey] !== today) {
-      if ((currentHour === 9 || currentHour === 21) && currentMinute < 5) {
+      if ((currentHour === 9 || currentHour === 21) && !sentiment.getIsCollecting()) {
         console.log('⏰ 触发韩国社区定时抓取');
         lastRunDates[loungeKey] = today;
         saveState();
@@ -486,6 +487,36 @@ async function dailyAnalysisTask() {
     // 第三步：回填缺失的 AI 情感分析
     console.log('\n🔄 第三步：回填缺失的 AI 情感分析...');
     await sentiment.backfillAISentiment();
+
+    // 第四步：韩国社区数据统计（纳入日报）
+    if (loungeModule && loungeModule.fullCrawlPipeline) {
+      console.log('\n🇰🇷 第四步：检查韩国社区数据...');
+      try {
+        const loungeStats = loungeModule.getTodayStats ? loungeModule.getTodayStats() : null;
+        if (loungeStats) {
+          console.log(`   韩国帖子: ${loungeStats.posts || 0} 条, 已翻译: ${loungeStats.translated || 0} 条`);
+        }
+        // 如果今天还没抓过韩国数据，补抓一次
+        const loungeKey = `loungeCrawl_${new Date().getHours() < 12 ? 'am' : 'pm'}`;
+        if (lastRunDates[loungeKey] !== todayStr()) {
+          console.log('   ⏰ 今日未抓取韩国社区，补充抓取...');
+          lastRunDates[loungeKey] = todayStr();
+          saveState();
+          await loungeCrawlTask();
+        }
+      } catch (e) {
+        console.warn('   ⚠️ 韩国数据统计异常:', e.message);
+      }
+    }
+
+    // 第五步：分析完成后自动存快照（不用等到9点/10点）
+    if (lastRunDates.dailySnapshot !== todayStr()) {
+      console.log('\n📊 第五步：分析完成，自动保存今日快照...');
+      lastRunDates.dailySnapshot = todayStr();
+      saveState();
+      await saveDailySnapshotTask();
+      taskRunLog.dailySnapshot = { lastRun: new Date().toISOString(), success: true, message: '分析后自动保存' };
+    }
   } catch (e) {
     console.error('❌ 每日日报任务异常:', e.message);
     console.error(e.stack);

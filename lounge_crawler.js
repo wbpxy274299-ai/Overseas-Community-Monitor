@@ -765,9 +765,70 @@ async function crawlLounge(options = {}) {
   return result;
 }
 
+// ===== 单帖重爬（管理后台调用）=====
+
+/**
+ * 重新爬取指定帖子的内容和评论
+ * @param {string} postId - Lounge 原始帖子ID
+ * @returns {Object} { success, message, detail }
+ */
+async function recrawlPost(postId) {
+  // 查帖子信息
+  const post = db.queryOne('SELECT * FROM lounge_posts WHERE post_id = ?', [postId]);
+  if (!post) return { success: false, message: '帖子不存在' };
+  if (!post.url) return { success: false, message: '帖子无URL，无法重爬' };
+
+  let browser = null;
+  try {
+    const proxyArgs = getProxyArgs();
+    const launchOpts = {
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', ...proxyArgs.args],
+    };
+    const chromePath = findChromePath();
+    if (chromePath) launchOpts.executablePath = chromePath;
+    browser = await puppeteer.launch(launchOpts);
+
+    const detail = await crawlPostDetail(browser, {
+      url: post.url,
+      id: postId,
+      title: post.title,
+    });
+
+    // 更新数据库
+    if (detail.content) {
+      db.getDb().run(
+        `UPDATE lounge_posts SET content = ?, images = ? WHERE post_id = ?`,
+        [detail.content, JSON.stringify(detail.images || []), postId]
+      );
+    }
+
+    // 更新评论（先删旧的，再插新的）
+    db.getDb().run('DELETE FROM lounge_comments WHERE post_id = ?', [postId]);
+    for (const comment of (detail.comments || [])) {
+      db.getDb().run(
+        `INSERT INTO lounge_comments (post_id, game_code, author, content, comment_time, likes, crawled_at)
+         VALUES (?, ?, ?, ?, ?, ?, datetime('now','+8 hours'))`,
+        [postId, post.game_code, comment.author, comment.text,
+         comment.time, parseInt(comment.likes) || 0]
+      );
+    }
+    db.saveDb();
+
+    console.log(`  [重爬] 帖子 ${postId} 更新完成：评论 ${detail.comments?.length || 0} 条`);
+    return { success: true, message: '重爬完成', detail: { content: detail.content?.substring(0, 100), comments: detail.comments?.length || 0 } };
+  } catch (e) {
+    console.error(`  [重爬] 帖子 ${postId} 失败:`, e.message);
+    return { success: false, message: e.message };
+  } finally {
+    if (browser) try { await browser.close(); } catch (_) {}
+  }
+}
+
 // ===== 导出 =====
 module.exports = {
   crawlLounge,
   getCrawlStatus,
+  recrawlPost,
   LOUNGE_CONFIG,
 };

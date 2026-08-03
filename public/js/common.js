@@ -91,7 +91,8 @@ function renderNav() {
       { path: '/terminology', label: '📖 术语校对', icon: '📖', match: p => p.startsWith('/terminology'), minRole: 'viewer' },
     ]},
     { label: '权限管理', items: [
-      { path: '/admin', label: '🔐 权限管理', icon: '🔐', match: p => p === '/admin', minRole: 'admin' },
+      { path: '/admin', label: '🔐 权限管理', icon: '🔐', match: p => p === '/admin' && !location.hash.includes('database'), minRole: 'admin' },
+      { path: '/admin#database', label: '🗄️ 数据库管理', icon: '🗄️', match: p => p === '/admin' && location.hash.includes('database'), minRole: 'admin' },
     ]},
   ];
   

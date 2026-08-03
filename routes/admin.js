@@ -478,6 +478,265 @@ router.get('/api/admin/insights/:id', requireRole('super_admin'), (req, res) => 
   }
 });
 
+// ===== 数据库管理 API =====
+
+// 白名单：只允许管理这些表
+const DB_MANAGEABLE_TABLES = [
+  'sentiment_records', 'lounge_posts', 'lounge_comments',
+  'lounge_daily_reports', 'topic_history', 'daily_snapshots',
+  'feedbacks', 'insights_reports', 'weekly_reports',
+];
+
+// 每张表的主键列和时间列
+const TABLE_META = {
+  sentiment_records: { pk: 'id', timeCol: 'created_at', label: '舆情记录' },
+  lounge_posts:       { pk: 'id', timeCol: 'crawled_at', label: '韩国帖子' },
+  lounge_comments:    { pk: 'id', timeCol: 'crawled_at', label: '韩国评论' },
+  lounge_daily_reports:{ pk: 'id', timeCol: 'created_at', label: '韩国日报' },
+  topic_history:      { pk: 'id', timeCol: 'created_at', label: '话题历史' },
+  daily_snapshots:    { pk: 'id', timeCol: 'created_at', label: '每日快照' },
+  feedbacks:          { pk: 'id', timeCol: 'created_at', label: '用户反馈' },
+  insights_reports:   { pk: 'id', timeCol: 'created_at', label: '洞察报告' },
+  weekly_reports:     { pk: 'id', timeCol: 'created_at', label: '周报' },
+};
+
+function isValidTable(name) {
+  return DB_MANAGEABLE_TABLES.includes(name);
+}
+
+// GET /api/admin/db/stats — 数据库整体统计
+router.get('/api/admin/db/stats', requireRole('admin', 'super_admin'), (req, res) => {
+  try {
+    const { DB_PATH } = require('../config');
+    const fs = require('fs');
+    let fileSize = 0;
+    try { fileSize = fs.statSync(DB_PATH).size; } catch (_) {}
+    
+    // 查所有表名
+    const tables = db.queryAll("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
+    let totalRows = 0;
+    const tableStats = [];
+    for (const t of tables) {
+      try {
+        const row = db.queryOne(`SELECT COUNT(*) as cnt FROM "${t.name}"`);
+        const cnt = row?.cnt || 0;
+        totalRows += cnt;
+        tableStats.push({ name: t.name, rows: cnt });
+      } catch (_) {}
+    }
+    
+    res.json({
+      ok: true,
+      data: {
+        fileSize,
+        fileSizeHuman: fileSize > 1048576 ? (fileSize / 1048576).toFixed(1) + ' MB' : (fileSize / 1024).toFixed(1) + ' KB',
+        totalTables: tables.length,
+        totalRows,
+        tables: tableStats,
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/admin/db/tables — 列出可管理表 + 行数 + 最新记录时间
+router.get('/api/admin/db/tables', requireRole('admin', 'super_admin'), (req, res) => {
+  try {
+    const result = [];
+    for (const tableName of DB_MANAGEABLE_TABLES) {
+      const meta = TABLE_META[tableName] || {};
+      let rowCount = 0, latestAt = null;
+      try {
+        const cntRow = db.queryOne(`SELECT COUNT(*) as cnt FROM "${tableName}"`);
+        rowCount = cntRow?.cnt || 0;
+      } catch (_) {}
+      if (meta.timeCol) {
+        try {
+          const latest = db.queryOne(`SELECT MAX("${meta.timeCol}") as latest FROM "${tableName}"`);
+          latestAt = latest?.latest || null;
+        } catch (_) {}
+      }
+      result.push({
+        name: tableName,
+        label: meta.label || tableName,
+        rows: rowCount,
+        latestAt,
+        pk: meta.pk || 'id',
+        timeCol: meta.timeCol || null,
+      });
+    }
+    res.json({ ok: true, data: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/admin/db/tables/:name — 分页查询表数据
+router.get('/api/admin/db/tables/:name', requireRole('admin', 'super_admin'), (req, res) => {
+  const { name } = req.params;
+  if (!isValidTable(name)) return res.status(400).json({ error: '不可管理的表' });
+  
+  const page = parseInt(req.query.page) || 1;
+  const size = Math.min(parseInt(req.query.size) || 50, 200);
+  const search = req.query.search || '';
+  const offset = (page - 1) * size;
+  
+  try {
+    let where = '';
+    const params = [];
+    if (search) {
+      // 搜索所有 TEXT 类型列
+      const cols = db.queryAll(`PRAGMA table_info("${name}")`);
+      const textCols = cols.filter(c => c.type && c.type.toUpperCase().includes('TEXT')).map(c => c.name);
+      if (textCols.length > 0) {
+        const conds = textCols.map(c => `"${c}" LIKE ?`);
+        where = 'WHERE ' + conds.join(' OR ');
+        const s = `%${search}%`;
+        for (let i = 0; i < textCols.length; i++) params.push(s);
+      }
+    }
+    
+    const total = db.queryOne(`SELECT COUNT(*) as cnt FROM "${name}" ${where}`, params);
+    const rows = db.queryAll(
+      `SELECT * FROM "${name}" ${where} ORDER BY "${TABLE_META[name]?.pk || 'id'}" DESC LIMIT ? OFFSET ?`,
+      [...params, size, offset]
+    );
+    
+    // 获取列信息
+    const columns = db.queryAll(`PRAGMA table_info("${name}")`).map(c => ({
+      name: c.name, type: c.type, pk: !!c.pk
+    }));
+    
+    res.json({
+      ok: true,
+      data: {
+        rows,
+        columns,
+        pagination: {
+          page, size,
+          total: total?.cnt || 0,
+          totalPages: Math.ceil((total?.cnt || 0) / size),
+        }
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/admin/db/tables/:name/:id — 单条记录详情
+router.get('/api/admin/db/tables/:name/:id', requireRole('admin', 'super_admin'), (req, res) => {
+  const { name, id } = req.params;
+  if (!isValidTable(name)) return res.status(400).json({ error: '不可管理的表' });
+  const pk = TABLE_META[name]?.pk || 'id';
+  try {
+    const row = db.queryOne(`SELECT * FROM "${name}" WHERE "${pk}" = ?`, [id]);
+    if (!row) return res.status(404).json({ error: '记录不存在' });
+    res.json({ ok: true, data: row });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// PUT /api/admin/db/tables/:name/:id — 编辑单条记录
+router.put('/api/admin/db/tables/:name/:id', requireRole('admin', 'super_admin'), (req, res) => {
+  const { name, id } = req.params;
+  if (!isValidTable(name)) return res.status(400).json({ error: '不可管理的表' });
+  const pk = TABLE_META[name]?.pk || 'id';
+  const fields = req.body;
+  if (!fields || Object.keys(fields).length === 0) return res.status(400).json({ error: '无更新内容' });
+  
+  try {
+    // 排除主键
+    delete fields[pk];
+    const sets = [];
+    const vals = [];
+    for (const [k, v] of Object.entries(fields)) {
+      sets.push(`"${k}" = ?`);
+      vals.push(v);
+    }
+    vals.push(id);
+    db.getDb().run(`UPDATE "${name}" SET ${sets.join(', ')} WHERE "${pk}" = ?`, vals);
+    db.saveDb();
+    log.info(`[DB管理] ${req.user.username} 编辑了 ${name} #${id}`);
+    res.json({ ok: true, message: '更新成功' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE /api/admin/db/tables/:name/:id — 删除单条记录
+router.delete('/api/admin/db/tables/:name/:id', requireRole('admin', 'super_admin'), (req, res) => {
+  const { name, id } = req.params;
+  if (!isValidTable(name)) return res.status(400).json({ error: '不可管理的表' });
+  const pk = TABLE_META[name]?.pk || 'id';
+  try {
+    db.getDb().run(`DELETE FROM "${name}" WHERE "${pk}" = ?`, [id]);
+    db.saveDb();
+    log.info(`[DB管理] ${req.user.username} 删除了 ${name} #${id}`);
+    res.json({ ok: true, message: '删除成功' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/admin/db/tables/:name/batch-delete — 批量删除
+router.post('/api/admin/db/tables/:name/batch-delete', requireRole('admin', 'super_admin'), (req, res) => {
+  const { name } = req.params;
+  if (!isValidTable(name)) return res.status(400).json({ error: '不可管理的表' });
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: '请选择要删除的记录' });
+  if (ids.length > 500) return res.status(400).json({ error: '单次最多删除500条' });
+  
+  const pk = TABLE_META[name]?.pk || 'id';
+  try {
+    const placeholders = ids.map(() => '?').join(',');
+    db.getDb().run(`DELETE FROM "${name}" WHERE "${pk}" IN (${placeholders})`, ids);
+    db.saveDb();
+    log.info(`[DB管理] ${req.user.username} 批量删除了 ${name} ${ids.length} 条`);
+    res.json({ ok: true, message: `已删除 ${ids.length} 条` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/admin/db/recrawl/:postId — 重新爬取指定韩国帖子
+router.post('/api/admin/db/recrawl/:postId', requireRole('admin', 'super_admin'), async (req, res) => {
+  const { postId } = req.params;
+  try {
+    let loungeCrawler;
+    try { loungeCrawler = require('../lounge_crawler'); } catch (_) { return res.status(500).json({ error: '爬虫模块未加载' }); }
+    
+    // 查帖子信息
+    const post = db.queryOne('SELECT * FROM lounge_posts WHERE post_id = ?', [postId]);
+    if (!post) return res.status(404).json({ error: '帖子不存在' });
+    
+    res.json({ ok: true, message: '重爬任务已启动，请稍后刷新查看' });
+    
+    // 异步执行重爬
+    (async () => {
+      try {
+        const result = await loungeCrawler.recrawlPost(postId);
+        if (result.success) {
+          // 重爬成功后重新翻译
+          try {
+            const loungeRoute = require('./lounge');
+            await loungeRoute.translateAndAnalyze(5);
+          } catch (_) {}
+          console.log(`  [DB管理] 重爬帖子 ${postId} 完成`);
+        } else {
+          console.error(`  [DB管理] 重爬帖子 ${postId} 失败:`, result.message);
+        }
+      } catch (e) {
+        console.error(`  [DB管理] 重爬帖子 ${postId} 异常:`, e.message);
+      }
+    })();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // 删除洞察报告
 router.delete('/api/admin/insights/:id', requireRole('super_admin'), (req, res) => {
   ensureInsightsTable();
