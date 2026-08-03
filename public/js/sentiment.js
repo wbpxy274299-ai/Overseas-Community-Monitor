@@ -1003,8 +1003,10 @@ async function refreshAnalysis() {
       // 更新七日热门话题区域
       const weekTw = document.getElementById('weeklyTwitterTopics');
       const weekDc = document.getElementById('weeklyDiscordTopics');
+      const weekLg = document.getElementById('weeklyLoungeTopics');
       if (weekTw) weekTw.innerHTML = loadingHtml;
       if (weekDc) weekDc.innerHTML = loadingHtml;
+      if (weekLg) weekLg.innerHTML = loadingHtml;
       setTimeout(() => {
         loadAITopics();
         loadStatistics();

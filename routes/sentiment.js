@@ -408,26 +408,31 @@ router.post('/api/sentiment/force-analyze', requireRole('super_admin'), async (r
     console.log(`   周期: ${periodLabel}`);
     const twitterRecords = sentiment.getQualityFeedback(30, 'twitter', startDate, endDate);
     const discordRecords = sentiment.getQualityFeedback(30, 'discord', startDate, endDate);
+    const loungeRecords = sentiment.getLoungeRecordsForAnalysis(startDate, endDate, 30);
 
     if ((!twitterRecords || twitterRecords.length === 0) &&
-        (!discordRecords || discordRecords.length === 0)) {
+        (!discordRecords || discordRecords.length === 0) &&
+        (!loungeRecords || loungeRecords.length === 0)) {
       console.log('⚠️ [手动AI分析] 无数据可分析');
       return;
     }
 
-    console.log(`   📝 高质量数据: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条`);
+    console.log(`   📝 高质量数据: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条, 韩服 ${loungeRecords.length} 条`);
     dailyAnalysisLock = { date: null, analyzing: true };
     try {
-      const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
+      const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords, loungeRecords);
       result.twitter_topics = dedupByTag(result.twitter_topics);
       result.discord_topics = dedupByTag(result.discord_topics);
+      result.lounge_topics = dedupByTag(result.lounge_topics || []);
       sortByHeat(result.twitter_topics);
       sortByHeat(result.discord_topics);
-      const totalTopics = result.twitter_topics.length + result.discord_topics.length;
-      console.log(`✅ [手动AI分析] 生成 ${result.twitter_topics.length} 个 Twitter 话题, ${result.discord_topics.length} 个 Discord 话题`);
+      sortByHeat(result.lounge_topics);
+      const totalTopics = result.twitter_topics.length + result.discord_topics.length + result.lounge_topics.length;
+      console.log(`✅ [手动AI分析] 生成 ${result.twitter_topics.length} 个 Twitter 话题, ${result.discord_topics.length} 个 Discord 话题, ${result.lounge_topics.length} 个韩服话题`);
 
       if (result.twitter_topics.length > 0) sentiment.saveTopicHistory(result.twitter_topics, 'twitter', true);
       if (result.discord_topics.length > 0) sentiment.saveTopicHistory(result.discord_topics, 'discord', true);
+      if (result.lounge_topics.length > 0) sentiment.saveTopicHistory(result.lounge_topics, 'lounge', true);
 
       dailyAnalysisLock = { date: todayStr(), analyzing: false };
       sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
@@ -454,7 +459,8 @@ router.get('/api/sentiment/analysis-check', (req, res) => {
     const todayTopics = sentiment.getTodayHotTopics();
     const hasTwitterTopics = todayTopics && todayTopics.twitter_topics && todayTopics.twitter_topics.length > 0;
     const hasDiscordTopics = todayTopics && todayTopics.discord_topics && todayTopics.discord_topics.length > 0;
-    const panelComplete = hasTwitterTopics || hasDiscordTopics;
+    const hasLoungeTopics = todayTopics && todayTopics.lounge_topics && todayTopics.lounge_topics.length > 0;
+    const panelComplete = hasTwitterTopics || hasDiscordTopics || hasLoungeTopics;
 
     // 检查数据是否变更
     const countChanged = current.recordCount !== last.recordCount;
@@ -499,7 +505,8 @@ router.post('/api/sentiment/refresh-analysis', requireRole('operator'), async (r
     const todayTopics = sentiment.getTodayHotTopics();
     const panelComplete = todayTopics && (
       (todayTopics.twitter_topics && todayTopics.twitter_topics.length > 0) ||
-      (todayTopics.discord_topics && todayTopics.discord_topics.length > 0)
+      (todayTopics.discord_topics && todayTopics.discord_topics.length > 0) ||
+      (todayTopics.lounge_topics && todayTopics.lounge_topics.length > 0)
     );
     const dataChanged = current.recordCount !== last.recordCount || current.maxUpdatedAt !== last.maxUpdatedAt;
 
@@ -518,22 +525,29 @@ router.post('/api/sentiment/refresh-analysis', requireRole('operator'), async (r
     const { startDate, endDate, periodLabel } = sentiment.getTodayPeriod();
     const twitterRecords = sentiment.getQualityFeedback(30, 'twitter', startDate, endDate);
     const discordRecords = sentiment.getQualityFeedback(30, 'discord', startDate, endDate);
+    const loungeRecords = sentiment.getLoungeRecordsForAnalysis(startDate, endDate, 30);
 
-    if ((!twitterRecords || twitterRecords.length === 0) && (!discordRecords || discordRecords.length === 0)) {
+    if ((!twitterRecords || twitterRecords.length === 0) &&
+        (!discordRecords || discordRecords.length === 0) &&
+        (!loungeRecords || loungeRecords.length === 0)) {
       console.log('⚠️ [刷新分析] 无数据可分析');
       return;
     }
 
+    console.log(`   📝 高质量数据: Twitter ${twitterRecords.length} 条, Discord ${discordRecords.length} 条, 韩服 ${loungeRecords.length} 条`);
     dailyAnalysisLock = { date: null, analyzing: true };
     try {
-      const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords);
+      const result = await aiAnalyzer.aiSummarizeHotTopicsDual(twitterRecords, discordRecords, loungeRecords);
       result.twitter_topics = dedupByTag(result.twitter_topics);
       result.discord_topics = dedupByTag(result.discord_topics);
+      result.lounge_topics = dedupByTag(result.lounge_topics || []);
       sortByHeat(result.twitter_topics);
       sortByHeat(result.discord_topics);
+      sortByHeat(result.lounge_topics);
 
       if (result.twitter_topics.length > 0) sentiment.saveTopicHistory(result.twitter_topics, 'twitter', true);
       if (result.discord_topics.length > 0) sentiment.saveTopicHistory(result.discord_topics, 'discord', true);
+      if (result.lounge_topics.length > 0) sentiment.saveTopicHistory(result.lounge_topics, 'lounge', true);
 
       dailyAnalysisLock = { date: todayStr(), analyzing: false };
       sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
