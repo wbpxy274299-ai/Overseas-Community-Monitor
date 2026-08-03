@@ -2726,7 +2726,7 @@ async function getWeeklyHotTopics() {
       const topics = [];
       for (const r of rows) {
         const samples = db.queryAll(
-          `SELECT title_zh, title, author, url, sentiment
+          `SELECT content_zh, title_zh, content, title, author, url, sentiment
            FROM lounge_posts
            WHERE ai_category = ? AND author != 'GM 티메이' AND author != 'GM티메이' AND crawled_at >= ? AND crawled_at <= ?
            ORDER BY comment_count DESC LIMIT 5`,
@@ -2744,7 +2744,7 @@ async function getWeeklyHotTopics() {
           neg: r.neg_cnt, pos: r.pos_cnt, neu: r.neu_cnt || 0,
           overview: '', // 稍后用 AI 填充
           voices: samples.slice(0, 3).map(s => ({
-            text: s.title_zh || s.title || '',
+            text: s.content_zh || s.title_zh || s.content || s.title || '',
             url: s.url || '',
             author: s.author || '匿名',
             sentiment: s.sentiment || 'neutral',
@@ -2758,7 +2758,7 @@ async function getWeeklyHotTopics() {
         const topicsByTag = {};
         for (const t of topics) {
           topicsByTag[t.tag] = {
-            messages: t.voices.map(v => ({ content: v.text, translated_content: '', url: v.url })),
+            messages: t.voices.map(v => ({ content: v.text, translated_content: v.text, url: v.url })),
             count: t.count,
           };
         }
@@ -2925,7 +2925,7 @@ function buildLoungeOverview() {
     if (negWarning) parts.push(negWarning);
     const text = parts.join('，') + '。';
     const samples = posts.slice(0, 3).map(p => ({
-      text: (p.title_zh || p.title || '').substring(0, 100),
+      text: (p.content_zh || p.title_zh || p.content || p.title || '').substring(0, 200),
       url: p.url || '',
       author: p.author || '匿名',
       sentiment: p.sentiment || 'neutral',
