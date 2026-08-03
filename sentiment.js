@@ -667,7 +667,6 @@ function getLoungeRecordsForAnalysis(startDate, endDate, limit = 30) {
       FROM lounge_posts
       WHERE crawled_at >= ? AND crawled_at <= ?
         AND (title_zh IS NOT NULL AND title_zh != '')
-        AND author != 'GM 티메이' AND author != 'GM티메이'
       ORDER BY (comment_count + view_count) DESC
       LIMIT ?
     `, [startDate, endDate, limit]);
@@ -1632,12 +1631,12 @@ function getStatistics(period = 'week') {
   let loungeSentiment = { positive: 0, neutral: 0, negative: 0 };
   try {
     const loungeRow = db.queryOne(
-      `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ? AND author != 'GM 티메이' AND author != 'GM티메이'`,
+      `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ?`,
       [startDate, endDate]
     );
     loungeCount = loungeRow?.cnt || 0;
     const loungeSentRows = db.queryAll(
-      `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ? AND author != 'GM 티메이' AND author != 'GM티메이' GROUP BY sentiment`,
+      `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ? GROUP BY sentiment`,
       [startDate, endDate]
     );
     loungeSentRows.forEach(r => { if (loungeSentiment[r.sentiment] !== undefined) loungeSentiment[r.sentiment] = r.cnt; });
@@ -2346,7 +2345,7 @@ async function saveDailySnapshot(dateStr = null) {
     let loungeCount = 0;
     try {
       const loungeRow = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at < ? AND author != 'GM 티메이' AND author != 'GM티메이'`,
+        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at < ?`,
         [windowStart, windowEnd]
       );
       loungeCount = loungeRow?.cnt || 0;
@@ -2598,7 +2597,7 @@ function getWeeklyOverview() {
       const lStart = start.replace(' ', 'T');
       const lEnd = end.replace(' ', 'T');
       const lRow = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ? AND author != 'GM 티메이' AND author != 'GM티메이'`,
+        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ?`,
         [lStart, lEnd]
       );
       loungeCnt = lRow?.cnt || 0;
@@ -2779,8 +2778,7 @@ async function getWeeklyHotTopics() {
       const posts = db.queryAll(
         `SELECT content_zh, title_zh, content, title, author, url, sentiment, crawled_at, post_id
          FROM lounge_posts
-         WHERE author != 'GM 티메이' AND author != 'GM티메이'
-         AND crawled_at >= ? AND crawled_at <= ?
+         WHERE crawled_at >= ? AND crawled_at <= ?
          ORDER BY (comment_count + view_count) DESC LIMIT 30`,
         [lwStart, lwEnd]
       );
@@ -2916,7 +2914,6 @@ async function getWeeklyHotTopics() {
                 SUM(CASE WHEN sentiment = 'neutral' THEN 1 ELSE 0 END) as neu_cnt
          FROM lounge_posts
          WHERE ai_category IS NOT NULL AND ai_category != 'other'
-         AND author != 'GM 티메이' AND author != 'GM티메이'
          AND crawled_at >= ? AND crawled_at <= ?
          GROUP BY ai_category ORDER BY cnt DESC LIMIT 8`,
         [lwStart, lwEnd]
@@ -2924,7 +2921,7 @@ async function getWeeklyHotTopics() {
       return rows.map(r => {
         const samples = db.queryAll(
           `SELECT content_zh, title_zh, content, title, author, url, sentiment
-           FROM lounge_posts WHERE ai_category = ? AND author != 'GM 티메이' AND author != 'GM티메이'
+           FROM lounge_posts WHERE ai_category = ?
            AND crawled_at >= ? AND crawled_at <= ? ORDER BY comment_count DESC LIMIT 5`,
           [r.ai_category, lwStart, lwEnd]
         );
@@ -3065,7 +3062,6 @@ function buildLoungeOverview() {
       `SELECT title_zh, title, ai_category, author, url, sentiment, content_zh
        FROM lounge_posts
        WHERE crawled_at >= ? AND crawled_at <= ?
-       AND author != 'GM 티메이' AND author != 'GM티메이'
        ORDER BY comment_count DESC LIMIT 20`,
       [lwStart, lwEnd]
     );

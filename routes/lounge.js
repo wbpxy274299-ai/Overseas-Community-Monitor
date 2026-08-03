@@ -500,9 +500,6 @@ router.get('/api/lounge/posts', ensureLoggedIn, (req, res) => {
   let where = 'WHERE 1=1';
   const params = [];
 
-  // 过滤 GM 官方帖子
-  where += " AND author != 'GM 티메이' AND author != 'GM티메이'";
-
   if (game) { where += ' AND game_code = ?'; params.push(game); }
   if (sentiment) { where += ' AND sentiment = ?'; params.push(sentiment); }
   if (keyword) {
@@ -587,7 +584,6 @@ router.get('/api/lounge/status', ensureLoggedIn, (req, res) => {
         SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END) as negative,
         SUM(CASE WHEN content_zh IS NOT NULL THEN 1 ELSE 0 END) as translated
       FROM lounge_posts
-      WHERE author != 'GM 티메이' AND author != 'GM티메이'
     `);
   } catch (_) {
     stats = { total_posts: 0, positive: 0, negative: 0, translated: 0 };
@@ -668,7 +664,6 @@ function getTodayStats() {
         SUM(CASE WHEN sentiment='negative' THEN 1 ELSE 0 END) as negative,
         SUM(CASE WHEN sentiment='neutral' THEN 1 ELSE 0 END) as neutral
       FROM lounge_posts
-      WHERE author != 'GM 티메이' AND author != 'GM티메이'
     `);
     return stats || { posts: 0, translated: 0, positive: 0, negative: 0, neutral: 0 };
   } catch (_) {

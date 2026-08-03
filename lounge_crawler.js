@@ -550,11 +550,11 @@ function getExistingPosts() {
 }
 
 /**
- * 判断帖子是否近两天内发的
+ * 判断帖子是否近7天内发的
  * Naver 移动端时间格式："3시간 전"(3小时前)、"1일 전"(1天前)、"2026.07.29"(具体日期)
  *
  * @param {string} timeStr - 帖子时间字符串
- * @returns {boolean} 是否在近2天内
+ * @returns {boolean} 是否在近7天内
  */
 function isRecentPost(timeStr) {
   if (!timeStr) return true; // 没时间信息的，保守起见当作新帖
@@ -562,17 +562,17 @@ function isRecentPost(timeStr) {
   const minMatch = timeStr.match(/(\d+)\s*분/);
   if (minMatch) return true;
   const hourMatch = timeStr.match(/(\d+)\s*시간/);
-  if (hourMatch) return parseInt(hourMatch[1]) <= 48;
+  if (hourMatch) return parseInt(hourMatch[1]) <= 168; // 7天 = 168小时
   const dayMatch = timeStr.match(/(\d+)\s*일/);
-  if (dayMatch) return parseInt(dayMatch[1]) <= 2;
-  // "방금"(刚刚)、"어제"(昨天) 也算近两天
+  if (dayMatch) return parseInt(dayMatch[1]) <= 7;
+  // "방금"(刚刚)、"어제"(昨天) 也算近期
   if (/방금|어제/.test(timeStr)) return true;
   // 具体日期格式 2026.07.29
   const dateMatch = timeStr.match(/(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
   if (dateMatch) {
     const postDate = new Date(parseInt(dateMatch[1]), parseInt(dateMatch[2]) - 1, parseInt(dateMatch[3]));
-    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-    return postDate >= twoDaysAgo;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return postDate >= sevenDaysAgo;
   }
   return true; // 无法解析的保守当作新帖
 }

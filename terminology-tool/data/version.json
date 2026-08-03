@@ -1,5 +1,13 @@
 {
-  "version": "260623",
-  "count": 101830,
-  "languages": ["jp", "en", "kr", "tw", "vn", "id", "th"]
+  "version": "260803",
+  "count": 101831,
+  "languages": [
+    "jp",
+    "en",
+    "kr",
+    "tw",
+    "vn",
+    "id",
+    "th"
+  ]
 }

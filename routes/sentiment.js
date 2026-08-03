@@ -161,7 +161,7 @@ router.get('/api/sentiment/lounge-posts', (req, res) => {
     const sentiment = req.query.sentiment || null;
     const category = req.query.category || null;
 
-    let whereClauses = ["author != 'GM 티메이' AND author != 'GM티메이'"];
+    let whereClauses = [];
     let params = [];
     if (startDate) { whereClauses.push('crawled_at >= ?'); params.push(startDate + 'T00:00:00'); }
     if (endDate) { whereClauses.push('crawled_at <= ?'); params.push(endDate + 'T23:59:59'); }
@@ -231,7 +231,6 @@ router.get('/api/sentiment/lounge-daily', (req, res) => {
       `SELECT title_zh, title, content_zh, author, url, sentiment, ai_category, post_time
        FROM lounge_posts
        WHERE crawled_at >= ? AND crawled_at <= ?
-       AND author != 'GM 티메이' AND author != 'GM티메이'
        ORDER BY COALESCE(post_time, crawled_at) DESC LIMIT ?`,
       [start, end, limit]
     );
