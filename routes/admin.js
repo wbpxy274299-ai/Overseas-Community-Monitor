@@ -24,7 +24,7 @@ const SERVERS = [
 // 频道 JSON 文件路径
 const CHANNELS_JSON = path.join(__dirname, '..', 'dc-publish-channels.json');
 
-router.use(requireAuth);
+router.use('/api/admin', requireAuth);
 
 // ===== 初始化洞察报告存档表（延迟初始化，等待 db.initDb 完成）=====
 let insightsTableReady = false;

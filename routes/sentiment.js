@@ -14,11 +14,10 @@ const log = require('../logger');
 const translator = require('../translator');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
-// 跳过健康检查的认证（健康检查不需要登录）
-router.use((req, res, next) => {
-  if (req.path === '/health') return next();
-  requireAuth(req, res, next);
-});
+// 仅对本路由器的路由生效，不拦截其他模块（terminology/lounge 等）的路由
+router.use('/api/sentiment', requireAuth);
+router.use('/api/weekly-report', requireAuth);
+router.use('/api/system', requireAuth);
 
 // 清统计缓存辅助函数
 function clearStatisticsCache() {

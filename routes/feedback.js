@@ -7,8 +7,8 @@ const db = require('../db');
 const log = require('../logger');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
-// 所有反馈接口需要登录
-router.use(requireAuth);
+// 仅对本路由器的路由生效，不拦截其他模块的路由
+router.use('/api/feedback', requireAuth);
 
 // 提交反馈（任何登录用户）
 router.post('/api/feedback', (req, res) => {
