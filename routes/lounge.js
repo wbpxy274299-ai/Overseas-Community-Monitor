@@ -235,7 +235,7 @@ function cleanLoungeContent(text) {
 async function translateAndAnalyze(limit = 100) {
   const untranslated = db.queryAll(
     `SELECT id, post_id, title, content FROM lounge_posts
-     WHERE content_zh IS NULL AND content IS NOT NULL AND content != ''
+     WHERE (content_zh IS NULL OR content_zh = '') AND content IS NOT NULL AND content != ''
      ORDER BY crawled_at DESC LIMIT ?`,
     [limit]
   );
@@ -308,7 +308,7 @@ async function translateAndAnalyze(limit = 100) {
   // 翻译评论（只翻译最新的）
   const untranslatedComments = db.queryAll(
     `SELECT id, content FROM lounge_comments
-     WHERE content_zh IS NULL AND content != ''
+     WHERE (content_zh IS NULL OR content_zh = '') AND content != ''
      ORDER BY crawled_at DESC LIMIT ?`,
     [limit * 2]
   );
