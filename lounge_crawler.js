@@ -386,10 +386,19 @@ async function crawlPostDetail(browser, post) {
         const blocks = bodyContainer.querySelectorAll('p, span, div');
         const textParts = [];
         const seen = new Set();
+        let hitCommentSection = false; // 标记是否已进入评论区
 
         for (const el of blocks) {
           // 跳过导航/页脚标签内的元素
           if (isInsideNoiseTag(el)) continue;
+
+          // ★ 检测是否进入评论区（遇到评论区容器则停止）
+          if (hitCommentSection) continue;
+          const className = (el.className || '').toLowerCase();
+          if (className.includes('comment') || className.includes('cmt') || className.includes('reply')) {
+            hitCommentSection = true;
+            continue;
+          }
 
           // 只取叶子文本节点（没有子元素的文本块）
           const directText = Array.from(el.childNodes)

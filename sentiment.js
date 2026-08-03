@@ -678,7 +678,7 @@ function getLoungeRecordsForAnalysis(startDate, endDate, limit = 30) {
       praise: 'general', question: 'general', other: 'general'
     };
     
-    return rows.map(r => {
+    const postRecords = rows.map(r => {
       const rawContent = r.content_zh || r.title_zh || r.content || r.title || '';
       const cleanedContent = cleanLoungeContent(rawContent);
       return {
@@ -692,6 +692,49 @@ function getLoungeRecordsForAnalysis(startDate, endDate, limit = 30) {
         keywords: '',
       };
     });
+
+    // ★ 同时查询评论数据，评论也是玩家声音的重要组成部分
+    let commentRecords = [];
+    try {
+      const comments = db.queryAll(`
+        SELECT c.id, c.post_id, c.author, c.content, c.content_zh, 
+               c.comment_time, c.sentiment, c.crawled_at, c.likes,
+               p.url as post_url, p.title as post_title, p.title_zh as post_title_zh
+        FROM lounge_comments c
+        LEFT JOIN lounge_posts p ON c.post_id = p.post_id
+        WHERE c.crawled_at >= ? AND c.crawled_at <= ?
+          AND c.content IS NOT NULL AND c.content != ''
+        ORDER BY c.likes DESC
+        LIMIT ?
+      `, [startDate, endDate, Math.min(limit, 50)]);
+
+      if (comments && comments.length > 0) {
+        commentRecords = comments.map(c => {
+          const rawContent = c.content_zh || c.content || '';
+          return {
+            id: c.id,
+            post_id: c.post_id,
+            platform: 'lounge',
+            content: cleanLoungeContent(rawContent),
+            translated_content: cleanLoungeContent(c.content_zh || ''),
+            topic_tag: 'general',
+            source: 'lounge_comment',
+            created_at: c.crawled_at,
+            keywords: '',
+            author: c.author || '匿名',
+            sentiment: c.sentiment || 'neutral',
+            url: c.post_url || '',
+            title: c.post_title_zh || c.post_title || '',
+            likes: c.likes || 0,
+          };
+        });
+      }
+    } catch (e) {
+      log.warn('韩国评论数据查询失败', e.message);
+    }
+
+    // 合并帖子 + 评论，评论按 likes 排序后取前面的（更有价值的评论优先）
+    return [...postRecords, ...commentRecords];
   } catch (e) {
     console.warn('⚠️ 韩国数据查询失败:', e.message);
     return [];
@@ -2734,7 +2777,7 @@ async function getWeeklyHotTopics() {
     try {
       // ★ 查询原始帖子（不按 ai_category 分组），让 AI 识别具体话题
       const posts = db.queryAll(
-        `SELECT content_zh, title_zh, content, title, author, url, sentiment, crawled_at
+        `SELECT content_zh, title_zh, content, title, author, url, sentiment, crawled_at, post_id
          FROM lounge_posts
          WHERE author != 'GM 티메이' AND author != 'GM티메이'
          AND crawled_at >= ? AND crawled_at <= ?
@@ -2743,7 +2786,7 @@ async function getWeeklyHotTopics() {
       );
       if (!posts || posts.length === 0) return [];
 
-      // 构建记录格式（与 getLoungeRecordsForAnalysis 一致）
+      // 构建帖子记录格式
       const records = posts.map(p => {
         const raw = p.content_zh || p.title_zh || p.content || p.title || '';
         return {
@@ -2756,6 +2799,37 @@ async function getWeeklyHotTopics() {
           created_at: p.crawled_at || '',
         };
       });
+
+      // ★ 同时查询评论数据，评论也是玩家声音的重要组成部分
+      try {
+        const comments = db.queryAll(
+          `SELECT c.content_zh, c.content, c.author, c.sentiment, c.crawled_at, c.likes,
+                  p.url as post_url
+           FROM lounge_comments c
+           LEFT JOIN lounge_posts p ON c.post_id = p.post_id
+           WHERE c.crawled_at >= ? AND c.crawled_at <= ?
+             AND c.content IS NOT NULL AND c.content != ''
+           ORDER BY c.likes DESC LIMIT 50`,
+          [lwStart, lwEnd]
+        );
+        if (comments && comments.length > 0) {
+          for (const c of comments) {
+            const raw = c.content_zh || c.content || '';
+            records.push({
+              content: cleanLoungeContent(raw),
+              translated_content: cleanLoungeContent(c.content_zh || ''),
+              url: c.post_url || '',
+              author: c.author || '匿名',
+              sentiment: c.sentiment || 'neutral',
+              topic_tag: 'general',
+              created_at: c.crawled_at || '',
+            });
+          }
+          log.info(`韩国七日话题：合并 ${comments.length} 条评论数据`);
+        }
+      } catch (e) {
+        log.warn('韩国评论数据查询失败', e.message);
+      }
 
       // ★ 使用与 Twitter/Discord 相同的 AI 话题识别
       let aiTopics;
@@ -2995,36 +3069,70 @@ function buildLoungeOverview() {
        ORDER BY comment_count DESC LIMIT 20`,
       [lwStart, lwEnd]
     );
-    if (!posts || posts.length === 0) {
+    // ★ 同时查询评论数据，评论也是玩家声音
+    const comments = db.queryAll(
+      `SELECT c.author, c.sentiment, c.content_zh, c.content, c.likes,
+              p.url as post_url
+       FROM lounge_comments c
+       LEFT JOIN lounge_posts p ON c.post_id = p.post_id
+       WHERE c.crawled_at >= ? AND c.crawled_at <= ?
+         AND c.content IS NOT NULL AND c.content != ''
+       ORDER BY c.likes DESC LIMIT 20`,
+      [lwStart, lwEnd]
+    ) || [];
+
+    // 合并帖子 + 评论统计
+    const allRecords = [
+      ...(posts || []).map(p => ({
+        author: p.author,
+        sentiment: p.sentiment,
+        content: p.content_zh || p.title_zh || p.content || p.title || '',
+        url: p.url || '',
+        ai_category: p.ai_category,
+        type: 'post',
+      })),
+      ...comments.map(c => ({
+        author: c.author || '匿名',
+        sentiment: c.sentiment || 'neutral',
+        content: c.content_zh || c.content || '',
+        url: c.post_url || '',
+        ai_category: null,
+        type: 'comment',
+      })),
+    ];
+
+    if (allRecords.length === 0) {
       return { hasData: false, text: '今日暂无韩国社区发言', samples: [] };
     }
-    const pos = posts.filter(r => r.sentiment === 'positive').length;
-    const neg = posts.filter(r => r.sentiment === 'negative').length;
-    const neu = posts.filter(r => r.sentiment === 'neutral').length;
+    const pos = allRecords.filter(r => r.sentiment === 'positive').length;
+    const neg = allRecords.filter(r => r.sentiment === 'negative').length;
+    const neu = allRecords.filter(r => r.sentiment === 'neutral').length;
     const catLabels = { bug:'Bug', suggestion:'建议', complaint:'投诉', praise:'好评', question:'提问', other:'其他' };
     const catCounts = {};
-    posts.forEach(r => { const c = r.ai_category || 'other'; catCounts[c] = (catCounts[c]||0)+1; });
+    allRecords.forEach(r => { const c = r.ai_category || 'other'; catCounts[c] = (catCounts[c]||0)+1; });
     const topCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,4)
       .map(([c,cnt]) => `${catLabels[c]||c}(${cnt}条)`);
     let moodText = '情绪平稳';
     if (neg > pos && neg > neu) moodText = '负面情绪偏多';
     else if (pos > neg && pos > neu) moodText = '正面情绪为主';
     else if (neu >= pos && neu >= neg) moodText = '以中性讨论为主';
-    const parts = [`总共发言${posts.length}条`, moodText, `主要在聊：${topCats.join('、')}`];
+    const postCount = posts ? posts.length : 0;
+    const commentCount = comments.length;
+    const parts = [`帖子${postCount}条、评论${commentCount}条`, moodText, `主要在聊：${topCats.join('、')}`];
     let negWarning = '';
-    if (neg >= 3 && neg/posts.length >= 0.4) {
-      const negCats = Object.entries(catCounts).filter(([c]) => posts.some(p => p.ai_category === c && p.sentiment === 'negative'));
-      negWarning = `⚠️ 负面舆情集中：${neg}条负面发言（占比${Math.round(neg/posts.length*100)}%），主要集中在${negCats.slice(0,2).map(([c])=>catLabels[c]||c).join('、')}方向`;
+    if (neg >= 3 && neg/allRecords.length >= 0.4) {
+      const negCats = Object.entries(catCounts).filter(([c]) => allRecords.some(p => p.ai_category === c && p.sentiment === 'negative'));
+      negWarning = `⚠️ 负面舆情集中：${neg}条负面发言（占比${Math.round(neg/allRecords.length*100)}%），主要集中在${negCats.slice(0,2).map(([c])=>catLabels[c]||c).join('、')}方向`;
     }
     if (negWarning) parts.push(negWarning);
     const text = parts.join('，') + '。';
-    const samples = posts.slice(0, 3).map(p => ({
-      text: (p.content_zh || p.title_zh || p.content || p.title || '').substring(0, 200),
+    const samples = allRecords.slice(0, 3).map(p => ({
+      text: cleanLoungeContent(p.content).substring(0, 200),
       url: p.url || '',
       author: p.author || '匿名',
       sentiment: p.sentiment || 'neutral',
     }));
-    return { hasData: true, text, samples, total: posts.length, pos, neg, neu };
+    return { hasData: true, text, samples, total: allRecords.length, pos, neg, neu };
   } catch (e) {
     return { hasData: false, text: '今日暂无韩国社区发言', samples: [] };
   }
