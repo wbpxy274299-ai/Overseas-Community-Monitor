@@ -124,11 +124,11 @@ function searchTerms(query, limit = 50) {
 
   return results.map(i => ({
     zh: TERMS[i][0],
-    ja: TERMS[i][1] || '',
+    jp: TERMS[i][1] || '',
     en: TERMS[i][2] || '',
-    ko: TERMS[i][3] || '',
-    'zh-tw': TERMS[i][4] || '',
-    vi: TERMS[i][5] || '',
+    kr: TERMS[i][3] || '',
+    tw: TERMS[i][4] || '',
+    vn: TERMS[i][5] || '',
     id: TERMS[i][6] || '',
     th: TERMS[i][7] || '',
     category: TERMS[i][8] || '',
