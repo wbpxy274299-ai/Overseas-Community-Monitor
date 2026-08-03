@@ -2519,12 +2519,14 @@ function getWeeklyOverview() {
     const sMap = { positive: 0, neutral: 0, negative: 0 };
     sentiments.forEach(s => { sMap[s.sentiment] = s.cnt; });
 
-    // 韩国社区
+    // 韩国社区（lounge_posts 的 crawled_at 是 ISO 格式，需用 T 分隔）
     let loungeCnt = 0;
     try {
+      const lStart = start.replace(' ', 'T');
+      const lEnd = end.replace(' ', 'T');
       const lRow = db.queryOne(
         `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ?`,
-        [start, end]
+        [lStart, lEnd]
       );
       loungeCnt = lRow?.cnt || 0;
     } catch (_) {}

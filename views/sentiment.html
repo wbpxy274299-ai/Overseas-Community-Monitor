@@ -21,7 +21,7 @@
   <div class="app-header-inner">
     <div class="header-left">
       <h1>📊 舆情监控面板</h1>
-      <p>实时追踪 Twitter + Discord 玩家反馈，智能分析情感趋势</p>
+      <p>实时追踪日服 Twitter + 繁中 Discord + 韩服 Naver 玩家反馈</p>
     </div>
     <nav class="header-nav" id="mainNav"></nav>
   </div>
@@ -36,9 +36,9 @@
     </div>
     <div class="status-item">
       <span>📡 今日采集:</span>
-      <span id="statusTwitterCount">-</span> Twitter /
-      <span id="statusDiscordCount">-</span> Discord /
-      <span id="statusLoungeCount">-</span> 🇰🇷
+      <span id="statusTwitterCount">-</span> 日服 /
+      <span id="statusDiscordCount">-</span> 繁中 /
+      <span id="statusLoungeCount">-</span> 🇰🇷 韩服
     </div>
     <div class="status-item">
       <span>🔥 话题:</span>
@@ -61,21 +61,21 @@
           <div class="brief-icon">🐦</div>
           <div class="brief-info">
             <div class="brief-value" id="briefTwCount">-</div>
-            <div class="brief-label">Twitter</div>
+            <div class="brief-label">日服 Twitter</div>
           </div>
         </div>
         <div class="brief-card brief-discord">
           <div class="brief-icon">💬</div>
           <div class="brief-info">
             <div class="brief-value" id="briefDcCount">-</div>
-            <div class="brief-label">Discord</div>
+            <div class="brief-label">繁中 Discord</div>
           </div>
         </div>
         <div class="brief-card brief-lounge">
           <div class="brief-icon">🇰🇷</div>
           <div class="brief-info">
             <div class="brief-value" id="briefLoungeCount">-</div>
-            <div class="brief-label">韩国 Naver</div>
+            <div class="brief-label">韩服 Naver</div>
           </div>
         </div>
         <div class="brief-card brief-risk">
@@ -128,9 +128,9 @@
           <span class="brief-messages-arrow" id="briefMsgArrow">▶</span>
           <span class="brief-messages-title">📝 玩家发言原声</span>
           <div class="brief-msg-tabs" id="briefMsgTabs" onclick="event.stopPropagation()">
-            <button id="msgTabTwitter" class="brief-msg-tab active" onclick="switchMsgTab('twitter')">🐦 Twitter</button>
-            <button id="msgTabDiscord" class="brief-msg-tab" onclick="switchMsgTab('discord')">💬 Discord</button>
-            <button id="msgTabKorean" class="brief-msg-tab" onclick="switchMsgTab('korean')">🇰🇷 Naver</button>
+            <button id="msgTabTwitter" class="brief-msg-tab active" onclick="switchMsgTab('twitter')">🐦 日服</button>
+            <button id="msgTabDiscord" class="brief-msg-tab" onclick="switchMsgTab('discord')">💬 繁中</button>
+            <button id="msgTabKorean" class="brief-msg-tab" onclick="switchMsgTab('korean')">🇰🇷 韩服</button>
           </div>
           <span class="brief-msg-count" id="msgCountInfo">加载中...</span>
         </div>
@@ -204,7 +204,7 @@
             <div id="weeklyDiscordTopics"><div class="loading">加载中...</div></div>
           </div>
           <div class="weekly-topics-col">
-            <div class="wtp-header wtp-kr">🇰🇷 韩国 Naver</div>
+            <div class="wtp-header wtp-kr">🇰🇷 韩服 Naver</div>
             <div id="weeklyLoungeTopics"><div class="loading">加载中...</div></div>
           </div>
         </div>

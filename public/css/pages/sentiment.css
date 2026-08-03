@@ -632,7 +632,7 @@
   color: #fff;
 }
 .brief-msg-tabs {
-  display: flex;
+  display: none; /* 默认隐藏，展开后由 JS 设为 flex */
   gap: 4px;
   margin-left: 12px;
 }

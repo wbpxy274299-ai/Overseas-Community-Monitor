@@ -178,7 +178,7 @@ function renderWeeklyStats(overview) {
   const trendSubEl = document.getElementById('weeklyTrendSub');
   
   if (totalEl) totalEl.textContent = overview.total;
-  if (totalSubEl) totalSubEl.textContent = `TW:${overview.totalTwitter} DC:${overview.totalDiscord} KR:${overview.totalLounge || 0}`;
+  if (totalSubEl) totalSubEl.textContent = `日服:${overview.totalTwitter} 繁中:${overview.totalDiscord} 韩服:${overview.totalLounge || 0}`;
   if (avgEl) avgEl.textContent = overview.dailyAvg;
   
   const tc = overview.trendChange;
@@ -756,10 +756,13 @@ function renderBriefTopics(data) {
 function toggleBriefMessages() {
   const content = document.getElementById('briefMessagesContent');
   const arrow = document.getElementById('briefMsgArrow');
+  const tabs = document.getElementById('briefMsgTabs');
   if (!content) return;
   const isOpen = content.style.display !== 'none';
   content.style.display = isOpen ? 'none' : 'block';
   if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+  // tab 只在展开时显示
+  if (tabs) tabs.style.display = isOpen ? 'none' : 'flex';
 }
 
 // 加载话题趋势数据
