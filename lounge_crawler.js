@@ -411,7 +411,7 @@ async function crawlPostDetail(browser, post) {
             // 容器文本长度合理
             if (text.length > 20 && text.length < 10000) {
               // ★ 关键：检查这个容器内是否有评论元素，有就跳过
-              const hasReplyChild = parent.querySelector('[class*="_type_reply"], [class*="comment_item"], [class*="reply_item"]');
+              const hasReplyChild = parent.querySelector('[class*="_wrap_vjceo"], [class*="_type_comment"], [class*="_type_reply"]');
               if (!hasReplyChild) {
                 bodyContainer = parent;
                 break;
@@ -509,29 +509,32 @@ async function crawlPostDetail(browser, post) {
       if (authorEl) result.detailAuthor = authorEl.textContent.trim();
 
       // ===== 时间 =====
-      const timeEl = document.querySelector('time, [class*="date"]');
+      // Naver 用 _timestamp_12ncv 放时间（如 "07.31"），没有 datetime 属性
+      const timeEl = document.querySelector('[class*="_timestamp"], time, [class*="_date"]');
       if (timeEl) result.detailTime = timeEl.getAttribute('datetime') || timeEl.textContent.trim();
 
       // ===== 评论（只取真实评论，排除输入框和提示文字）=====
       const seenComments = new Set();
-      // 找每条评论的容器（通常是评论列表里的每一项）
+      // ★ Naver 每条评论包在 _wrap_vjceo 里（旧版用 _type_reply，已失效）
       const commentItems = document.querySelectorAll(
-        '[class*="_type_reply"], [class*="comment_item"], [class*="comment-item"], [class*="cmt_item"], [class*="cmt-item"], [class*="reply_item"]'
+        '[class*="_wrap_vjceo"]'
       );
 
       for (const item of commentItems) {
         if (result.comments.length >= maxComments) break;
 
         // 从每条评论里提取作者 + 文字
-        const cAuthor = item.querySelector('[class*="_name_vjceo"], [class*="nick"], [class*="name"]');
+        const cAuthor = item.querySelector('[class*="_name_vjceo"]');
         // ★ 先找评论容器(_content_vjceo)，再取里面的文字(_text_vjceo)
         // 比喻：先找到评论的"信封"，再拆开来读里面的"信"
         const contentBox = item.querySelector('[class*="_content_vjceo"]');
         const cText = contentBox
           ? contentBox.querySelector('[class*="_text_vjceo"]') || contentBox
           : item.querySelector('[class*="_text_vjceo"]');
-        const cTime = item.querySelector('[class*="_time_vjceo"], [class*="date"], [class*="time"], time');
-        const cLikes = item.querySelector('[class*="like"], [class*="good"], [class*="thumb"]');
+        // ★ 时间在 _sub_vjceo 或 _timestamp 里
+        const cTime = item.querySelector('[class*="_timestamp"], [class*="_sub_vjceo"] span, [class*="_time"]');
+        // ★ 点赞数在 _box_8ii1c 里（旧版用 like/good/thumb，已失效）
+        const cLikes = item.querySelector('[class*="_box_8ii1c"], [class*="_like"], [class*="_good"], [class*="_thumb"]');
 
         const text = cText ? cText.textContent.trim() : '';
         if (!text || text.length < 2 || seenComments.has(text)) continue;
@@ -546,20 +549,19 @@ async function crawlPostDetail(browser, post) {
         });
       }
 
-      // 如果上面的选择器没匹配到评论，兜底：找评论区域下的直接文本块
+      // 如果上面的选择器没匹配到评论，兜底：找评论列表容器
       if (result.comments.length === 0) {
-        const commentArea = document.querySelector('[class*="_wrap_vjceo"], [class*="comment_list"], [class*="comment-list"], [class*="cmt_list"]');
+        const commentArea = document.querySelector('[class*="_type_comment"], [class*="_list_xmzzc"], [class*="comment_list"]');
         if (commentArea) {
-          const divs = commentArea.children;
-          for (const div of divs) {
+          // 在评论列表里找每个 _wrap_vjceo
+          const items = commentArea.querySelectorAll('[class*="_wrap_vjceo"]');
+          for (const item of items) {
             if (result.comments.length >= maxComments) break;
-            // 跳过输入框、提示等
-            if (div.querySelector('input, textarea')) continue;
-            const text = div.textContent.trim();
+            const cAuthor = item.querySelector('[class*="_name_vjceo"]');
+            const cText = item.querySelector('[class*="_text_vjceo"]');
+            const text = cText ? cText.textContent.trim() : '';
             if (!text || text.length < 2 || seenComments.has(text) || isNoise(text)) continue;
             seenComments.add(text);
-
-            const cAuthor = div.querySelector('[class*="nick"], [class*="name"]');
             result.comments.push({
               author: cAuthor ? cAuthor.textContent.trim() : '',
               text: text.substring(0, 1000),
