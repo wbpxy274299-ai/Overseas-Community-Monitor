@@ -192,10 +192,18 @@ function renderWeeklyStats(overview) {
   }
   if (trendSubEl) trendSubEl.textContent = '较前一日';
   
-  const hotEl = document.getElementById('weeklyHotTopic');
-  const hotSubEl = document.getElementById('weeklyHotSub');
-  if (hotEl) hotEl.textContent = overview.hotTopic || '-';
-  if (hotSubEl) hotSubEl.textContent = overview.hotTopicCount > 0 ? `${overview.hotTopicCount} 条讨论` : '本周无话题';
+  // 第4个框：负面舆情监控
+  const negEl = document.getElementById('weeklyHotTopic');
+  const negSubEl = document.getElementById('weeklyHotSub');
+  if (negEl) {
+    const negCnt = overview.negCount || 0;
+    const negRatio = overview.negRatio || 0;
+    negEl.textContent = negCnt > 0 ? `${negCnt}` : '0';
+    negEl.style.color = negRatio > 10 ? 'var(--err)' : negRatio > 5 ? '#E8A33D' : '';
+  }
+  if (negSubEl) {
+    negSubEl.textContent = `占比 ${overview.negRatio || 0}%`;
+  }
 }
 
 function renderWeeklyBarChart(days) {
@@ -260,6 +268,17 @@ async function loadWeeklyHotTopics() {
   }
 }
 
+/**
+ * 【七日热门话题】板块 — 结构固定，不可随意更改
+ * 每平台显示内容（每个话题卡片）：
+ *   1. 话题标签徽章（如 Bug、活动、抽卡等）
+ *   2. 情绪图标 + 话题标题
+ *   3. 热度评分（🔥 X/10）
+ *   4. 讨论条数 + 正面/负面计数
+ *   5. 情绪倾向条（正/负/中性比例）
+ *   6. AI 总结文本
+ *   7. 代表性原声引用（最多2条）
+ */
 function renderWeeklyTopicColumn(containerId, topics, platform) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -268,11 +287,19 @@ function renderWeeklyTopicColumn(containerId, topics, platform) {
     container.innerHTML = '<div style="color:var(--mut);font-size:12px;padding:12px 0">7日内暂无话题数据</div>';
     return;
   }
+  const tagLabels = {
+    bug_report: 'Bug', gacha: '抽卡', knight_order: '骑士团',
+    tree_bond: '树缘', event: '活动', cosmetic: '时装',
+    world_boss: '世界Boss', photo: '拍照', pricing: '充值',
+    server: '服务器', social: '社交', gameplay_balance: '平衡',
+    general: '其他',
+  };
   const sentimentIcon = s => s === 'positive' ? '😊' : s === 'negative' ? '😟' : '😐';
   const sentimentColor = s => s === 'positive' ? 'var(--ok)' : s === 'negative' ? 'var(--err)' : '#6E7076';
   let html = '';
   for (const t of topics) {
     const sIcon = sentimentIcon(t.sentiment);
+    const tagLabel = tagLabels[t.tag] || t.tag || '其他';
     const total = (t.neg || 0) + (t.pos || 0) + (t.neu || 0);
     let moodBar = '';
     if (total > 0) {
@@ -291,7 +318,7 @@ function renderWeeklyTopicColumn(containerId, topics, platform) {
       }
     }
     html += `<div class="tcard ${pf}">
-      <div class="top"><span class="name">${sIcon} ${t.title}</span><span class="heat">🔥 ${t.heat}/10</span></div>
+      <div class="top"><span class="tag-badge">${tagLabel}</span><span class="name">${sIcon} ${t.title}</span><span class="heat">🔥 ${t.heat}/10</span></div>
       <div class="meta">${t.count}条讨论 · 👍${t.pos || 0} · 👎${t.neg || 0}</div>
       ${moodBar}
       <div class="sum">${escapeHtml(t.overview)}</div>
@@ -639,22 +666,61 @@ async function loadDailyBriefOverview() {
   }
 }
 
+/**
+ * 【发言概况】板块 — 结构固定，不可随意更改
+ * 每平台显示内容：
+ *   1. 话题标签徽章（如 Bug、活动、抽卡等）
+ *   2. 情绪图标 + 话题标题
+ *   3. 讨论条数
+ *   4. AI 总结文本
+ * 不包含：玩家原声引用
+ */
 function renderDailyBriefOverview(data) {
   const twContainer = document.getElementById('briefTwitterTopics');
   const dcContainer = document.getElementById('briefDiscordTopics');
   const krContainer = document.getElementById('briefLoungePosts');
   
-  function renderPlatform(el, platformData, pClass) {
+  const tagLabels = {
+    bug_report: 'Bug', gacha: '抽卡', knight_order: '骑士团',
+    tree_bond: '树缘', event: '活动', cosmetic: '时装',
+    world_boss: '世界Boss', photo: '拍照', pricing: '充值',
+    server: '服务器', social: '社交', gameplay_balance: '平衡',
+    general: '其他',
+  };
+  const sentimentIcon = s => s === 'positive' ? '😊' : s === 'negative' ? '😟' : '😐';
+  
+  function renderPlatform(el, platformData) {
     if (!platformData || !platformData.hasData) {
-      el.textContent = '今日暂无玩家发言';
+      el.innerHTML = '<div style="color:var(--mut);font-size:12px;padding:8px 0">今日暂无玩家发言</div>';
       return;
     }
-    el.textContent = platformData.text;
+    
+    // 有 AI 话题时，渲染话题卡片（标签 + 标题 + 总结）
+    if (platformData.topics && platformData.topics.length > 0) {
+      let html = '';
+      for (const t of platformData.topics) {
+        const sIcon = sentimentIcon(t.sentiment);
+        const tagLabel = tagLabels[t.tag] || t.tag || '其他';
+        
+        html += `<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--panel)">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--panel-2);color:var(--mut);text-transform:uppercase">${tagLabel}</span>
+            <span style="font-weight:700;font-size:12px;color:var(--ink)">${sIcon} ${t.title}</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--mut)">${t.count}条</span>
+          </div>
+          <div style="font-size:11px;color:var(--mut);line-height:1.5">${escapeHtml(t.overview)}</div>
+        </div>`;
+      }
+      el.innerHTML = html;
+    } else {
+      // 无 AI 话题时，显示概述文本
+      el.innerHTML = `<div style="font-size:12px;color:var(--mut);line-height:1.6;padding:4px 0">${platformData.text}</div>`;
+    }
   }
   
-  if (twContainer) renderPlatform(twContainer, data.twitter, 'brief-overview-tw');
-  if (dcContainer) renderPlatform(dcContainer, data.discord, 'brief-overview-dc');
-  if (krContainer) renderPlatform(krContainer, data.lounge, 'brief-overview-kr');
+  if (twContainer) renderPlatform(twContainer, data.twitter);
+  if (dcContainer) renderPlatform(dcContainer, data.discord);
+  if (krContainer) renderPlatform(krContainer, data.lounge);
 }
 
 // 在概述下方追加热门话题卡片
@@ -742,7 +808,13 @@ async function loadTopicTrends(platform) {
   }
 }
 
-// ===== 玩家发言原声（默认日服Twitter）=====
+// ===== 【玩家发言原声】板块 — 结构固定，不可随意更改 =====
+// 显示内容：
+//   1. 情绪图标 + 作者名 + 时间
+//   2. 翻译后正文（中文）
+//   3. 原文引用（斜体）
+//   4. 原文链接按钮
+// 支持平台切换：日服Twitter / 繁中Discord / 韩服Naver
 let currentMsgPlatform = 'twitter';
 
 function switchMsgTab(platform) {
@@ -796,7 +868,18 @@ function renderKoreanMessages(posts) {
     const sColor = sentimentColor(p.sentiment);
     const sIcon = sentimentIcon(p.sentiment);
     const cat = catLabel(p.ai_category);
-    const time = (p.post_time || '').substring(5, 16);
+    // 使用 crawled_at (ISO格式) 而不是 post_time (韩文相对时间)
+    let time = '';
+    if (p.crawled_at) {
+      const d = new Date(p.crawled_at);
+      if (!isNaN(d.getTime())) {
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        time = `${mm}-${dd} ${hh}:${min}`;
+      }
+    }
     const url = p.url || '';
     html += `<div class="vpost" style="border-left-color:${sColor}">
       <div class="vh"><span>${sIcon}</span><span class="name">${escapeHtml(p.author || '匿名')}</span><span class="time">${time}${url ? ` · <a href="${url}" target="_blank" style="color:#4A9EDA;text-decoration:none;font-weight:600">原文↗</a>` : ''}</span></div>

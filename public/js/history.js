@@ -16,6 +16,29 @@ function initDates() {
   document.getElementById('platformFilter').value = '';
 }
 
+// 格式化韩国评论时间 "20260404192948" -> "04-04 19:29"
+function formatKrTime(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string' || timeStr.length < 12) return '';
+  const y = timeStr.substring(0, 4);
+  const m = timeStr.substring(4, 6);
+  const d = timeStr.substring(6, 8);
+  const h = timeStr.substring(8, 10);
+  const min = timeStr.substring(10, 12);
+  return `${m}-${d} ${h}:${min}`;
+}
+
+// 格式化爬取时间 "2026-07-31T13:00:30.334Z" -> "07-31 13:00"
+function formatCrawlTime(timeStr) {
+  if (!timeStr) return '';
+  const d = new Date(timeStr);
+  if (isNaN(d.getTime())) return '';
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${mm}-${dd} ${hh}:${min}`;
+}
+
 function formatDateInput(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -521,7 +544,17 @@ async function loadLoungeStats() {
     if (el('statTranslated')) el('statTranslated').textContent = translated;
     if (el('statTranslatePct')) el('statTranslatePct').textContent = pct + '%';
     if (el('statLastCrawl')) {
-      el('statLastCrawl').textContent = lastCrawl !== '--' ? lastCrawl.substring(5, 16) : '--';
+      // lastCrawl 是 ISO 格式 "2026-07-31T13:00:30.334Z"，转为 "07-31 13:00"
+      if (lastCrawl !== '--') {
+        const d = new Date(lastCrawl);
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        el('statLastCrawl').textContent = `${mm}-${dd} ${hh}:${min}`;
+      } else {
+        el('statLastCrawl').textContent = '--';
+      }
     }
     if (el('statProgressFill')) el('statProgressFill').style.width = pct + '%';
     // 更新 Tab 计数角标
@@ -556,7 +589,7 @@ function renderLoungePosts(posts) {
       </div>
       <div class="strong" style="font-size:14px">${escapeHtml(title)}</div>
       <div style="font-size:11px;color:var(--mut);margin-top:6px">
-         ${escapeHtml(p.author || '匿名')} ·  ${p.view_count||0} · 💬 ${cmtCount}条评论
+         ${escapeHtml(p.author || '匿名')} · ${formatCrawlTime(p.crawled_at)} · ${p.view_count||0} · 💬 ${cmtCount}条评论
         ${p.url ? ` · <a class="oplink" href="${p.url}" target="_blank" onclick="event.stopPropagation()">原帖 ↗</a>` : ''}
       </div>
     </div>`;
@@ -635,7 +668,7 @@ async function openLoungePost(postId, gameCode) {
           <div class="lounge-cmt-header">
             <span class="lounge-cmt-author">👤 ${escapeHtml(c.author || '匿名')}</span>
             <span class="lounge-cmt-sent">${sentIcon(c.sentiment)}</span>
-            <span class="lounge-cmt-time">${c.comment_time || ''}</span>
+            <span class="lounge-cmt-time">${formatKrTime(c.comment_time) || ''}</span>
             ${c.likes > 0 ? `<span class="lounge-cmt-likes">👍 ${c.likes}</span>` : ''}
           </div>
           <div class="lounge-cmt-text">${escapeHtml(text)}</div>

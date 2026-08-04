@@ -15,6 +15,38 @@ const { crawlLounge, getCrawlStatus, LOUNGE_CONFIG, parseKoreanTime } = require(
 const translator = require('../translator');
 const { getProxyConfig } = require('../config');
 
+/**
+ * 从韩文时间字符串提取实际发布日期
+ * @param {string} koreanTime - 韩文时间 (如 "06.16", "1시간 전")
+ * @param {string} crawledAt - 抓取时间 (ISO 格式)
+ * @returns {string|null} YYYY-MM-DD 格式日期
+ */
+function extractPostDate(koreanTime, crawledAt) {
+  if (!koreanTime) return null;
+  
+  // 尝试解析 "MM.DD" 格式 (如 "06.16")
+  const match = koreanTime.match(/^(\d{2})\.(\d{2})$/);
+  if (match) {
+    const month = parseInt(match[1]);
+    const day = parseInt(match[2]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      // 假设年份是当前年份
+      const year = new Date().getFullYear();
+      return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    }
+  }
+  
+  // 相对时间 (如 "1시간 전") 或解析失败，使用抓取时间
+  if (crawledAt) {
+    const d = new Date(crawledAt);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+  }
+  
+  return null;
+}
+
 // ===== DeepSeek 通用调用（简单封装，避免依赖 ai_analyzer 内部函数）=====
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
@@ -72,6 +104,7 @@ function initLoungeTables() {
       ai_category     TEXT,                       -- AI分类: bug/suggestion/complaint/praise/question/other
       ai_summary      TEXT,                       -- AI摘要（中文）
       crawled_at      TEXT NOT NULL DEFAULT (datetime('now','+8 hours')),
+      post_date       TEXT,                       -- 帖子实际发布日期 (YYYY-MM-DD)
       UNIQUE(post_id, game_code)                  -- 同一帖子不重复入库
     )
   `);
@@ -134,19 +167,22 @@ function saveCrawlResult(crawlResult) {
       db.getDb().run(
         `INSERT INTO lounge_posts
          (post_id, game_code, game_name, title, author, content, images,
-          post_time, comment_count, view_count, url, crawled_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          post_time, post_date, comment_count, view_count, url, crawled_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(post_id, game_code) DO UPDATE SET
            title = excluded.title,
            author = excluded.author,
            post_time = excluded.post_time,
+           post_date = excluded.post_date,
            comment_count = excluded.comment_count,
            view_count = excluded.view_count,
            content = CASE WHEN lounge_posts.content IS NULL OR lounge_posts.content = '' THEN excluded.content ELSE lounge_posts.content END`,
         [
           post.id, post.gameCode, post.gameName, post.title, post.author,
           post.content, JSON.stringify(post.images || []),
-          parseKoreanTime(post.time, post.crawledAt), post.commentCount, post.viewCount, post.url,
+          parseKoreanTime(post.time, post.crawledAt),
+          extractPostDate(post.time, post.crawledAt),
+          post.commentCount, post.viewCount, post.url,
           post.crawledAt,
         ]
       );

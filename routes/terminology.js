@@ -152,7 +152,31 @@ router.post('/api/terminology/merge', (req, res) => {
     return res.status(400).json({ error: '单次最多 50000 条' });
   }
   const result = terminology.mergeTerms(updates);
+  
+  // 术语表更新后，清除翻译缓存（下次翻译将使用新术语）
+  const translator = require('../translator');
+  translator.clearTranslationCache();
+  
   res.json({ ok: true, ...result });
+});
+
+// 全量术语校对（重新翻译近期记录）
+router.post('/api/terminology/retranslate', requireAuth, async (req, res) => {
+  const { days = 7, limit = 500 } = req.body;
+  
+  // 只允许管理员触发
+  if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: '权限不足' });
+  }
+  
+  try {
+    const translator = require('../translator');
+    const results = await translator.retranslateRecentRecords(days, limit);
+    res.json({ ok: true, results });
+  } catch (e) {
+    console.error('全量术语校对失败:', e);
+    res.status(500).json({ error: '校对失败: ' + e.message });
+  }
 });
 
 // 统计信息

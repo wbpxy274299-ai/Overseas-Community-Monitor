@@ -746,7 +746,7 @@ async function showDcPreview(taskId) {
 // ===== 事件绑定（统一在 DOMContentLoaded） =====
 document.addEventListener('DOMContentLoaded', () => {
   // 登录/注册（已废弃，统一用 Google SSO）
-  $('logoutBtn').addEventListener('click', doLogout);
+  if ($('logoutBtn')) $('logoutBtn').addEventListener('click', doLogout);
 
   // Tab 切换（事件委托）
   document.querySelector('.tabs').addEventListener('click', (e) => {

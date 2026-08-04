@@ -118,9 +118,14 @@
 
       <div id="updateStatus" class="card-sub" style="margin-top:12px;color:var(--cut-mut)"></div>
       <div id="updateStats" style="margin-top:8px;color:var(--cut-mut)"></div>
-      <div style="display:flex;gap:12px;margin-top:18px">
+      
+      <!-- 全量术语校对按钮 -->
+      <div style="display:flex;gap:12px;margin-top:18px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-solid btn-sm" onclick="doFullRetranslate()" id="btnFullRetranslate">🔄 全量术语校对（重翻译近7天）</button>
+        <span style="font-size:11px;color:var(--cut-mut)">术语表更新后，点击此按钮重新翻译近期内容，确保使用最新术语</span>
         <span style="margin-left:auto;font-size:12px;color:var(--cut-mut);align-self:center">当前版本：多语言聚合版 · 离线可用</span>
       </div>
+      <div id="retranslateStatus" class="card-sub" style="margin-top:8px;color:var(--cut-mut)"></div>
     </div>
   </div>
 

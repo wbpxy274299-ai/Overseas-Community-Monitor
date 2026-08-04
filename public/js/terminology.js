@@ -403,3 +403,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
+
+// ===== 全量术语校对 =====
+async function doFullRetranslate() {
+  const btn = document.getElementById('btnFullRetranslate');
+  const status = document.getElementById('retranslateStatus');
+  
+  if (!confirm('确定要执行全量术语校对吗？\n\n这将重新翻译近7天的 Twitter 和韩服内容，使用最新术语表。\n\n注意：\n- 可能需要几分钟\n- 会消耗 DeepSeek API 配额')) {
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = '⏳ 校对中...';
+  status.textContent = '正在清除翻译缓存并重新翻译，请耐心等待...';
+  status.style.color = 'var(--ok)';
+  
+  try {
+    const res = await fetch('/api/terminology/retranslate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: 7, limit: 500 })
+    });
+    
+    const data = await res.json();
+    
+    if (data.ok) {
+      const r = data.results;
+      status.innerHTML = `
+        ✅ 全量术语校对完成！<br>
+        📝 Twitter: ${r.twitter.retranslated}/${r.twitter.checked} 条已重翻译<br>
+        📝 Lounge: ${r.lounge.retranslated}/${r.lounge.checked} 条已重翻译<br>
+        📊 总计: ${r.total} 条
+      `;
+      status.style.color = 'var(--ok)';
+    } else {
+      status.textContent = '❌ ' + (data.error || '校对失败');
+      status.style.color = 'var(--err)';
+    }
+  } catch (e) {
+    status.textContent = '❌ 请求失败: ' + e.message;
+    status.style.color = 'var(--err)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 全量术语校对（重翻译近7天）';
+  }
+}

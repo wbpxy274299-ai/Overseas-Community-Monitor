@@ -77,7 +77,7 @@ function renderUserTable(users) {
     const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
     const roleSelector = buildRoleSelector(user.username, role, isSelf);
     const deleteBtn = isSuperAdmin && !isSelf
-      ? `<button class="btn btn-sm" style="background:var(--err);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-top:4px;" onclick="deleteUser('${escapeHtml(user.username)}')">🗑️ 删除</button>`
+      ? `<button class="btn btn-op danger btn-sm" style="margin-top:4px;" onclick="deleteUser('${escapeHtml(user.username)}')">🗑️ 删除</button>`
       : '';
 
     // 构建扩展权限控件（仅 operator 显示，admin/super_admin 默认全权限）
@@ -117,7 +117,7 @@ function buildRoleSelector(username, currentRole, isSelf) {
   return `
     <select onchange="changeRole('${username}', this.value, this)" 
             ${isSelf ? 'disabled title="不能修改自己的角色"' : ''}
-            style="padding:6px 10px; border-radius:8px; border:1px solid #ddd; font-size:13px; min-width:120px;">
+            class="sel" style="padding:6px 10px;border-radius:8px;font-size:12px;min-width:120px;">
       ${options}
     </select>`;
 }

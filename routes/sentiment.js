@@ -15,6 +15,32 @@ const translator = require('../translator');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 // 仅对本路由器的路由生效，不拦截其他模块（terminology/lounge 等）的路由
+
+// ★ 内部工具接口：浏览器抓取后更新数据库（放在认证前面，无需登录）
+router.post('/api/sentiment/lounge-update', (req, res) => {
+  try {
+    const { postId, content, comments } = req.body;
+    if (!postId) return res.status(400).json({ error: '缺少 postId' });
+    if (content) {
+      db.getDb().run('UPDATE lounge_posts SET content = ? WHERE post_id = ?', [content, postId]);
+    }
+    if (Array.isArray(comments)) {
+      db.getDb().run('DELETE FROM lounge_comments WHERE post_id = ?', [postId]);
+      for (const c of comments) {
+        db.getDb().run(
+          `INSERT INTO lounge_comments (post_id, game_code, author, content, comment_time, likes, crawled_at)
+           VALUES (?, ?, ?, ?, ?, ?, datetime('now','+8 hours'))`,
+          [postId, '', c.author || '', c.text || '', c.time || '', parseInt(c.likes) || 0]
+        );
+      }
+    }
+    db.saveDb();
+    res.json({ success: true, message: `更新完成，评论 ${comments?.length || 0} 条` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.use('/api/sentiment', requireAuth);
 router.use('/api/weekly-report', requireAuth);
 router.use('/api/system', requireAuth);
@@ -245,7 +271,7 @@ router.get('/api/sentiment/lounge-daily', (req, res) => {
     const end = today + 'T23:59:59';
     const limit = parseInt(req.query.limit) || 200;
     const posts = db.queryAll(
-      `SELECT title_zh, title, content_zh, author, url, sentiment, ai_category, post_time
+      `SELECT title_zh, title, content_zh, author, url, sentiment, ai_category, post_time, crawled_at
        FROM lounge_posts
        WHERE crawled_at >= ? AND crawled_at <= ?
        ORDER BY COALESCE(post_time, crawled_at) DESC LIMIT ?`,
@@ -1028,10 +1054,10 @@ router.get('/api/sentiment/weekly-hot-topics', async (req, res) => {
   }
 });
 
-// ===== 每日舆情概述（无话题时的兑底）=====
-router.get('/api/sentiment/daily-overview', (req, res) => {
+// ===== 每日舆情概述（AI 话题识别 + 总结）=====
+router.get('/api/sentiment/daily-overview', async (req, res) => {
   try {
-    const overview = sentiment.getDailyOverview();
+    const overview = await sentiment.getDailyOverview();
     res.json({ ok: true, data: overview });
   } catch (e) {
     log.error('获取每日舆情概述失败', e.message);

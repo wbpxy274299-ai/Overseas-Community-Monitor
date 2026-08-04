@@ -284,8 +284,159 @@ async function translateKoreanToChinese(text) {
   }
 }
 
+// ===== 全量术语校对机制 =====
+
+/**
+ * 清除翻译缓存
+ * 术语表更新后调用，确保新术语生效
+ */
+function clearTranslationCache() {
+  const size = translationCache.size;
+  translationCache.clear();
+  console.log(`🗑️ 已清除翻译缓存 ${size} 条`);
+  return size;
+}
+
+/**
+ * 全量术语校对：重新翻译近期记录
+ * 术语表更新后调用，确保所有翻译使用最新术语
+ * 
+ * @param {number} days - 回溯天数（默认7天）
+ * @param {number} limit - 最大处理条数（默认500）
+ * @returns {Promise<Object>} 校对结果统计
+ */
+async function retranslateRecentRecords(days = 7, limit = 500) {
+  const db = require('./db');
+  const results = {
+    twitter: { checked: 0, retranslated: 0, failed: 0 },
+    lounge: { checked: 0, retranslated: 0, failed: 0 },
+    total: 0,
+  };
+
+  console.log(`\n🔄 开始全量术语校对（近${days}天，最多${limit}条）...`);
+
+  // 1. 清除缓存，确保新术语生效
+  clearTranslationCache();
+
+  // 2. 重新翻译 Twitter 近期记录
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().slice(0, 19).replace('T', ' ');
+
+    const twitterRecords = db.queryAll(
+      `SELECT id, content, translated_content FROM sentiment_records
+       WHERE source = 'twitter' AND created_at >= ?
+       AND content IS NOT NULL AND content != ''
+       ORDER BY created_at DESC LIMIT ?`,
+      [cutoffStr, Math.min(limit, 300)]
+    );
+
+    results.twitter.checked = twitterRecords.length;
+    console.log(`📝 Twitter: 检查 ${twitterRecords.length} 条记录`);
+
+    for (const record of twitterRecords) {
+      try {
+        // 只重新翻译包含日文字符的内容
+        if (hasJapaneseCharacters(record.content)) {
+          const newTranslation = await translateJapaneseToChinese(record.content);
+          if (newTranslation && newTranslation !== record.translated_content) {
+            db.getDb().run(
+              'UPDATE sentiment_records SET translated_content = ? WHERE id = ?',
+              [newTranslation, record.id]
+            );
+            results.twitter.retranslated++;
+          }
+        }
+        // 控制 API 调用频率
+        await new Promise(r => setTimeout(r, 200));
+      } catch (e) {
+        results.twitter.failed++;
+        console.warn(`   ⚠️ Twitter #${record.id} 重翻译失败:`, e.message);
+      }
+    }
+  } catch (e) {
+    console.error('❌ Twitter 校对失败:', e.message);
+  }
+
+  // 3. 重新翻译 Korean Lounge 近期记录
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().slice(0, 19).replace('T', ' ');
+
+    const loungePosts = db.queryAll(
+      `SELECT id, title, content, title_zh, content_zh FROM lounge_posts
+       WHERE crawled_at >= ?
+       AND content IS NOT NULL AND content != ''
+       ORDER BY crawled_at DESC LIMIT ?`,
+      [cutoffStr, Math.min(limit, 200)]
+    );
+
+    results.lounge.checked = loungePosts.length;
+    console.log(`📝 Lounge: 检查 ${loungePosts.length} 条帖子`);
+
+    for (const post of loungePosts) {
+      try {
+        let updated = false;
+        let newTitleZh = post.title_zh;
+        let newContentZh = post.content_zh;
+
+        // 重翻译标题
+        if (post.title && hasKoreanCharacters(post.title)) {
+          newTitleZh = await translateKoreanToChinese(post.title);
+          if (newTitleZh !== post.title_zh) updated = true;
+        }
+
+        // 重翻译正文（限制长度）
+        if (post.content && hasKoreanCharacters(post.content)) {
+          const truncated = post.content.substring(0, 3000);
+          newContentZh = await translateKoreanToChinese(truncated);
+          if (newContentZh !== post.content_zh) updated = true;
+        }
+
+        if (updated) {
+          db.getDb().run(
+            'UPDATE lounge_posts SET title_zh = ?, content_zh = ? WHERE id = ?',
+            [newTitleZh, newContentZh, post.id]
+          );
+          results.lounge.retranslated++;
+        }
+
+        // 控制 API 调用频率
+        await new Promise(r => setTimeout(r, 300));
+      } catch (e) {
+        results.lounge.failed++;
+        console.warn(`   ⚠️ Lounge #${post.id} 重翻译失败:`, e.message);
+      }
+    }
+  } catch (e) {
+    console.error('❌ Lounge 校对失败:', e.message);
+  }
+
+  results.total = results.twitter.retranslated + results.lounge.retranslated;
+  console.log(`\n✅ 全量术语校对完成:`);
+  console.log(`   Twitter: ${results.twitter.retranslated}/${results.twitter.checked} 条已重翻译`);
+  console.log(`   Lounge: ${results.lounge.retranslated}/${results.lounge.checked} 条已重翻译`);
+  console.log(`   总计: ${results.total} 条`);
+
+  return results;
+}
+
+/**
+ * 检查文本是否包含韩文字符
+ */
+function hasKoreanCharacters(text) {
+  // 韩文字母范围: AC00-D7AF (韩文音节)
+  const koreanRegex = /[\uAC00-\uD7AF]/;
+  return koreanRegex.test(text);
+}
+
 module.exports = {
   translateJapaneseToChinese,
   translateKoreanToChinese,
   hasJapaneseCharacters,
+  hasKoreanCharacters,
+  clearTranslationCache,
+  retranslateRecentRecords,
 };
