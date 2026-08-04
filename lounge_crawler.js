@@ -187,8 +187,48 @@ let isCrawling = false;
 let lastCrawlTime = null;
 let lastCrawlResult = null;
 
+// ===== 抓取进度追踪 =====
+let crawlProgress = {
+  step: 'idle',           // idle | list | filter | detail | save | done | error
+  stepLabel: '待命',
+  totalSteps: 0,
+  currentStep: 0,
+  message: '',
+  postsFound: 0,
+  postsCrawled: 0,
+  commentsFound: 0,
+};
+
+function updateProgress(step, stepLabel, message, extra = {}) {
+  crawlProgress = {
+    ...crawlProgress,
+    step,
+    stepLabel,
+    message,
+    ...extra,
+  };
+  console.log(` 进度 [${stepLabel}]: ${message}`);
+}
+
+function getCrawlProgress() {
+  return { ...crawlProgress };
+}
+
+function resetProgress() {
+  crawlProgress = {
+    step: 'idle',
+    stepLabel: '待命',
+    totalSteps: 0,
+    currentStep: 0,
+    message: '',
+    postsFound: 0,
+    postsCrawled: 0,
+    commentsFound: 0,
+  };
+}
+
 function getCrawlStatus() {
-  return { isCrawling, lastCrawlTime, lastCrawlResult };
+  return { isCrawling, lastCrawlTime, lastCrawlResult, progress: getCrawlProgress() };
 }
 
 // ===== 工具函数 =====
@@ -728,6 +768,7 @@ async function crawlLounge(options = {}) {
   }
 
   isCrawling = true;
+  resetProgress();
   const startTime = Date.now();
   const result = {
     success: false,
@@ -743,6 +784,7 @@ async function crawlLounge(options = {}) {
 
   try {
     console.log('\n🚀 ===== Naver Lounge 爬虫启动 =====');
+    updateProgress('starting', '启动中', '正在启动浏览器...', { totalSteps: 4, currentStep: 1 });
 
     // 启动无头浏览器
     const { args: proxyArgs } = getProxyArgs();
@@ -773,14 +815,17 @@ async function crawlLounge(options = {}) {
       console.log(`\n🎮 开始抓取: ${game.name}`);
 
       // 第一步：抓帖子列表
+      updateProgress('list', '抓取列表', `正在获取 ${game.name} 帖子列表...`, { currentStep: 1 });
       const postList = await crawlPostList(browser, game, options);
       if (postList.length === 0) {
         console.log(`⚠️ ${game.name} 没有抓到任何帖子`);
         continue;
       }
+      updateProgress('list', '列表完成', `获取到 ${postList.length} 条帖子`, { postsFound: postList.length });
 
       // 第二步：排重过滤 — 决定哪些帖子需要打开详情页
       // 比喻：老师批作业前先看名单，上次批过且没改过的直接跳过
+      updateProgress('filter', '排重过滤', '正在分析帖子...', { currentStep: 2 });
       const existingMap = getExistingPosts();
       const postsToOpen = [];    // 需要打开详情页的帖子
       const postsToSkip = [];    // 跳过的帖子（DB已有完整数据）
@@ -818,11 +863,14 @@ async function crawlLounge(options = {}) {
       }
 
       console.log(`📋 排重结果：需打开 ${postsToOpen.length} 条，跳过 ${postsToSkip.length} 条（评论未增加）`);
+      updateProgress('filter', '排重完成', `需打开 ${postsToOpen.length} 条，跳过 ${postsToSkip.length} 条`, { totalSteps: 4, currentStep: 2 });
 
       // 第三步：逐个打开需要抓的帖子详情
+      updateProgress('detail', '抓取详情', `开始抓取 ${postsToOpen.length} 条帖子详情...`, { currentStep: 3, totalSteps: 3 + postsToOpen.length });
       for (let i = 0; i < postsToOpen.length; i++) {
         const post = postsToOpen[i];
         console.log(`  [${i + 1}/${postsToOpen.length}] 正在抓取: ${post.title.substring(0, 30)}...`);
+        updateProgress('detail', '抓取详情', `[${i + 1}/${postsToOpen.length}] ${post.title.substring(0, 40)}...`, { currentStep: 3 + i, postsCrawled: i });
 
         const detail = await crawlPostDetail(browser, post);
 
@@ -866,10 +914,17 @@ async function crawlLounge(options = {}) {
     console.log(`   帖子: ${result.posts.length} 条（列表共 ${result.totalPosts} 条，跳过 ${result.skippedPosts} 条）`);
     console.log(`   评论: ${result.totalComments} 条`);
     console.log(`   耗时: ${result.crawlTime} 秒`);
+    updateProgress('done', '抓取完成', `帖子 ${result.posts.length} 条，评论 ${result.totalComments} 条，耗时 ${result.crawlTime} 秒`, {
+      currentStep: 100,
+      totalSteps: 100,
+      postsCrawled: result.posts.length,
+      commentsFound: result.totalComments,
+    });
 
   } catch (err) {
     result.error = err.message;
     console.error(`\n❌ 爬虫执行失败: ${err.message}`);
+    updateProgress('error', '抓取失败', err.message, { currentStep: 100, totalSteps: 100 });
     log.error('Lounge crawl error', err.stack);
   } finally {
     if (browser) {
@@ -953,6 +1008,7 @@ async function recrawlPost(postId) {
 module.exports = {
   crawlLounge,
   getCrawlStatus,
+  getCrawlProgress,
   recrawlPost,
   LOUNGE_CONFIG,
   parseKoreanTime,

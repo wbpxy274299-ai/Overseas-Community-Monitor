@@ -170,21 +170,172 @@ async function checkData() {
   }
 }
 
-// 查看报告详情
+// 查看报告详情（结构化阅读器）
 async function viewReport(id) {
   try {
     const response = await fetch(`${SENTIMENT_API}/report/${id}`);
     const data = await response.json();
     if (data.ok) {
-      document.getElementById('modalTitle').textContent = data.data.title;
-      document.getElementById('modalContent').innerHTML = renderMarkdown(data.data.content);
-      document.getElementById('reportModal').classList.add('active');
+      const report = data.data;
+      renderStructuredReport(report);
+      openRpt('rptReport');
     } else {
       Toast.error('加载失败: ' + data.error);
     }
   } catch (error) {
     console.error('加载报告失败:', error);
     Toast.error('网络错误');
+  }
+}
+
+/**
+ * 解析 Markdown 报告为结构化数据
+ */
+function parseReportMarkdown(md) {
+  const lines = String(md).split('\n');
+  const sections = [];
+  let currentSection = null;
+  let currentSubsection = null;
+  let currentContent = [];
+
+  const flushSubsection = () => {
+    if (currentSubsection && currentContent.length > 0) {
+      currentSubsection.content = currentContent.join('\n').trim();
+      currentSection.subsections.push(currentSubsection);
+    }
+    currentSubsection = null;
+    currentContent = [];
+  };
+
+  const flushSection = () => {
+    flushSubsection();
+    if (currentSection) sections.push(currentSection);
+    currentSection = null;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // 二级标题：## 一、本周总览 或 ## 二、社区发言概况
+    if (/^## (.+)/.test(line)) {
+      flushSection();
+      const title = line.replace(/^## /, '').trim();
+      currentSection = { title, subsections: [] };
+      continue;
+    }
+
+    // 三级标题：### 1. 正面情绪 或 ### 2. 中性情绪
+    if (/^### (.+)/.test(line)) {
+      flushSubsection();
+      const title = line.replace(/^### /, '').trim();
+      currentSubsection = { title, content: '' };
+      continue;
+    }
+
+    // 内容行
+    if (currentSubsection) {
+      currentContent.push(line);
+    } else if (currentSection) {
+      // 没有子章节，直接作为 section 的内容
+      currentContent.push(line);
+    }
+  }
+
+  flushSubsection();
+  flushSection();
+
+  return sections;
+}
+
+/**
+ * 渲染结构化报告到阅读器
+ */
+function renderStructuredReport(report) {
+  const { title, content, twitter_count, discord_count, risk_level, created_at } = report;
+  const sections = parseReportMarkdown(content);
+
+  // 更新元信息
+  const metaEl = document.getElementById('rptReportMeta');
+  if (metaEl) {
+    const total = (twitter_count || 0) + (discord_count || 0);
+    metaEl.innerHTML = `报告周期：${title || '未知'} · 共 ${total} 条发言（Twitter ${twitter_count || 0} · Discord ${discord_count || 0}）<br>生成于 ${formatDate(created_at)}`;
+  }
+
+  // 渲染 Tab 导航
+  const navEl = document.getElementById('rptReportNav');
+  if (navEl) {
+    let navHtml = '<a onclick="rptGo(\'r-s-overview\')">总览</a>';
+    sections.forEach((sec, idx) => {
+      navHtml += `<a onclick="rptGo('r-s-${idx}')">${escapeHtml(sec.title)}</a>`;
+    });
+    navEl.innerHTML = navHtml;
+  }
+
+  // 渲染正文
+  const bodyEl = document.getElementById('rptReportBody');
+  if (!bodyEl) return;
+
+  let html = '';
+
+  // 总览区：统计卡片
+  const total = (twitter_count || 0) + (discord_count || 0);
+  const riskClass = risk_level === 'high' ? '#E88B81' : risk_level === 'medium' ? 'var(--warn)' : '#7CC79A';
+  const riskLabel = risk_level === 'high' ? '高' : risk_level === 'medium' ? '中' : '低';
+
+  html += '<div class="rpt-sec" id="r-s-overview">总览</div>';
+  html += '<div class="rpt-stat" style="grid-template-columns:repeat(4,1fr)">';
+  html += `<div class="c"><div class="n">${total}</div><div class="t">总发言数</div></div>`;
+  html += `<div class="c"><div class="n" style="color:#4A9EDA">${twitter_count || 0}</div><div class="t">Twitter</div></div>`;
+  html += `<div class="c"><div class="n" style="color:#6A5ACD">${discord_count || 0}</div><div class="t">Discord</div></div>`;
+  html += `<div class="c"><div class="n" style="color:${riskClass}">${riskLabel}</div><div class="t">风险等级</div></div>`;
+  html += '</div>';
+
+  // 各分区
+  sections.forEach((sec, idx) => {
+    html += `<div class="rpt-sec" id="r-s-${idx}">${escapeHtml(sec.title)}</div>`;
+
+    if (sec.subsections.length > 0) {
+      // 有子章节
+      sec.subsections.forEach(sub => {
+        html += `<div class="rpt-subtitle">${escapeHtml(sub.title)}</div>`;
+        html += `<div class="rpt-sumbox">${renderInlineMarkdown(sub.content)}</div>`;
+      });
+    } else {
+      // 没有子章节，直接显示内容
+      // 尝试从 section 的 title 后面的内容提取
+      html += `<div class="rpt-sumbox">${renderInlineMarkdown(sec.title)}</div>`;
+    }
+  });
+
+  bodyEl.innerHTML = html;
+}
+
+/**
+ * 简单的行内 Markdown 渲染
+ */
+function renderInlineMarkdown(text) {
+  return String(text)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>');
+}
+
+// 阅读器控制
+function openRpt(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
+function closeRpt(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
+function rptGo(secId){ var el=document.getElementById(secId); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); }
+
+// 复制总结
+function copyReportSummary() {
+  const body = document.getElementById('rptReportBody');
+  if (body) {
+    const text = body.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      Toast.success('已复制到剪贴板');
+    }).catch(() => {
+      Toast.error('复制失败');
+    });
   }
 }
 
@@ -284,9 +435,10 @@ function applyInline(text) {
   return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>');
 }
 
-// 点击弹窗外部关闭
-document.getElementById('reportModal').addEventListener('click', (e) => {
-  if (e.target.id === 'reportModal') closeModal();
+// 点击阅读器外部关闭
+document.addEventListener('click', (e) => {
+  const mask = document.getElementById('rptReport');
+  if (mask && e.target === mask) closeRpt('rptReport');
 });
 
 window.addEventListener('DOMContentLoaded', () => { loadReports(); });

@@ -11,7 +11,7 @@ const router = express.Router();
 const axios = require('axios');
 const { ensureLoggedIn } = require('../middleware/auth');
 const db = require('../db');
-const { crawlLounge, getCrawlStatus, LOUNGE_CONFIG, parseKoreanTime } = require('../lounge_crawler');
+const { crawlLounge, getCrawlStatus, getCrawlProgress, LOUNGE_CONFIG, parseKoreanTime } = require('../lounge_crawler');
 const translator = require('../translator');
 const { getProxyConfig } = require('../config');
 
@@ -625,6 +625,12 @@ router.get('/api/lounge/status', ensureLoggedIn, (req, res) => {
     stats = { total_posts: 0, positive: 0, negative: 0, translated: 0 };
   }
   res.json({ success: true, data: { ...status, stats } });
+});
+
+// 获取抓取进度
+router.get('/api/lounge/progress', ensureLoggedIn, (req, res) => {
+  const progress = getCrawlProgress();
+  res.json({ success: true, data: progress });
 });
 
 // 手动触发抓取（管理员操作）

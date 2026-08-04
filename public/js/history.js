@@ -467,6 +467,8 @@ async function loadLoungeCrawlStatus() {
         btn.disabled = true;
         btn.textContent = '⏳ 抓取中...';
         if (!loungeCrawlPollTimer) startLoungeCrawlPolling();
+        // 更新进度条
+        updateCrawlProgress(data.progress);
       } else {
         btn.disabled = false;
         btn.textContent = '🔄 立即抓取';
@@ -475,10 +477,58 @@ async function loadLoungeCrawlStatus() {
           loungeCrawlPollTimer = null;
           // 抓取完成后刷新帖子列表
           if (currentHistoryTab === 'korean') loadLoungePosts();
+          // 清除进度条
+          clearCrawlProgress();
         }
       }
     }
   } catch (_) {}
+}
+
+// ===== 抓取进度显示 =====
+function updateCrawlProgress(progress) {
+  if (!progress) return;
+  let bar = document.getElementById('crawlProgressBar');
+  let label = document.getElementById('crawlProgressLabel');
+  if (!bar) {
+    // 创建进度条
+    const container = document.createElement('div');
+    container.id = 'crawlProgressContainer';
+    container.style.cssText = 'margin-top:12px;padding:12px 16px;background:var(--panel-2);border-radius:12px;border:1px solid var(--line)';
+    bar = document.createElement('div');
+    bar.id = 'crawlProgressBar';
+    bar.style.cssText = 'height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:8px';
+    const fill = document.createElement('div');
+    fill.id = 'crawlProgressFill';
+    fill.style.cssText = 'height:100%;background:var(--ink);border-radius:3px;transition:width .3s;width:0%';
+    bar.appendChild(fill);
+    label = document.createElement('div');
+    label.id = 'crawlProgressLabel';
+    label.style.cssText = 'font-size:12px;color:var(--mut)';
+    container.appendChild(bar);
+    container.appendChild(label);
+    const btn = document.getElementById('btnLoungeCrawl');
+    if (btn && btn.parentNode) {
+      btn.parentNode.insertBefore(container, btn.nextSibling);
+    }
+  }
+  const fill = document.getElementById('crawlProgressFill');
+  if (fill && progress.totalSteps > 0) {
+    const pct = Math.min(100, Math.round((progress.currentStep / progress.totalSteps) * 100));
+    fill.style.width = pct + '%';
+  }
+  if (label) {
+    const parts = [progress.stepLabel || ''];
+    if (progress.message) parts.push(progress.message);
+    if (progress.postsFound) parts.push(`发现 ${progress.postsFound} 条`);
+    if (progress.postsCrawled) parts.push(`已抓 ${progress.postsCrawled} 条`);
+    label.textContent = parts.join(' · ');
+  }
+}
+
+function clearCrawlProgress() {
+  const container = document.getElementById('crawlProgressContainer');
+  if (container) container.remove();
 }
 
 // ===== 韩国社区帖子 =====

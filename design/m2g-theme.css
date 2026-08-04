@@ -1,7 +1,8 @@
 
 /* ============================================================
    M2G 用户运营后台 · 黑白未来感主题（m2g-theme.css）
-   版本: V42 | 生成自设计稿 m2g-design-preview-v42
+   版本: V44 | 生成自设计稿 m2g-design-preview-v44
+   含: 浮动反馈组件样式 + 线上兼容覆盖层（去蓝色下划线链接/表格层次/行悬停）
    用法: 在每个 views/*.html 的 </head> 前加一行
          <link rel="stylesheet" href="/css/m2g-theme.css">
    回滚: 删掉上面那一行即可，本文件不覆盖任何原有样式
@@ -530,3 +531,70 @@ th{font-size:11px}
 .send-sec-light .sec-t{font-size:11px}
 .jargon .jt{font-size:11px}
 .thumb .bar{font-size:11px}
+
+/* ===== 浮动反馈组件（全站每页右下角） ===== */
+.fb-fab{position:fixed;right:28px;bottom:84px;width:52px;height:52px;border-radius:16px;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:110;box-shadow:0 10px 26px rgba(0,0,0,.28);transition:.25s;border:none}
+.fb-fab:hover{transform:translateY(-2px)}
+.fb-fab svg{width:22px;height:22px}
+.fb-win{position:fixed;right:28px;bottom:148px;width:320px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.28);z-index:110;display:none;overflow:hidden}
+.fb-win.open{display:block;animation:pgIn .3s ease}
+.fb-win .fh{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--hair);background:var(--panel-2)}
+.fb-win .fh .t{font-size:14px;font-weight:700;color:var(--ink)}
+.fb-win .fh .x{margin-left:auto;cursor:pointer;color:var(--mut);font-size:18px;line-height:1;border:none;background:none;font-family:inherit}
+.fb-win .fh .x:hover{color:var(--ink)}
+.fb-win .fb-body{padding:16px}
+.fb-win textarea{width:100%;min-height:96px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--ink);background:var(--panel);resize:vertical;outline:none;font-family:inherit;line-height:1.6}
+.fb-win textarea:focus,.fb-win input:focus{border-color:var(--ink)}
+.fb-win input{width:100%;margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px;color:var(--ink);background:var(--panel);outline:none;font-family:inherit}
+.fb-win .fb-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+
+/* ============================================================
+   线上兼容覆盖层（V44 新增）
+   作用：叠加到原站 HTML 时，强制覆盖原站残留的默认样式
+   （蓝色下划线链接、原生表格无层次、行无悬停），保证日夜模式观感统一。
+   说明：:not() 排除了所有主题组件类，不会影响新组件；
+        !important 仅用于对抗原站旧样式，属覆盖层必要手段。
+   ============================================================ */
+a:not(.btn):not(.btn-op):not(.btn-solid):not(.btn-ghost):not(.btn-light):not(.btn-ghost-panel):not(.perm-chip):not(.tab-card):not(.side-item):not(.oplink):not(.fb-submit){
+  color:var(--ink) !important;
+  text-decoration:none !important;
+}
+table a:not(.btn),td a:not(.btn){border-bottom:1px solid currentColor;padding-bottom:1px}
+a:not(.btn):not(.btn-op):not(.perm-chip):not(.tab-card):not(.side-item):hover{opacity:.78}
+table{width:100%;border-collapse:collapse}
+table th{font-size:11px !important;letter-spacing:.18em !important;text-transform:uppercase !important;color:var(--mut) !important;font-weight:600 !important;text-align:left !important;padding:14px 18px !important;border-bottom:1px solid var(--line) !important;background:transparent !important}
+table td{padding:14px 18px !important;border-bottom:1px solid var(--hair) !important;color:var(--mut) !important;vertical-align:top}
+table td strong,table td .strong,table td b{color:var(--ink) !important}
+tbody tr:hover td{background:var(--hover)}
+
+/* ============================================================
+   报告阅读器（V45 新增）
+   「查看完整报告」弹窗：固定头部+章节导航+滚动正文+底部操作栏
+   HTML 结构与 JS（openRpt/closeRpt/rptGo）见 m2g-design-preview-v45.html
+   ============================================================ */
+.rpt-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:24px}
+.rpt-mask.open{display:flex}
+.rpt-shell{width:min(920px,100%);height:min(860px,92vh);background:var(--panel);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.4)}
+.rpt-head{display:flex;gap:14px;align-items:flex-start;padding:20px 24px;border-bottom:1px solid var(--hair);background:var(--panel-2)}
+.rpt-head .t{font-size:18px;font-weight:700;color:var(--ink)}
+.rpt-head .meta{font-size:11px;color:var(--mut);margin-top:6px}
+.rpt-head .x{margin-left:auto;cursor:pointer;color:var(--mut);font-size:22px;line-height:1;border:none;background:none;font-family:inherit}
+.rpt-head .x:hover{color:var(--ink)}
+.rpt-nav{display:flex;gap:6px;flex-wrap:wrap;padding:12px 24px;border-bottom:1px solid var(--hair)}
+.rpt-nav a{font-size:12px;font-weight:600;color:var(--mut);border:1px solid var(--line);border-radius:8px;padding:5px 12px;cursor:pointer}
+.rpt-nav a:hover{color:var(--ink);border-color:var(--ink)}
+.rpt-body{flex:1;overflow-y:auto;padding:24px}
+.rpt-sec{font-size:15px;font-weight:700;color:var(--ink);margin:26px 0 12px;display:flex;align-items:center;gap:8px}
+.rpt-sec:first-child{margin-top:0}
+.rpt-sec::before{content:'';width:3px;height:14px;background:var(--ink);border-radius:2px}
+.rpt-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 24px;border-top:1px solid var(--hair);background:var(--panel-2);flex-wrap:wrap}
+.rpt-stat{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+.rpt-stat .c{border:1px solid var(--hair);border-radius:12px;padding:12px;text-align:center;background:var(--panel-2)}
+.rpt-stat .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.rpt-stat .t{font-size:10px;color:var(--mut);margin-top:2px}
+.rpt-topic{border:1px solid var(--hair);border-radius:14px;padding:16px;margin-bottom:12px}
+.rpt-topic .th{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rpt-topic .rank{width:26px;height:26px;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+@media(max-width:700px){.rpt-stat{grid-template-columns:repeat(2,1fr)}}
+/* 报告正文换行修复：后端内容若含字面 <br> 文本，前端用 pre-line 渲染为换行 */
+.rpt-body .quote,.rpt-body .sumbox{white-space:pre-line}

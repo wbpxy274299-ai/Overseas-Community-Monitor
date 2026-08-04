@@ -45,6 +45,8 @@ function ensureInsightsTable() {
       )
     `);
     dbConn.run('CREATE INDEX IF NOT EXISTS idx_insights_created ON insights_reports(created_at DESC)');
+    // 迁移：添加 lounge_count 列（旧表可能没有）
+    try { dbConn.run('ALTER TABLE insights_reports ADD COLUMN lounge_count INTEGER DEFAULT 0'); } catch(_) {}
     db.saveDb();
     insightsTableReady = true;
   } catch (e) {
@@ -326,7 +328,28 @@ router.post('/api/admin/insights/analyze', requireRole('super_admin'), async (re
     const twitterRecords = sentiment.getQualityFeedback(200, 'twitter', startDate, endDate + ' 23:59:59');
     const discordRecords = sentiment.getQualityFeedback(200, 'discord', startDate, endDate + ' 23:59:59');
 
-    const totalRecords = twitterRecords.length + discordRecords.length;
+    // 韩服 Naver Lounge 数据
+    let loungeRecords = [];
+    try {
+      const rawLounge = db.queryAll(
+        `SELECT * FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ? ORDER BY crawled_at DESC LIMIT 200`,
+        [startDate, endDate + ' 23:59:59']
+      );
+      loungeRecords = rawLounge.map(r => ({
+        content: r.content || '',
+        content_zh: r.content_zh || '',
+        title_zh: r.title_zh || '',
+        sentiment: r.sentiment || 'neutral',
+        ai_category: r.ai_category || 'other',
+        ai_summary: r.ai_summary || '',
+        url: r.url || '',
+        author: r.author || '匿名'
+      }));
+    } catch (e) {
+      console.warn('⚠️ 韩服数据查询失败:', e.message);
+    }
+
+    const totalRecords = twitterRecords.length + discordRecords.length + loungeRecords.length;
     if (totalRecords < 3) {
       return res.json({ ok: false, message: `时间范围 ${periodLabel} 内数据不足（仅 ${totalRecords} 条），请先采集数据` });
     }
@@ -346,8 +369,23 @@ router.post('/api/admin/insights/analyze', requireRole('super_admin'), async (re
 
     const twitterText = formatRecords(twitterRecords, 'Twitter');
     const discordText = formatRecords(discordRecords, 'Discord');
-    const combinedText = (discordText ? `=== Discord 繁中服 (${discordRecords.length}条) ===\n${discordText}\n\n` : '') +
-                          (twitterText ? `=== Twitter 日本 (${twitterRecords.length}条) ===\n${twitterText}` : '');
+
+    // 韩服格式化
+    const loungeText = loungeRecords.map(r => {
+      const original = r.content || r.title_zh || '';
+      const translated = r.content_zh || r.title_zh || '';
+      let line = `[Lounge] ${r.author}: ${original}`;
+      if (translated && translated !== original) {
+        line += `\n   [翻译] ${translated}`;
+      }
+      if (r.ai_summary) line += `\n   [AI摘要] ${r.ai_summary}`;
+      return line;
+    }).join('\n');
+
+    const combinedText = 
+      (discordText ? `=== Discord 繁中服 (${discordRecords.length}条) ===\n${discordText}\n\n` : '') +
+      (twitterText ? `=== Twitter 日本 (${twitterRecords.length}条) ===\n${twitterText}\n\n` : '') +
+      (loungeText ? `=== Naver Lounge 韩服 (${loungeRecords.length}条) ===\n${loungeText}` : '');
 
     // 固定格式 AI Prompt
     const prompt = `你是一位资深游戏运营分析师。请根据以下一周内（${periodLabel}）的玩家发言数据，严格按以下固定格式输出「玩家洞察周报」。
@@ -378,6 +416,21 @@ router.post('/api/admin/insights/analyze', requireRole('super_admin'), async (re
 ### ② 玩家原声
 （挑选 1-2 条最有代表性的日语玩家原话，并翻译成中文）
 > 「日语原文」—— 玩家昵称
+> [中文翻译] 翻译内容
+
+### ③ 需求洞察
+（从这些发言中洞察玩家真正想要什么：表面需求是什么？深层需求是什么？）
+
+---
+
+## 🇰🇷 韩服（Naver Lounge）
+
+### ① 玩家意见/建议概述
+（用 2-4 句话总结本周韩服玩家的主要意见、吐槽和建议）
+
+### ② 玩家原声
+（挑选 1-2 条最有代表性的韩服玩家原话，并翻译成中文）
+> 「韩语原文」—— 玩家昵称
 > [中文翻译] 翻译内容
 
 ### ③ 需求洞察
@@ -422,16 +475,18 @@ router.post('/api/admin/insights/analyze', requireRole('super_admin'), async (re
 
     // 存档到数据库（同周期覆盖更新）
     try {
+      // 确保 lounge_count 列存在
+      try { db.getDb().run('ALTER TABLE insights_reports ADD COLUMN lounge_count INTEGER DEFAULT 0'); } catch(_) {}
       const existing = db.queryOne('SELECT id FROM insights_reports WHERE period = ?', [periodLabel]);
       if (existing) {
         db.getDb().run(
-          'UPDATE insights_reports SET content=?, twitter_count=?, discord_count=?, total_records=?, created_at=datetime(\'now\',\'+8 hours\') WHERE id=?',
-          [report, twitterRecords.length, discordRecords.length, totalRecords, existing.id]
+          'UPDATE insights_reports SET content=?, twitter_count=?, discord_count=?, lounge_count=?, total_records=?, created_at=datetime(\'now\',\'+8 hours\') WHERE id=?',
+          [report, twitterRecords.length, discordRecords.length, loungeRecords.length, totalRecords, existing.id]
         );
       } else {
         db.getDb().run(
-          'INSERT INTO insights_reports (period, content, twitter_count, discord_count, total_records) VALUES (?, ?, ?, ?, ?)',
-          [periodLabel, report, twitterRecords.length, discordRecords.length, totalRecords]
+          'INSERT INTO insights_reports (period, content, twitter_count, discord_count, lounge_count, total_records) VALUES (?, ?, ?, ?, ?, ?)',
+          [periodLabel, report, twitterRecords.length, discordRecords.length, loungeRecords.length, totalRecords]
         );
       }
       db.saveDb();
@@ -445,6 +500,7 @@ router.post('/api/admin/insights/analyze', requireRole('super_admin'), async (re
       totalRecords,
       twitterCount: twitterRecords.length,
       discordCount: discordRecords.length,
+      loungeCount: loungeRecords.length,
       report,
     });
   } catch (e) {
@@ -457,7 +513,7 @@ router.post('/api/admin/insights/analyze', requireRole('super_admin'), async (re
 router.get('/api/admin/insights/list', requireRole('super_admin'), (req, res) => {
   ensureInsightsTable();
   try {
-    const reports = db.queryAll('SELECT id, period, twitter_count, discord_count, total_records, created_at FROM insights_reports ORDER BY created_at DESC');
+    const reports = db.queryAll('SELECT id, period, twitter_count, discord_count, COALESCE(lounge_count, 0) as lounge_count, total_records, created_at FROM insights_reports ORDER BY created_at DESC');
     res.json({ ok: true, data: reports });
   } catch (e) {
     res.status(500).json({ error: '获取列表失败: ' + e.message });

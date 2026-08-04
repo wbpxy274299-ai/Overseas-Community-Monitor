@@ -1,7 +1,7 @@
 /**
  * 周报生成模块
  * 从数据库查询上周数据，生成舆情监测报告
- * 数据来源：Twitter（Yahoo实时搜索）+ Discord（繁中服）
+ * 数据来源：Twitter（Yahoo实时搜索）+ Discord（繁中服）+ Naver Lounge（韩服）
  * 不调用 AI，纯数据驱动
  */
 
@@ -64,9 +64,23 @@ async function getWeeklyData() {
     }
 
     // 只统计 Twitter 和 Discord 繁中服
+    // 查询韩服 lounge_posts
+    let loungePosts = [];
+    try {
+      loungePosts = db.queryAll(`
+        SELECT * FROM lounge_posts
+        WHERE crawled_at >= ? AND crawled_at <= ?
+        ORDER BY crawled_at DESC
+      `, [dateRange.start, dateRange.end]);
+      console.log(`   📦 韩服 lounge_posts: ${loungePosts.length} 条`);
+    } catch (e) {
+      console.warn('   ⚠️ lounge_posts 查询失败:', e.message);
+    }
+
     const stats = {
       twitter: { total: 0, positive: 0, neutral: 0, negative: 0, records: [] },
-      discord_tc: { total: 0, positive: 0, neutral: 0, negative: 0, records: [] }
+      discord_tc: { total: 0, positive: 0, neutral: 0, negative: 0, records: [] },
+      lounge_kr: { total: 0, positive: 0, neutral: 0, negative: 0, records: [] }
     };
 
     for (const record of weeklyRecords) {
@@ -78,7 +92,6 @@ async function getWeeklyData() {
         stats.twitter[bucket]++;
         stats.twitter.records.push(record);
       } else if (record.platform === 'discord') {
-        // 只收录繁中服（非日文内容）
         const isJapanese = /[\u3040-\u309f\u30a0-\u30ff]/.test(record.content);
         if (!isJapanese) {
           stats.discord_tc.total++;
@@ -88,7 +101,16 @@ async function getWeeklyData() {
       }
     }
 
-    const totalRecords = stats.twitter.total + stats.discord_tc.total;
+    // 韩服数据统计
+    for (const post of loungePosts) {
+      const sent = post.sentiment || 'neutral';
+      const bucket = sent === 'positive' ? 'positive' : sent === 'negative' ? 'negative' : 'neutral';
+      stats.lounge_kr.total++;
+      stats.lounge_kr[bucket]++;
+      stats.lounge_kr.records.push(post);
+    }
+
+    const totalRecords = stats.twitter.total + stats.discord_tc.total + stats.lounge_kr.total;
     return { dateRange, stats, totalRecords };
   } catch (error) {
     console.error('❌ 获取周报数据失败:', error);
@@ -203,6 +225,77 @@ function extractTopicsByTag(records, topN = 5, dateRange = null) {
     });
 }
 
+// ===== 韩服热门话题提取（lounge_posts 字段映射）=====
+
+const LOUNGE_CATEGORY_LABELS = {
+  bug: 'Bug/问题', suggestion: '建议/提案', complaint: '投诉/不满',
+  praise: '表扬/好评', question: '提问/求助', other: '其他讨论'
+};
+
+function extractLoungeTopics(records, topN = 5, dateRange = null) {
+  if (!records || records.length === 0) return [];
+
+  // 按 ai_category 分组（韩服用 ai_category 而非 topic_tag）
+  const catCounts = {};
+  for (const post of records) {
+    const cat = post.ai_category || 'other';
+    if (!catCounts[cat]) catCounts[cat] = { count: 0, positives: 0, negatives: 0, neutrals: 0, samples: [] };
+    catCounts[cat].count++;
+    const sent = post.sentiment || 'neutral';
+    if (sent === 'positive') catCounts[cat].positives++;
+    else if (sent === 'negative') catCounts[cat].negatives++;
+    else catCounts[cat].neutrals++;
+
+    if (catCounts[cat].samples.length < 3) {
+      const text = post.content_zh || post.title_zh || post.content || post.title || '';
+      if (text.length > 5) {
+        catCounts[cat].samples.push({
+          translation: text.substring(0, 200),
+          url: post.url || '#',
+          sentiment: post.sentiment || 'neutral',
+          created_at: post.crawled_at || post.created_at
+        });
+      }
+    }
+  }
+
+  return Object.entries(catCounts)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, topN)
+    .map(([cat, data]) => {
+      const label = LOUNGE_CATEGORY_LABELS[cat] || cat;
+      const negRatio = data.count > 0 ? data.negatives / data.count : 0;
+      const posRatio = data.count > 0 ? data.positives / data.count : 0;
+      let emotionDesc = '';
+      if (negRatio > 0.6) emotionDesc = '😟 强烈不满';
+      else if (negRatio > 0.4) emotionDesc = '😕 偏负面';
+      else if (posRatio > 0.5) emotionDesc = '😊 偏正面';
+      else if (posRatio > 0.3) emotionDesc = '🙂 略偏正面';
+      else emotionDesc = '😐 情绪分化';
+
+      // 从 ai_summary 获取概述
+      let summary = '';
+      const withSummary = records.filter(r => (r.ai_category || 'other') === cat && r.ai_summary);
+      if (withSummary.length > 0) summary = withSummary[0].ai_summary;
+      if (!summary && data.samples.length > 0) {
+        const first = data.samples[0].translation.substring(0, 80);
+        summary = `玩家讨论「${first}」等 ${data.count} 条相关内容`;
+      }
+
+      return {
+        tag: cat,
+        label,
+        count: data.count,
+        positives: data.positives,
+        negatives: data.negatives,
+        neutrals: data.neutrals,
+        emotion_desc: emotionDesc,
+        summary,
+        samples: data.samples.slice(0, 2)
+      };
+    });
+}
+
 // ===== 情绪 & 风险评估 =====
 
 function calcRatio(pos, neu, neg) {
@@ -236,7 +329,7 @@ function sentimentBar(pos, neu, neg) {
 }
 
 function assessRiskLevel(stats) {
-  const platforms = [stats.twitter, stats.discord_tc];
+  const platforms = [stats.twitter, stats.discord_tc, stats.lounge_kr];
   for (const p of platforms) {
     if (p.total === 0) continue;
     const negRatio = p.negative / p.total;
@@ -290,6 +383,9 @@ function generateSuggestions(stats, riskLevel) {
   } else if (stats.discord_tc.total > stats.twitter.total * 2) {
     s.push('- **Discord 讨论量远高于 Twitter**：建议加强 Discord 社区运营');
   }
+  if (stats.lounge_kr.total > 0 && stats.lounge_kr.negative > stats.lounge_kr.positive) {
+    s.push('- **韩服 Naver 负面情绪较多**：建议排查韩服社区争议，关注翻译质量和本地化运营');
+  }
   if (riskLevel === '🟢 低') {
     s.push('- **整体舆情健康**：可考虑推出新活动进一步提升玩家满意度');
   }
@@ -300,9 +396,9 @@ function generateSuggestions(stats, riskLevel) {
 // ===== 总结 =====
 
 function generateSummary(stats, totalRecords, riskLevel) {
-  const totalNeg = stats.twitter.negative + stats.discord_tc.negative;
-  const totalPos = stats.twitter.positive + stats.discord_tc.positive;
-  const totalNeu = stats.twitter.neutral + stats.discord_tc.neutral;
+  const totalNeg = stats.twitter.negative + stats.discord_tc.negative + stats.lounge_kr.negative;
+  const totalPos = stats.twitter.positive + stats.discord_tc.positive + stats.lounge_kr.positive;
+  const totalNeu = stats.twitter.neutral + stats.discord_tc.neutral + stats.lounge_kr.neutral;
   let mood = '😐 中性';
   if (totalNeg > totalPos * 1.5) mood = '😟 负面';
   else if (totalPos > totalNeg * 1.5) mood = '😊 正面';
@@ -313,6 +409,7 @@ function generateSummary(stats, totalRecords, riskLevel) {
 |------|:---:|:---:|:---:|:---:|
 | 🐦 Twitter | ${stats.twitter.total} | ${stats.twitter.positive} | ${stats.twitter.neutral} | ${stats.twitter.negative} |
 | 💬 Discord | ${stats.discord_tc.total} | ${stats.discord_tc.positive} | ${stats.discord_tc.neutral} | ${stats.discord_tc.negative} |
+| 🇰🇷 Naver | ${stats.lounge_kr.total} | ${stats.lounge_kr.positive} | ${stats.lounge_kr.neutral} | ${stats.lounge_kr.negative} |
 | **合计** | **${totalRecords}** | **${totalPos}** | **${totalNeu}** | **${totalNeg}** |`;
 }
 
@@ -339,9 +436,11 @@ async function generateReport(weeklyData) {
   // 传 dateRange 给 extractTopicsByTag，让它能查 topic_history 获取话题概述
   const twitterTopics = extractTopicsByTag(stats.twitter.records, 5, dateRange);
   const tcTopics = extractTopicsByTag(stats.discord_tc.records, 5, dateRange);
+  const loungeTopics = extractLoungeTopics(stats.lounge_kr.records, 5, dateRange);
 
   const twRatio = calcRatio(stats.twitter.positive, stats.twitter.neutral, stats.twitter.negative);
   const tcRatio = calcRatio(stats.discord_tc.positive, stats.discord_tc.neutral, stats.discord_tc.negative);
+  const lgRatio = calcRatio(stats.lounge_kr.positive, stats.lounge_kr.neutral, stats.lounge_kr.negative);
   const riskLevel = assessRiskLevel(stats);
   const summary = generateSummary(stats, totalRecords, riskLevel);
 
@@ -351,6 +450,7 @@ async function generateReport(weeklyData) {
     const aiStats = {
       twitter_count: stats.twitter.total,
       discord_count: stats.discord_tc.total,
+      lounge_count: stats.lounge_kr.total,
       risk_level: riskLevel
     };
     const sampleFeedbacks = [
@@ -362,6 +462,11 @@ async function generateReport(weeklyData) {
       ...stats.discord_tc.records.slice(0, 5).map(r => ({
         platform: 'discord',
         content: r.content,
+        sentiment: r.sentiment
+      })),
+      ...stats.lounge_kr.records.slice(0, 5).map(r => ({
+        platform: 'lounge',
+        content: r.content_zh || r.title_zh || r.content || r.title,
         sentiment: r.sentiment
       }))
     ];
@@ -375,6 +480,7 @@ async function generateReport(weeklyData) {
   // 各平台社区发言概况
   const twSummary = generatePlatformSummary(stats.twitter.records, '🐦 Twitter（日服）', twitterTopics);
   const dcSummary = generatePlatformSummary(stats.discord_tc.records, '💬 Discord（繁中服）', tcTopics);
+  const lgSummary = generatePlatformSummary(stats.lounge_kr.records, '🇰🇷 Naver Lounge（韩服）', loungeTopics);
 
   // 话题详情渲染辅助函数
   const renderTopicDetails = (topics) => {
@@ -399,7 +505,7 @@ ${formatTopicSamples(topic)}
 
 > 📅 报告周期：${dateRange.start.substring(0, 10)} ~ ${dateRange.end.substring(0, 10)}
 > 🕐 生成时间：${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
-> 📡 数据来源：Twitter（Yahoo实时搜索）+ Discord（繁中服）
+> 📡 数据来源：Twitter（Yahoo实时搜索）+ Discord（繁中服）+ Naver Lounge（韩服）
 
 ---
 
@@ -414,6 +520,8 @@ ${summary}
 ${twSummary}
 
 ${dcSummary}
+
+${lgSummary}
 
 ### 🤖 AI 智能分析
 
@@ -457,7 +565,25 @@ ${renderTopicDetails(tcTopics)}
 
 ---
 
-## ⚠️ 四、风险评估
+## 🇰🇷 四、Naver Lounge 韩服数据（${stats.lounge_kr.total} 条）
+
+| 情绪 | 数量 | 占比 | 可视化 |
+|------|:---:|:---:|------|
+| 😊 正面 | ${stats.lounge_kr.positive} | ${lgRatio.positive}% | ${'🟩'.repeat(Math.max(1, Math.round(stats.lounge_kr.positive / Math.max(stats.lounge_kr.total, 1) * 10)))} |
+| 😐 中性 | ${stats.lounge_kr.neutral} | ${lgRatio.neutral}% | ${'🟨'.repeat(Math.max(1, Math.round(stats.lounge_kr.neutral / Math.max(stats.lounge_kr.total, 1) * 10)))} |
+| 😟 负面 | ${stats.lounge_kr.negative} | ${lgRatio.negative}% | ${'🟥'.repeat(Math.max(1, Math.round(stats.lounge_kr.negative / Math.max(stats.lounge_kr.total, 1) * 10)))} |
+
+**正负对比**：正面 **${stats.lounge_kr.positive}** vs 负面 **${stats.lounge_kr.negative}** → **${getDominantSentiment(stats.lounge_kr)}**
+
+### 🔥 热门话题
+
+${formatTopicsTable(loungeTopics)}
+
+${renderTopicDetails(loungeTopics)}
+
+---
+
+## ⚠️ 五、风险评估
 
 **当前风险等级：${riskLevel}**
 
@@ -467,13 +593,13 @@ ${riskLevel.includes('高') ? '⚠️ 负面情绪占比过高，建议立即排
 
 ---
 
-## 📝 五、运营建议
+## 📝 六、运营建议
 
 ${generateSuggestions(stats, riskLevel)}
 
 ---
 
-*本报告由 M2G 舆情监控系统自动生成 | 数据来源：Twitter + Discord（繁中服）*
+*本报告由 M2G 舆情监控系统自动生成 | 数据来源：Twitter + Discord（繁中服）+ Naver Lounge（韩服）*
 `;
 
   return {
@@ -484,10 +610,11 @@ ${generateSuggestions(stats, riskLevel)}
       totalRecords,
       platforms: {
         twitter: { ...stats.twitter, ratio: twRatio },
-        discord_tc: { ...stats.discord_tc, ratio: tcRatio }
+        discord_tc: { ...stats.discord_tc, ratio: tcRatio },
+        lounge_kr: { ...stats.lounge_kr, ratio: lgRatio }
       },
       riskLevel,
-      topics: { twitter: twitterTopics, discord_tc: tcTopics }
+      topics: { twitter: twitterTopics, discord_tc: tcTopics, lounge_kr: loungeTopics }
     }
   };
 }

@@ -846,6 +846,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // 拖拽上传
   const dropzone = $('uploadDropzone');
   if (dropzone) {
+    // 点击上传区域触发文件选择
+    dropzone.addEventListener('click', () => $('imageFiles').click());
     ['dragenter', 'dragover'].forEach(evt => {
       dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
     });
