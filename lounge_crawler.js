@@ -295,7 +295,7 @@ async function crawlPostDetail(browser, post) {
       },
       { timeout: LOUNGE_CONFIG.pageTimeout }
     );
-    await sleep(2000);
+    await sleep(5000); // 评论是异步加载的，需要多等一会儿
 
     // 提取正文内容（精准提取，排除页面导航/页脚等噪音）
     const extracted = await page.evaluate((maxComments) => {
@@ -453,16 +453,16 @@ async function crawlPostDetail(browser, post) {
       const seenComments = new Set();
       // 找每条评论的容器（通常是评论列表里的每一项）
       const commentItems = document.querySelectorAll(
-        '[class*="comment_item"], [class*="comment-item"], [class*="cmt_item"], [class*="cmt-item"], [class*="reply_item"]'
+        '[class*="_type_reply"], [class*="comment_item"], [class*="comment-item"], [class*="cmt_item"], [class*="cmt-item"], [class*="reply_item"]'
       );
 
       for (const item of commentItems) {
         if (result.comments.length >= maxComments) break;
 
         // 从每条评论里提取作者 + 文字
-        const cAuthor = item.querySelector('[class*="nick"], [class*="name"], [class*="writer"]');
-        const cText = item.querySelector('[class*="text"], [class*="content"], [class*="body"], p');
-        const cTime = item.querySelector('[class*="date"], [class*="time"], time');
+        const cAuthor = item.querySelector('[class*="_name_vjceo"], [class*="nick"], [class*="name"]');
+        const cText = item.querySelector('[class*="_text_vjceo"], [class*="_content_vjceo"], [class*="text"]:not([class*="_text_1iug5"])');
+        const cTime = item.querySelector('[class*="_time_vjceo"], [class*="date"], [class*="time"], time');
         const cLikes = item.querySelector('[class*="like"], [class*="good"], [class*="thumb"]');
 
         const text = cText ? cText.textContent.trim() : '';
@@ -480,7 +480,7 @@ async function crawlPostDetail(browser, post) {
 
       // 如果上面的选择器没匹配到评论，兜底：找评论区域下的直接文本块
       if (result.comments.length === 0) {
-        const commentArea = document.querySelector('[class*="comment_list"], [class*="comment-list"], [class*="cmt_list"]');
+        const commentArea = document.querySelector('[class*="_wrap_vjceo"], [class*="comment_list"], [class*="comment-list"], [class*="cmt_list"]');
         if (commentArea) {
           const divs = commentArea.children;
           for (const div of divs) {
