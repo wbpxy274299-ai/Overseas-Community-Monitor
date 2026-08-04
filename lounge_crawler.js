@@ -54,23 +54,72 @@ function parseKoreanTime(timeStr, crawlTime) {
   return crawlTime || new Date().toISOString();
 }
 
-// ===== 自动查找 Chrome 路径 =====
-// 注意：Linux 服务器上的系统 Chromium 版本通常和 Puppeteer 不匹配，会导致崩溃
-// 所以 Linux 上不查找系统路径，直接用 Puppeteer 自带的 Chrome
+// ===== 自动查找 Chrome 路径（三级兜底）=====
+// 优先级：Puppeteer自带Chrome > 系统Chrome > 系统Chromium
+// 每级都尝试，找到能用的就用，都不行再让 Puppeteer 自己处理
 function findChromePath() {
   const fs = require('fs');
+  const path = require('path');
   const os = require('os');
-  // Linux 服务器：不查找系统 Chrome，用 Puppeteer 自带的
-  if (os.platform() === 'linux') return undefined;
-  // Windows/macOS 本地开发：查找系统安装的 Chrome
-  const paths = [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  ];
-  for (const p of paths) {
-    try { if (fs.existsSync(p)) return p; } catch (_) {}
+  const platform = os.platform();
+
+  // 第1级：Puppeteer 自带的 Chrome（最可靠，版本匹配）
+  const puppeteerChromePaths = [];
+  if (platform === 'linux') {
+    // Puppeteer 在 Linux 上的默认安装路径
+    const home = process.env.HOME || '/root';
+    puppeteerChromePaths.push(
+      path.join(home, '.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome'),
+      path.join(home, '.cache/puppeteer/chrome/linux-*/chrome-linux/chrome'),
+    );
+  } else {
+    puppeteerChromePaths.push(
+      path.join(process.env.LOCALAPPDATA || '', 'ms-playwright/chromium-*/chrome-win/chrome.exe'),
+    );
   }
-  return undefined; // 找不到就用 Puppeteer 自带的
+  // 也检查 node_modules 里的 puppeteer 缓存
+  try {
+    const puppeteerDir = require.resolve('puppeteer').replace(/\/[^/]+$/, '');
+    puppeteerChromePaths.push(path.join(puppeteerDir, '.local-chromium', '**', 'chrome'));
+  } catch (_) {}
+
+  for (const pattern of puppeteerChromePaths) {
+    try {
+      const glob = require('path').dirname(pattern).replace(/\/\*\*?$/, '');
+      if (fs.existsSync(glob)) {
+        const entries = fs.readdirSync(glob);
+        for (const entry of entries) {
+          const chromePath = path.join(glob, entry, platform === 'win32' ? 'chrome.exe' : 'chrome');
+          if (fs.existsSync(chromePath)) {
+            console.log(`✅ 使用 Puppeteer 自带 Chrome: ${chromePath}`);
+            return chromePath;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 第2级：系统 Chrome（Windows 本地开发）
+  if (platform !== 'linux') {
+    const systemPaths = [
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    ];
+    for (const p of systemPaths) {
+      try { if (fs.existsSync(p)) { console.log(`✅ 使用系统 Chrome: ${p}`); return p; } } catch (_) {}
+    }
+  }
+
+  // 第3级：系统 Chromium（Linux 服务器兜底，版本可能不匹配但总比没有好）
+  if (platform === 'linux') {
+    const linuxPaths = ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium'];
+    for (const p of linuxPaths) {
+      try { if (fs.existsSync(p)) { console.log(`⚠️ 使用系统 Chromium（兜底）: ${p}`); return p; } } catch (_) {}
+    }
+  }
+
+  console.log('⚠️ 未找到任何 Chrome/Chromium，将使用 Puppeteer 默认行为');
+  return undefined;
 }
 
 // ===== 解析代理配置 =====
