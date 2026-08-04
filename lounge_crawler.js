@@ -398,7 +398,7 @@ async function crawlPostDetail(browser, post) {
           let ancestor = parent;
           let inCommentSection = false;
           while (ancestor && ancestor !== bodyContainer) {
-            const cn = (ancestor.className || '').toLowerCase();
+            const cn = (ancestor.getAttribute?.('class') || '').toLowerCase();
             if (cn.includes('_type_reply') || cn.includes('comment') || cn.includes('cmt')) {
               inCommentSection = true;
               break;
