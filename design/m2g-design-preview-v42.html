@@ -1,0 +1,1801 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M2G 用户运营后台 · 全页面设计预览（黑白未来感）</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+/* ===== 主题 TOKENS ===== */
+:root{--ok:#4C9E6E;--warn:#C9973B;--err:#C05248;--info:#5A7CA5}
+:root[data-theme="light"]{
+  --bg:#ECEDEF;--panel:#FFFFFF;--panel-2:#F6F7F8;
+  --ink:#0B0B0C;--mut:#84868B;
+  --line:#D8DADD;--hair:#E7E8EA;
+  --cut:#1F2127;--cut-ink:#F2F2F0;--cut-mut:#9EA1A8;
+  --dcard:#2B2E35;--dcard-h:#35383F;--badge:#3F434B;
+  --grid:rgba(11,11,12,.055);--hover:#F6F7F8;
+  --shadow:0 30px 60px rgba(11,11,12,.08);
+  --float-bg:rgba(255,255,255,.55);--float-bd:rgba(255,255,255,.8);
+}
+:root[data-theme="dark"]{
+  --bg:#141518;--panel:#232529;--panel-2:#2B2E33;
+  --ink:#F0F0ED;--mut:#A3A7AE;
+  --line:#3A3E45;--hair:#2A2D33;
+  --cut:#0E0F12;--cut-ink:#F5F5F2;--cut-mut:#A3A7AE;
+  --dcard:#1E2025;--dcard-h:#282B31;--badge:#34383F;
+  --grid:rgba(240,240,237,.05);--hover:#2B2E33;
+  --shadow:0 30px 60px rgba(0,0,0,.45);
+  --float-bg:rgba(43,46,51,.75);--float-bd:rgba(255,255,255,.16);
+}
+/* ===== 基础 ===== */
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Space Grotesk','Noto Sans SC',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;transition:background .35s,color .35s}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px}
+.micro{font-size:11px;letter-spacing:.38em;text-transform:uppercase;color:var(--mut);font-weight:500}
+.huge{font-size:clamp(42px,6.5vw,80px);line-height:1.04;letter-spacing:.01em;font-weight:500;text-transform:uppercase}
+.grid-bg{background-image:linear-gradient(to right,var(--grid) 1px,transparent 1px),linear-gradient(to bottom,var(--grid) 1px,transparent 1px);background-size:72px 72px}
+/* 页面切换 */
+.page{display:none}
+.page.on{display:block;animation:pgIn .4s cubic-bezier(.4,0,.2,1)}
+@keyframes pgIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.page-nav{position:sticky;top:47px;z-index:98;background:var(--panel);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;padding:10px 28px;transition:.35s}
+.page-nav button{white-space:nowrap;border:none;background:transparent;color:var(--mut);font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;font-family:inherit;transition:.2s}
+.page-nav button:hover{color:var(--ink)}
+.page-nav button.on{background:var(--ink);color:var(--bg)}
+.page-head{padding:60px 0 40px}
+.page-head .huge{margin:16px 0 12px}
+.page-head p{color:var(--mut);max-width:560px}
+/* ===== 通用组件 ===== */
+.btn{display:inline-flex;align-items:center;gap:10px;border-radius:10px;padding:12px 22px;font-size:13px;font-weight:600;cursor:pointer;transition:.2s;text-decoration:none;border:1px solid transparent;font-family:inherit}
+.btn .ar{transition:transform .2s}
+.btn:hover .ar{transform:translateX(4px)}
+.btn-solid{background:var(--ink);color:var(--bg)}
+.btn-solid:hover{opacity:.85}
+.btn-ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--ink)}
+.btn-ghost-panel{background:transparent;border-color:#3A3B3E;color:#F2F2F0}
+.btn-ghost-panel:hover{border-color:#fff}
+.btn-light{background:#fff;color:#0B0B0C}
+.btn-light:hover{opacity:.88}
+.sel-dark,.txta-dark{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);color:#F2F2F0}
+.sel-dark option{color:#0B0B0C;background:#fff}
+.sel-dark:focus,.txta-dark:focus{border-color:#fff}
+.txta-dark::placeholder{color:#8F9196}
+input[type="checkbox"]{accent-color:var(--ink);width:14px;height:14px;cursor:pointer}
+.btn-sm{padding:8px 16px;font-size:12px;border-radius:8px}
+.preview-bar{position:sticky;top:0;z-index:99;background:#1F2127;color:#fff;padding:12px 28px;display:flex;gap:14px;align-items:center;font-size:12px;letter-spacing:.08em}
+.preview-bar b{letter-spacing:.2em}
+.preview-bar span{color:#8F9196}
+.switch{margin-left:auto;display:flex;background:rgba(255,255,255,.1);border-radius:20px;padding:3px}
+.switch button{border:none;background:transparent;color:#9A9CA1;padding:6px 18px;border-radius:17px;cursor:pointer;font-size:13px;font-weight:600;transition:.2s;font-family:inherit}
+.switch button.on{background:#fff;color:#0A0A0B}
+/* 卡片 */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 20px 4px;transition:.35s;overflow:hidden}
+.card-pad{padding:28px}
+.card-title{font-size:15px;font-weight:700;margin-bottom:4px}
+.card-sub{font-size:12px;color:var(--mut)}
+/* 切角黑面板 */
+.panel-cut{background:var(--cut);color:var(--cut-ink);border-radius:32px;clip-path:polygon(0 0,calc(100% - 72px) 0,100% 72px,100% 100%,0 100%);padding:56px;transition:background .35s}
+:root[data-theme="dark"] .panel-cut{border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 50px rgba(0,0,0,.5)}
+/* 夜间模式：白卡悬浮感 + 层次强化（黑曜石方案） */
+:root[data-theme="dark"] .card{border-color:#42464E;box-shadow:0 12px 30px rgba(0,0,0,.32)}
+:root[data-theme="dark"] .send-sec-light{background:#2B2E33;border-color:#3A3E45}
+:root[data-theme="dark"] .perm-chip{background:#1A1C20;border-color:#3A3E45}
+:root[data-theme="dark"] .perm-chip.on{background:#F0F0ED;color:#141518;border-color:#F0F0ED}
+:root[data-theme="dark"] .fb-card{background:#232529;border-color:#2A2D33}
+:root[data-theme="dark"] .fb-body{background:#2B2E33}
+:root[data-theme="dark"] .rep-card{background:#2B2E33;border-color:#3A3E45}
+:root[data-theme="dark"] .tok-card{background:#232529;border-color:#3A3E45}
+:root[data-theme="dark"] .ch-row{background:#2B2E33;border-color:#2A2D33}
+:root[data-theme="dark"] .db-card{background:#232529;border-color:#3A3E45}
+:root[data-theme="dark"] .vpost{background:#232529;border-color:#2A2D33}
+:root[data-theme="dark"] .tcard{background:#232529;border-color:#2A2D33}
+.panel-cut h2{font-size:clamp(22px,2.8vw,32px);font-weight:500;text-transform:uppercase;letter-spacing:.02em;line-height:1.25}
+.panel-cut .desc{color:var(--cut-mut);max-width:400px;font-size:13px;padding-right:68px}
+.dcards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.dcards.c3{grid-template-columns:repeat(3,1fr)}
+.dcard{display:grid;grid-template-columns:auto 1fr;column-gap:14px;align-items:center;background:var(--dcard);border-radius:16px;padding:16px 18px;transition:.25s;color:#F2F2F0}
+.dcard:hover{background:var(--dcard-h);transform:translateY(-3px)}
+.dcard .badge{grid-row:1/4;margin:0;width:38px;height:38px;border-radius:50%;background:var(--badge);display:flex;align-items:center;justify-content:center;color:#fff}
+.dcard .badge svg{width:17px;height:17px}
+.dcard .big{grid-column:2;font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em;line-height:1.15}
+.dcard h4{grid-column:2;font-size:13px;font-weight:600;margin:0}
+.dcard p{grid-column:2;font-size:11px;color:var(--cut-mut);margin:0}
+/* 表格 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--mut);font-weight:600;text-align:left;padding:16px 20px;border-bottom:1px solid var(--line)}
+td{padding:16px 20px;border-bottom:1px solid var(--hair);color:var(--mut);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr{transition:.15s}
+tbody tr:hover td{background:var(--hover)}
+td.strong{color:var(--ink);font-weight:700}
+td.mono{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12px}
+.tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--ink)}
+.tag::before{content:'';width:7px;height:7px;border-radius:50%}
+.tag.ok::before{background:var(--ok)}.tag.warn::before{background:var(--warn)}
+.tag.err::before{background:var(--err)}.tag.idle::before{background:var(--mut)}.tag.info::before{background:var(--info)}
+.oplink{font-size:12px;font-weight:600;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--ink);padding-bottom:1px;margin-right:14px;transition:.2s}
+.oplink:hover{opacity:.55}
+.pager{display:flex;justify-content:flex-end;gap:10px;padding:18px 20px}
+.pgc{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.2s;color:var(--ink)}
+.pgc:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+/* 表单 */
+.sel,.sea{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--ink);outline:none;font-family:inherit;transition:.35s}
+.sel:focus,.sea:focus{border-color:var(--ink)}
+.sea::placeholder,.txta::placeholder{color:var(--mut)}
+.txta{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;font-size:13px;color:var(--ink);outline:none;font-family:inherit;width:100%;min-height:140px;resize:vertical;transition:.35s}
+.txta:focus{border-color:var(--ink)}
+.flabel{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut);font-weight:600;display:block;margin-bottom:8px}
+.fgroup{margin-bottom:20px}
+/* ===== 其他组件 ===== */
+/* ===== 浮动侧边栏（图标停靠栏 + 悬停展开） ===== */
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:64px;background:#1F2127;color:#F2F2F0;z-index:120;transition:width .32s cubic-bezier(.4,0,.2,1),box-shadow .32s;display:flex;flex-direction:column;overflow:hidden;box-shadow:4px 0 20px rgba(0,0,0,.10)}
+:root[data-theme="dark"] .sidebar{background:#2C2F36;box-shadow:4px 0 20px rgba(0,0,0,.4)}
+.sidebar:hover,.sidebar.peek{width:252px;box-shadow:16px 0 50px rgba(0,0,0,.24)}
+.side-head{display:flex;gap:12px;align-items:center;height:64px;min-height:64px;border-bottom:1px solid rgba(255,255,255,.08)}
+.side-head .logo-mark{margin-left:17px;background:#fff;color:#0A0A0B;flex-shrink:0}
+.side-head .ht{white-space:nowrap}
+.side-head .t1{font-weight:700;font-size:15px;letter-spacing:.04em}
+.side-head .t2{font-size:9px;letter-spacing:.3em;color:#8F9196;margin-top:1px}
+/* 侧边栏顶部身份区（操作人+权限角色，全站唯一展示位） */
+.side-user{display:flex;gap:10px;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.side-user .u-ava{width:34px;height:34px;border-radius:50%;background:var(--badge);color:#F2F2F0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;border:1px solid rgba(255,255,255,.15)}
+.side-user .u-name{font-size:13px;font-weight:700;color:#F2F2F0}
+.side-user .u-role{display:inline-block;font-size:9px;letter-spacing:.12em;color:var(--warn);border:1px solid rgba(201,151,59,.45);border-radius:6px;padding:2px 6px;margin-top:3px}
+.sidebar:not(:hover):not(.peek) .side-user{justify-content:center;padding:14px 8px}
+.st{white-space:nowrap}
+.sidebar:not(:hover):not(.peek) .st{display:none}
+.sidebar:not(:hover):not(.peek) .side-item{justify-content:center;gap:0;padding:11px 0}
+.sidebar:not(:hover):not(.peek) .side-sec{font-size:0;height:15px}
+.sidebar:not(:hover):not(.peek) .side-sec::after{content:'';display:block;width:16px;height:1px;background:rgba(255,255,255,.16);margin:7px auto 0}
+.sidebar:not(:hover):not(.peek) .side-switch{display:none}
+.side-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 10px}
+.side-sec{font-size:9px;letter-spacing:.28em;color:#6E7076;text-transform:uppercase;margin:16px 10px 6px;white-space:nowrap}
+.side-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border-radius:10px;color:#B9BBC0;font-size:13px;font-weight:500;cursor:pointer;text-decoration:none;transition:.2s;background:none;border:none;font-family:inherit;white-space:nowrap}
+.side-item svg{width:16px;height:16px;flex-shrink:0;opacity:.85}
+.sidebar:not(:hover):not(.peek) .side-item svg{width:18px;height:18px}
+.side-item:hover{color:#fff;background:rgba(255,255,255,.06)}
+.side-item.on{color:#fff;background:rgba(255,255,255,.09);box-shadow:inset 2px 0 0 #fff}
+.side-item.danger{color:#D98A82}
+.side-item.danger:hover{background:rgba(217,138,130,.1)}
+.side-foot{border-top:1px solid rgba(255,255,255,.08);padding:10px 12px}
+.side-switch{margin-left:auto;width:30px;height:16px;border-radius:8px;background:rgba(255,255,255,.15);position:relative;flex-shrink:0}
+.side-switch i{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#8F9196;transition:.25s}
+.side-item.on-dark .side-switch{background:rgba(255,255,255,.3)}
+.side-item.on-dark .side-switch i{left:16px;background:#fff}
+.side-pulse{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.55;margin:0 auto 14px;animation:sidePulse 2.2s ease-in-out infinite}
+.sidebar:hover .side-pulse,.sidebar.peek .side-pulse{display:none}
+@keyframes sidePulse{0%,100%{opacity:.15;transform:scale(.8)}50%{opacity:.7;transform:scale(1.2)}}
+.sys-nav{display:flex;align-items:center;gap:32px;padding:20px 0;border-bottom:1px solid var(--line);margin-bottom:0}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:.06em}
+.logo-mark{width:30px;height:30px;background:var(--ink);color:var(--bg);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;transition:.35s}
+.sys-nav a{color:var(--mut);text-decoration:none;font-size:13px;font-weight:500;transition:.2s}
+.sys-nav a:hover,.sys-nav a.on{color:var(--ink)}
+.sys-nav .right{margin-left:auto;display:flex;gap:12px;align-items:center}
+/* 登录屏 */
+.screen-login{padding:90px 0 110px;position:relative;overflow:hidden}
+.login-flex{display:flex;align-items:center;gap:60px;flex-wrap:wrap}
+.login-left{flex:1;min-width:300px}
+.login-left .huge{margin:18px 0 22px}
+.login-left p{color:var(--mut);max-width:420px}
+.login-card{width:360px;background:var(--panel);border:1px solid var(--line);border-radius:22px 22px 22px 4px;padding:36px;box-shadow:var(--shadow);transition:.35s}
+.login-card .micro{margin-bottom:8px}
+.login-card h3{font-size:20px;font-weight:700;margin-bottom:24px}
+.g-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:12px;background:var(--ink);color:var(--bg);border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:.2s}
+.g-btn:hover{opacity:.85}
+.login-card .hint{margin-top:18px;font-size:12px;color:var(--mut);text-align:center}
+.float-stat{position:absolute;right:6%;top:8%;background:var(--float-bg);backdrop-filter:blur(10px);border:1px solid var(--float-bd);border-radius:14px;padding:14px 20px;display:flex;gap:18px;align-items:center;z-index:2}
+.float-stat .n{font-size:22px;font-weight:700}
+.float-stat .t{font-size:10px;letter-spacing:.2em;color:var(--mut);text-transform:uppercase}
+.fs-div{width:1px;height:30px;background:var(--line)}
+/* hero统计 */
+.hero-stats{display:flex;gap:0;border-left:1px solid var(--line)}
+.hstat{padding:6px 26px;border-right:1px solid var(--line)}
+.hstat .n{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+.hstat .t{font-size:10px;letter-spacing:.22em;color:var(--mut);text-transform:uppercase}
+/* 双栏/三栏布局 */
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.cols-2-1{display:grid;grid-template-columns:2fr 1fr;gap:20px}
+.mb20{margin-bottom:20px}.mb32{margin-bottom:32px}
+/* 上传拖拽区 */
+.drop{border:2px dashed var(--line);border-radius:18px;padding:36px 20px;text-align:center;transition:.25s;cursor:pointer;background:var(--panel)}
+.drop:hover{border-color:var(--ink)}
+.drop .ico{font-size:30px;margin-bottom:10px}
+.drop .t1{font-size:13px;font-weight:600;color:var(--ink)}
+.drop .t2{font-size:11px;color:var(--mut);margin-top:4px}
+/* 黑面板内的上传区 */
+.drop-dark{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.22)}
+.drop-dark:hover{border-color:#fff}
+.drop-dark .t1{color:#F2F2F0}
+.drop-dark .t2{color:var(--cut-mut)}
+/* 图片缩略图 */
+.thumbs{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.thumb{width:84px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.16);background:var(--dcard)}
+.thumb .img{height:58px;background:#3A3E46;display:flex;align-items:center;justify-content:center;color:#8F9196}
+.thumb .bar{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;font-size:10px;color:#C9CBD1;background:rgba(255,255,255,.04)}
+.thumb .bar i{font-style:normal;cursor:pointer;opacity:.8}
+.thumb .bar i:hover{opacity:1}
+.thumb .bar .del{color:#E88B81}
+/* 发送配置双栏布局 */
+.send-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:22px;align-items:stretch}
+.send-sec{background:var(--dcard);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px 18px;display:flex;flex-direction:column}
+.send-sec .sec-t{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--cut-mut);font-weight:700;margin-bottom:12px}
+.send-sec .frow{margin-bottom:12px}
+.send-sec .frow:last-of-type{margin-bottom:0}
+.send-div{height:1px;background:rgba(255,255,255,.1);margin:6px 0 14px}
+.drop-strip{display:flex;align-items:center;gap:10px;border:2px dashed rgba(255,255,255,.22);border-radius:12px;padding:12px 16px;font-size:12px;color:#C9CBD1;cursor:pointer;transition:.25s;background:rgba(255,255,255,.04)}
+.drop-strip:hover{border-color:#fff}
+.drop-strip .ico{font-size:16px;opacity:.8}
+/* 发送配置白卡内的浅色变体 */
+.send-sec-light{background:var(--panel-2);border:1px solid var(--hair);border-radius:16px;padding:20px 18px;display:flex;flex-direction:column}
+.send-sec-light .sec-t{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:12px}
+.send-sec-light .frow{margin-bottom:12px}
+.send-div-light{height:1px;background:var(--hair);margin:6px 0 14px}
+.drop-strip-light{display:flex;align-items:center;gap:10px;border:2px dashed var(--line);border-radius:12px;padding:12px 16px;font-size:12px;color:var(--mut);cursor:pointer;transition:.25s;background:var(--panel-2)}
+.drop-strip-light:hover{border-color:var(--ink);color:var(--ink)}
+.thumb-light{background:var(--panel);border-color:var(--line)}
+.thumb-light .img{background:var(--panel-2);color:var(--mut)}
+.thumb-light .bar{background:var(--panel-2);color:var(--mut)}
+/* 黑面板内的深色表格与报告区块 */
+.tbl-dark{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 14px}
+.tbl-dark th{background:rgba(255,255,255,.09);color:#F2F2F0;font-size:12px;letter-spacing:.08em;font-weight:700;text-align:left;padding:10px 14px;border:none}
+.tbl-dark td{padding:10px 14px;color:#C9CBD1;border-top:1px solid rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
+.tbl-dark tr:last-child td{font-weight:700;color:#F2F2F0}
+.rpt-sec{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#F2F2F0;margin:18px 0 10px}
+.rpt-sec::before{content:'';width:3px;height:14px;background:#fff;border-radius:2px}
+.rpt-quote{border-left:3px solid rgba(255,255,255,.25);padding:8px 12px;margin:8px 0;font-size:12px;color:#C9CBD1;line-height:1.65;background:rgba(255,255,255,.04);border-radius:0 8px 8px 0}
+/* 历史报告卡 */
+.rep-card{border:1px solid var(--hair);border-radius:14px;padding:18px;background:var(--panel-2);transition:.2s}
+.rep-card:hover{border-color:var(--line);transform:translateY(-2px)}
+.rep-card .rh{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.rep-card .rt{font-weight:700;font-size:14px;color:var(--ink)}
+.rep-card .rm{font-size:12px;color:var(--mut);margin-bottom:4px}
+.rep-card .rv{font-size:12px;color:var(--mut);line-height:1.65;border-top:1px dashed var(--hair);padding-top:10px;margin-top:10px}
+/* 操作列小按钮 */
+.btn-op{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;color:var(--ink);background:var(--panel);cursor:pointer;transition:.2s;text-decoration:none;margin-right:8px;font-family:inherit}
+.btn-op:hover{border-color:var(--ink)}
+.btn-op.danger{color:var(--err);border-color:rgba(192,82,72,.45)}
+.btn-op.danger:hover{border-color:var(--err);background:rgba(192,82,72,.07)}
+.btn-op.ok{color:var(--ok);border-color:rgba(76,158,110,.45)}
+.btn-op.ok:hover{border-color:var(--ok);background:rgba(76,158,110,.07)}
+/* 管理页组件 */
+.warn-banner{background:rgba(201,151,59,.12);border:1px solid rgba(201,151,59,.5);border-left:4px solid var(--warn);border-radius:12px;padding:12px 18px;font-size:13px;color:var(--ink);margin-bottom:20px}
+.adm-pane{display:none}
+.adm-pane.on{display:block;animation:pgIn .35s ease}
+.tok-card{border:1px solid var(--line);border-radius:14px;padding:18px;background:var(--panel)}
+.tok-mask{background:var(--panel-2);border:1px solid var(--hair);border-radius:8px;padding:8px 12px;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--mut);letter-spacing:.06em;margin:12px 0 6px}
+.ch-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--hair);border-radius:10px;margin-bottom:8px;background:var(--panel-2)}
+.ch-row .cid{font-family:'Space Grotesk',monospace;font-size:11px;color:var(--mut)}
+.ch-row .del{margin-left:auto}
+.db-card{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--panel);display:flex;gap:12px;align-items:center}
+.db-card .b{width:36px;height:36px;border-radius:10px;background:var(--panel-2);border:1px solid var(--hair);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--mut);flex-shrink:0}
+.db-card .n{font-weight:700;font-size:13px;color:var(--ink)}
+.db-card .t{font-family:'Space Grotesk',monospace;font-size:10px;color:var(--mut);margin-top:2px}
+.db-card .r{margin-left:auto;text-align:right}
+.db-card .r .rn{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.db-card .r .rt{font-size:10px;color:var(--mut);margin-top:2px}
+.fb-card{border:1px solid var(--line);border-left:3px solid var(--info);border-radius:12px;padding:16px 18px;margin-bottom:14px;background:var(--panel)}
+.fb-body{background:var(--panel-2);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--mut);margin:10px 0 12px;line-height:1.65}
+/* 权限芯片（替代裸勾选框） */
+.perm-grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.perm-grp:last-child{margin-bottom:0}
+.perm-grp .gl{font-size:10px;letter-spacing:.14em;color:var(--mut);font-weight:700;min-width:52px}
+.perm-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--mut);background:var(--panel);cursor:pointer;transition:.2s;user-select:none}
+.perm-chip:hover{border-color:var(--ink);color:var(--ink)}
+.perm-chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.perm-chip.on::before{content:'✓';font-size:10px}
+.perm-chip.lock{background:var(--panel-2);border:1px dashed var(--line);color:var(--mut);cursor:default;font-weight:500}
+.perm-chip.lock:hover{border-color:var(--line);color:var(--mut)}
+.perm-chip.lock::before{content:'🔒';font-size:9px}
+/* 一级标签卡（深色 · 图标+计数角标+选中白指示条） */
+.tab-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.tab-card{display:flex;align-items:center;gap:12px;padding:14px 18px;border:1px solid transparent;border-radius:14px;background:var(--cut);cursor:pointer;transition:.2s;position:relative}
+.tab-card:hover{background:var(--dcard-h)}
+.tab-card .ti{width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#C9CBD1}
+.tab-card .ti svg{width:18px;height:18px}
+.tab-card .tn{font-size:14px;font-weight:700;color:#F2F2F0}
+.tab-card .td{font-size:11px;color:var(--cut-mut);margin-top:2px}
+.tab-card .cnt{margin-left:auto;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:3px 9px;font-size:11px;font-weight:700;color:#C9CBD1;font-variant-numeric:tabular-nums}
+.tab-card.on{background:#fff;box-shadow:inset 3px 0 0 #0B0B0C, 0 10px 26px rgba(0,0,0,.22);transform:translateY(-2px)}
+.tab-card.on .tn{color:#0B0B0C}
+.tab-card.on .td{color:#84868B}
+.tab-card.on .ti{background:#0B0B0C;color:#fff;border-color:#0B0B0C}
+.tab-card.on .cnt{background:#0B0B0C;color:#fff;border-color:#0B0B0C}
+.tab-card.hot .cnt{background:var(--err);color:#fff;border-color:var(--err)}
+.tab-card.hot.on .cnt{background:var(--err);color:#fff;border-color:var(--err)}
+:root[data-theme="dark"] .tab-card{border-color:rgba(255,255,255,.14)}
+:root[data-theme="dark"] .tab-card.on{background:#3F444E;box-shadow:inset 3px 0 0 #F2F2F0, 0 10px 26px rgba(0,0,0,.4)}
+:root[data-theme="dark"] .tab-card.on .tn{color:#F2F2F0}
+:root[data-theme="dark"] .tab-card.on .td{color:#B9BBC0}
+:root[data-theme="dark"] .tab-card.on .ti{background:#F2F2F0;color:#1F2127;border-color:#F2F2F0}
+:root[data-theme="dark"] .tab-card.on .cnt{background:#F2F2F0;color:#1F2127;border-color:#F2F2F0}
+@media(max-width:900px){.tab-cards{grid-template-columns:1fr}}
+/* 整合tab内的段控子导航 */
+.seg-bar{display:inline-flex;background:var(--panel-2);border:1px solid var(--hair);border-radius:11px;padding:4px;gap:4px;margin-bottom:20px}
+.seg-bar button{border:none;background:transparent;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:600;color:var(--mut);cursor:pointer;font-family:inherit;transition:.2s}
+.seg-bar button:hover{color:var(--ink)}
+.seg-bar button.on{background:var(--panel);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.10);border:1px solid var(--hair)}
+.adm-sub{display:none}
+.adm-sub.on{display:block;animation:pgIn .3s ease}
+/* 清空警示按钮（红色描边，提醒谨慎） */
+.btn-warn-ghost{background:transparent;border:1px solid rgba(192,82,72,.5);color:var(--err)}
+.btn-warn-ghost:hover{background:rgba(192,82,72,.08);border-color:var(--err)}
+@media(max-width:900px){.send-grid{grid-template-columns:1fr}}
+/* 图表占位（纯CSS柱状图） */
+.chart{display:flex;align-items:flex-end;gap:10px;height:180px;padding:10px 4px 0}
+.chart .bar{flex:1;background:var(--ink);opacity:.85;border-radius:6px 6px 0 0;transition:.3s;min-height:8px}
+.chart .bar:hover{opacity:1;transform:translateY(-4px)}
+:root[data-theme="dark"] .chart .bar{background:#EDEDEA}
+.chart-x{display:flex;gap:10px;margin-top:8px}
+.chart-x span{flex:1;text-align:center;font-size:10px;color:var(--mut);letter-spacing:.1em}
+/* 折线（SVG） */
+.line-chart{width:100%;height:180px}
+/* 热度条 */
+.heat-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--hair)}
+.heat-row:last-child{border-bottom:none}
+.heat-rank{font-size:20px;font-weight:700;width:34px;color:var(--mut);font-variant-numeric:tabular-nums}
+.heat-body{flex:1;min-width:0}
+.heat-body .t{font-size:13px;font-weight:600;color:var(--ink)}
+.heat-body .m{font-size:11px;color:var(--mut);margin-top:2px}
+.heat-score{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.heat-bar{height:5px;background:var(--panel-2);border-radius:3px;margin-top:8px;overflow:hidden}
+.heat-bar i{display:block;height:100%;background:var(--ink);border-radius:3px}
+:root[data-theme="dark"] .heat-bar i{background:#EDEDEA}
+/* 报告正文 */
+.report-body{line-height:1.9;color:var(--mut);font-size:14px}
+.report-body h3{color:var(--ink);font-size:16px;font-weight:700;margin:26px 0 10px}
+.report-body h3:first-child{margin-top:0}
+.report-body strong{color:var(--ink)}
+.report-kpi{display:flex;gap:40px;flex-wrap:wrap;padding:22px 0;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);margin:20px 0}
+.report-kpi .n{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+.report-kpi .t{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut)}
+/* AI对话气泡 */
+/* 贴文助手组件 */
+.ok-banner{background:rgba(76,158,110,.12);border:1px solid rgba(76,158,110,.45);border-left:4px solid var(--ok);border-radius:12px;padding:12px 18px;font-size:13px;color:var(--ink)}
+.warn-banner-o{background:rgba(201,151,59,.12);border:1px solid rgba(201,151,59,.5);border-left:4px solid var(--warn);border-radius:12px;padding:12px 18px;font-size:13px;color:var(--ink)}
+.embed-ph{border:2px dashed var(--line);border-radius:14px;min-height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;background:var(--panel-2)}
+.embed-ph .ico{font-size:28px}
+.embed-ph .t1{font-size:13px;font-weight:700;color:var(--ink)}
+.embed-ph .t2{font-size:11px;color:var(--mut);max-width:300px;line-height:1.6}
+.lang-box{border:1px solid var(--hair);border-radius:10px;padding:10px 12px;background:var(--panel-2)}
+.lang-box .lb{font-size:11px;font-weight:700;color:var(--mut);margin-bottom:6px}
+.lang-box textarea{width:100%;border:none;background:transparent;font-size:12px;color:var(--ink);resize:vertical;min-height:56px;outline:none;font-family:inherit;line-height:1.6}
+.bubble{max-width:78%;padding:14px 18px;border-radius:16px;font-size:13.5px;line-height:1.7}
+.bubble.ai{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 16px 4px}
+.bubble.me{background:var(--ink);color:var(--bg);border-radius:16px 16px 4px 16px;margin-left:auto}
+.chat-head{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.chat-ava{width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+/* 进度条 */
+.progress{height:8px;background:var(--panel-2);border-radius:5px;overflow:hidden}
+.progress i{display:block;height:100%;width:64%;background:var(--ink);border-radius:5px}
+:root[data-theme="dark"] .progress i{background:#EDEDEA}
+/* Discord预览 */
+.dc-preview{background:#202125;border-radius:16px;overflow:hidden;border:1px solid var(--line)}
+:root[data-theme="light"] .dc-preview{background:#36393F;border-color:#36393F}
+.dc-head{padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.06);color:#fff;font-weight:600;font-size:14px;display:flex;gap:8px;align-items:center}
+.dc-head .h{color:#8A8D94;font-weight:700}
+.dc-body{padding:18px;display:flex;gap:14px}
+.dc-ava{width:40px;height:40px;border-radius:50%;background:#4A4D55;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0}
+.dc-author{color:#fff;font-weight:600;font-size:14px}
+.dc-time{color:#8A8D94;font-size:11px;margin-left:8px}
+.dc-text{color:#D5D7DB;font-size:13.5px;line-height:1.6;margin-top:4px}
+.dc-img{margin-top:10px;width:280px;height:150px;background:linear-gradient(135deg,#3A3D45,#26282D);border-radius:8px}
+/* 空状态 */
+.empty{text-align:center;padding:70px 20px;color:var(--mut)}
+.empty .ico{font-size:40px;margin-bottom:16px;opacity:.5}
+.empty .t{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:6px}
+/* 页脚 */
+footer{margin-top:80px;background:var(--cut);color:#8F9196;padding:50px 0 0;transition:background .35s}
+.foot-row{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;font-size:12px;padding-bottom:30px}
+.mega{font-size:clamp(70px,15.5vw,215px);font-weight:700;letter-spacing:.06em;line-height:.82;color:#2A2D34;text-align:center;text-transform:uppercase;user-select:none}
+:root[data-theme="dark"] .mega{color:#363A42}
+/* ===== 舆情页组件 ===== */
+.chips{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--ink);background:var(--panel)}
+.chip .dot{width:7px;height:7px;border-radius:50%}
+.brief5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.voice-bar{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:14px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;transition:.35s}
+.voice-bar .vt{font-weight:700;font-size:13px;letter-spacing:.05em}
+.voice-bar .pill{background:var(--panel-2);color:var(--mut);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+.voice-bar .pill.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.voice-bar .cnt{margin-left:auto;font-size:12px;color:var(--mut)}
+.voice-box .voice-bar{border-radius:14px 14px 0 0}
+.voice-list{max-height:0;overflow:hidden;transition:max-height .45s ease}
+.voice-box.open .voice-list{max-height:440px;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-top:none;border-radius:0 0 14px 14px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.voice-tabs{display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:-14px;background:var(--panel);padding:4px 0 10px;margin-top:-4px;border-bottom:1px solid var(--hair);z-index:2}
+.voice-tabs .pill{background:var(--panel-2);color:var(--mut);border:1px solid var(--line);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:.2s}
+.voice-tabs .pill:hover{color:var(--ink)}
+.voice-tabs .pill.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.voice-more{text-align:center;font-size:11px;color:var(--mut);letter-spacing:.15em;padding:4px 0 2px;flex-shrink:0}
+.vpost{border:1px solid var(--hair);border-left:3px solid var(--ok);border-radius:12px;padding:14px 16px;background:var(--panel)}
+.vpost .vh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+.vpost .name{font-weight:700;color:var(--ink)}
+.vpost .handle{color:var(--mut);font-size:12px}
+.vpost .time{margin-left:auto;font-size:11px;color:var(--mut)}
+.vpost .body{font-size:13px;color:var(--ink);margin-top:8px;line-height:1.65;word-break:break-all}
+.vpost .orig{font-size:12px;color:var(--mut);font-style:italic;margin-top:8px;border-top:1px dashed var(--hair);padding-top:8px;line-height:1.6}
+.duo{display:flex;align-items:flex-end;gap:22px;height:190px;padding:10px 6px 0}
+.duo .g{flex:1;display:flex;align-items:flex-end;gap:5px;justify-content:center;height:100%}
+.duo .b1,.duo .b2,.duo .b3{width:16px;border-radius:5px 5px 0 0;min-height:3px}
+.duo .b1{background:#4A9EDA}
+.duo .b2{background:#6A5ACD}
+.duo .b3{background:#E8A33D}
+.legend{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--mut);flex-wrap:wrap}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
+/* 紧凑深色卡（黑面板内） */
+.dcard-sm{background:var(--dcard);border-radius:14px;padding:16px 16px 14px;transition:.25s;color:#F2F2F0}
+.dcard-sm:hover{background:var(--dcard-h)}
+.dcard-sm .big{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.dcard-sm h4{font-size:12px;font-weight:600;margin-top:2px}
+.dcard-sm p{font-size:10px;color:var(--cut-mut);margin-top:2px}
+.sumbox-dark{background:rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;font-size:12px;color:#C9CBD1;line-height:1.6}
+/* 趋势黑面板内的深色适配（与今日快报规范一致） */
+.panel-cut .lstat{background:var(--dcard);border-color:transparent}
+.panel-cut .lstat .n{color:#F2F2F0}
+.panel-cut .lstat .t{color:var(--cut-mut)}
+.panel-cut .card-sub{color:var(--cut-mut)}
+.panel-cut .duo .v{color:#C9CBD1}
+.panel-cut .duo-x b,.panel-cut .duo-x i{color:var(--cut-mut)}
+.panel-cut .legend{color:var(--cut-mut)}
+.panel-cut .mood-cell{background:var(--dcard);border-color:transparent}
+.panel-cut .mood-cell .md{color:var(--cut-mut)}
+.panel-cut .mb .mtrack{background:rgba(255,255,255,.08)}
+.panel-cut .mb .mv{color:var(--cut-mut)}
+.duo-x{display:flex;gap:22px;margin-top:8px}
+.duo-x span{flex:1;text-align:center;font-size:10px;color:var(--mut)}
+.mood{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.mood .d{font-size:11px;color:var(--mut);width:56px;flex-shrink:0}
+.mood .track{flex:1;height:8px;border-radius:4px;background:var(--hair);display:flex;overflow:hidden}
+.mood .track i{display:block;height:100%}
+.mood .pct{font-size:11px;color:var(--mut);width:96px;text-align:right;flex-shrink:0}
+.mood-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:12px}
+.mood-cell{background:var(--panel-2);border:1px solid var(--hair);border-radius:10px;padding:10px 10px 8px}
+.mood-cell .md{font-size:10px;color:var(--mut);font-weight:700;margin-bottom:8px;text-align:center;white-space:nowrap}
+.mb{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.mb:last-child{margin-bottom:0}
+.mb .mtrack{flex:1;height:9px;background:var(--hair);border-radius:5px;overflow:hidden;min-width:0}
+.mb .mtrack i{display:block;height:100%;border-radius:5px}
+.mb .mv{font-size:10px;color:var(--mut);white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(max-width:900px){.mood-grid{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:560px){.mood-grid{grid-template-columns:repeat(2,1fr)}}
+.topic-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
+.tcol-h{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;border-radius:8px;padding:6px 12px;margin-bottom:12px}
+.tcard{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:var(--panel)}
+.tcard .top{display:flex;align-items:center;gap:8px}
+.tcard .name{font-weight:700;font-size:13px;color:var(--ink)}
+.tcard .heat{margin-left:auto;font-size:12px;font-weight:700}
+.tcard .meta{font-size:11px;color:var(--mut);margin:6px 0 8px}
+.tcard .sum{background:var(--panel-2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--mut);line-height:1.6}
+.sbar{height:5px;background:var(--hair);border-radius:3px;overflow:hidden;margin:8px 0 10px}
+.sbar i{display:block;height:100%;border-radius:3px}
+.quote{border:1px solid var(--hair);border-radius:10px;padding:10px 12px;margin-top:8px}
+.quote .q{font-size:12px;color:var(--ink);line-height:1.55}
+.quote .a{font-size:11px;color:var(--mut);margin-top:6px;display:flex;gap:8px;align-items:center}
+.arch{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.arch-card{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
+.arch-card .d{font-weight:700;font-size:13px;color:var(--ink)}
+.arch-card .n{font-size:11px;color:var(--mut);margin:6px 0}
+.arch-card .s{font-size:10px;font-weight:600}
+.jargon{position:relative;cursor:help;border-bottom:1px dotted currentColor}
+.jargon .jt{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#2A2D34;color:#F2F2F0;font-size:10px;font-weight:500;line-height:1.5;padding:8px 12px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transition:.2s;z-index:30;box-shadow:0 8px 20px rgba(0,0,0,.25)}
+.jargon:hover .jt{opacity:1}
+/* 平台色（小面积点缀） */
+.plat-tw{background:rgba(74,158,218,.14);color:#3A7FB5}
+.plat-dc{background:rgba(123,104,238,.14);color:#6A5ACD}
+.plat-kr{background:rgba(232,163,61,.18);color:#B57A1E}
+:root[data-theme="dark"] .plat-tw{color:#7FBCE8}
+:root[data-theme="dark"] .plat-dc{color:#B0A4F0}
+:root[data-theme="dark"] .plat-kr{color:#E8C088}
+.tcard.tw{border-left:3px solid #4A9EDA}
+.tcard.dc{border-left:3px solid #6A5ACD}
+.tcard.kr{border-left:3px solid #E8A33D}
+.sumbox{background:var(--panel-2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--mut);line-height:1.6}
+.lstat{background:var(--panel-2);border:1px solid var(--hair);border-radius:14px;padding:18px 20px}
+.lstat .n{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+.lstat .t{font-size:11px;color:var(--mut);margin-top:4px}
+.duo .col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px}
+.duo .v{font-size:10px;color:var(--mut);line-height:1}
+.duo-x span{display:flex;flex-direction:column;gap:2px}
+.duo-x b{font-weight:600;color:var(--mut);font-size:10px}
+.duo-x i{font-style:normal;font-size:10px;color:var(--mut);opacity:.7}
+@media(max-width:1000px){.brief5{grid-template-columns:repeat(3,1fr)}.arch{grid-template-columns:repeat(3,1fr)}.topic-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.dcards{grid-template-columns:1fr 1fr}.dcards.c3{grid-template-columns:1fr}.panel-cut{padding:36px 26px}.cols2,.cols3,.cols-2-1{grid-template-columns:1fr}}
+@media(max-width:560px){.dcards{grid-template-columns:1fr}.login-card{width:100%}.sys-nav{gap:14px;flex-wrap:wrap}.hstat{padding:6px 14px}}
+/* ===== V21 字号优化：灰色小字全站调大一号，侧边栏重点照顾 ===== */
+.side-item{font-size:14px}
+.side-sec{font-size:11px}
+.side-head .t2{font-size:10px}
+.side-user .u-name{font-size:14px}
+.side-user .u-role{font-size:10px}
+.micro{font-size:12px}
+.flabel{font-size:12px}
+th{font-size:11px}
+.drop .t2{font-size:12px}
+.dcard p{font-size:12px}
+.dcard-sm p{font-size:11px}
+.lstat .t{font-size:12px}
+.hstat .t{font-size:11px}
+.float-stat .t{font-size:11px}
+.chart-x span{font-size:11px}
+.duo .v{font-size:11px}
+.duo-x b{font-size:11px}
+.duo-x i{font-size:11px}
+.mood-cell .md{font-size:11px}
+.mb .mv{font-size:11px}
+.mood .d{font-size:12px}
+.mood .pct{font-size:12px}
+.arch-card .n{font-size:12px}
+.arch-card .s{font-size:11px}
+.tcard .meta{font-size:12px}
+.quote .a{font-size:12px}
+.heat-body .m{font-size:12px}
+.legend{font-size:12px}
+.voice-more{font-size:12px}
+.vpost .time{font-size:12px}
+.dc-time{font-size:12px}
+.report-kpi .t{font-size:12px}
+.send-sec .sec-t{font-size:11px}
+.send-sec-light .sec-t{font-size:11px}
+.jargon .jt{font-size:11px}
+.thumb .bar{font-size:11px}
+</style>
+</head>
+<body>
+
+<!-- 顶部控制条 -->
+<div class="preview-bar">
+  <b>M2G CONSOLE · UI DESIGN · V42</b><span>全页面设计预览 · 黑白未来感 · 双主题 · 贴文助手对话区加高版（看到 V42 即为最新版）</span>
+  <div class="switch">
+    <button id="btnLight" class="on" onclick="setTheme('light')">☀ 日间</button>
+    <button id="btnDark" onclick="setTheme('dark')">☾ 夜间</button>
+  </div>
+</div>
+
+<!-- 页面导航 -->
+<div class="page-nav" id="pageNav">
+  <button class="on" data-page="1" onclick="setPage(1)">01 登录</button>
+  <button data-page="2" onclick="setPage(2)">02 发布首页</button>
+  <button data-page="3" onclick="setPage(3)">03 舆情监控</button>
+  <button data-page="5" onclick="setPage(5)">05 周报管理</button>
+  <button data-page="6" onclick="setPage(6)">06 玩家洞察</button>
+  <button data-page="7" onclick="setPage(7)">07 术语校对</button>
+  <button data-page="8" onclick="setPage(8)">08 贴文助手</button>
+  <button data-page="9" onclick="setPage(9)">09 权限管理</button>
+  <button data-page="10" onclick="setPage(10)">10 历史数据</button>
+</div>
+
+<!-- 浮动侧边栏（图标停靠栏 + 悬停展开） -->
+<aside class="sidebar" id="sidebar" style="display:none">
+  <div class="side-head">
+    <div class="logo-mark">M2</div>
+    <div class="st ht"><div class="t1">M2G 运营后台</div><div class="t2">OVERSEAS COMMUNITY</div></div>
+  </div>
+  <!-- 身份区：操作人+权限角色（全站唯一展示位，收起时只显示头像） -->
+  <div class="side-user">
+    <div class="u-ava">11</div>
+    <div class="st"><div class="u-name">ETHAN</div><span class="u-role">超级管理员</span></div>
+  </div>
+  <div class="side-scroll">
+    <div class="side-sec">舆情监控</div>
+    <a class="side-item" data-page="3" onclick="setPage(3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18M8 17V9M13 17V5M18 17v-6"/></svg><span class="st">舆情日报</span></a>
+    <a class="side-item" data-page="5" onclick="setPage(5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2h6v4H9zM9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/></svg><span class="st">周报管理</span></a>
+    <a class="side-item" data-page="10" onclick="setPage(10)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg><span class="st">历史数据</span></a>
+    <a class="side-item" data-page="6" onclick="setPage(6)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span class="st">玩家洞察</span></a>
+    <div class="side-sec">内容管理</div>
+    <a class="side-item" data-page="2" onclick="setPage(2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg><span class="st">DC发布</span></a>
+    <a class="side-item" data-page="8" onclick="setPage(8)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span class="st">贴文助手</span></a>
+    <a class="side-item" data-page="7" onclick="setPage(7)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg><span class="st">术语校对</span></a>
+    <div class="side-sec">权限管理</div>
+    <a class="side-item" data-page="9" onclick="setPage(9)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span class="st">权限管理</span></a>
+    <a class="side-item" onclick="setPage(9)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 5v14c0 1.7-4 3-9 3s-9-1.3-9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg><span class="st">数据库管理</span></a>
+  </div>
+  <div class="side-pulse"></div>
+  <div class="side-foot">
+    <a class="side-item" id="sideDark" onclick="toggleThemeFromSide()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span class="st">暗黑模式</span><span class="side-switch"><i></i></span></a>
+    <a class="side-item danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span class="st">退出登录</span></a>
+  </div>
+</aside>
+
+<!-- ═══ 01 登录 ═══ -->
+<div class="page on" id="pg1">
+<!-- 01 登录页 -->
+<section class="screen-login grid-bg">
+  <div class="float-stat"><div><div class="n">1,024+</div><div class="t">Tasks Done</div></div><div class="fs-div"></div><div><div class="n">4</div><div class="t">Regions</div></div></div>
+  <div class="wrap login-flex">
+    <div class="login-left">
+      <div class="micro">M2G · Overseas Community Console</div>
+      <div class="huge">Publish<br>Monitor<br>Report</div>
+      <p>发布、舆情、周报、洞察、术语——一套控制台管理海外四区社区运营的全部日常工作。</p>
+    </div>
+    <div class="login-card">
+      <div class="micro">Sign In</div>
+      <h3>登录控制台</h3>
+      <button class="g-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21.35 11.1H12v2.9h5.35c-.5 2.4-2.55 4.1-5.35 4.1a5.9 5.9 0 0 1 0-11.8c1.5 0 2.85.55 3.9 1.45l2.15-2.15A8.9 8.9 0 0 0 12 3a9 9 0 1 0 0 18c5.2 0 8.65-3.65 8.65-8.8 0-.4-.1-.75-.3-1.1z"/></svg>使用 Google 账号登录</button>
+      <div class="hint">仅限授权运营人员访问</div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ═══ 02 发布首页 ═══ -->
+<div class="page" id="pg2">
+<!-- 02 发布首页 -->
+<div class="wrap page-head" style="padding:36px 0 20px">
+  <div class="micro">Publish · DC 发布 — Discord 多服务器消息发布与任务管理</div>
+  <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Publish Console</div>
+</div>
+<div class="wrap">
+  <!-- 发送情况（黑切角面板 · 汇总看板） -->
+  <div class="panel-cut mb32" style="padding:30px 30px 28px">
+    <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+      <h2 style="font-size:20px">Status<br>发送情况</h2>
+      <p class="desc">操作人 11 ETHAN · 数据每 60 秒自动刷新</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+      <div class="lstat" style="border-left:3px solid var(--ok)"><div class="n">0</div><div class="t">今日已发</div></div>
+      <div class="lstat"><div class="n">0</div><div class="t">待发送</div></div>
+      <div class="lstat" style="border-left:3px solid var(--err)"><div class="n" style="color:#E88B81">1</div><div class="t">失败</div></div>
+      <div class="lstat"><div class="n">15</div><div class="t">总任务数</div></div>
+    </div>
+  </div>
+
+  <!-- 发送配置（白卡 · 双栏紧凑分组） -->
+  <div class="card card-pad mb32">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div><div class="micro" style="margin-bottom:6px">Send Console</div><div class="card-title" style="font-size:17px">发送配置</div></div>
+      <span class="micro" style="letter-spacing:.15em">左栏写内容传图片 · 右栏选频道定时间</span>
+    </div>
+    <div class="send-grid">
+      <!-- 左栏：消息内容 -->
+      <div>
+        <label class="flabel">消息内容 · 支持 Markdown 与 @提及</label>
+        <textarea class="txta" style="margin-top:8px;min-height:224px" placeholder="输入要发布的消息…"></textarea>
+        <label class="flabel" style="margin-top:14px">图片 · 支持多张 · 超 500KB 自动压缩</label>
+        <div class="drop-strip-light" style="margin-top:8px">
+          <span class="ico">⬆</span>
+          <span>点击或拖拽图片到此处</span>
+          <span style="margin-left:auto;opacity:.7">JPG / PNG</span>
+        </div>
+        <div class="thumbs">
+          <div class="thumb thumb-light"><div class="img">IMG</div><div class="bar"><i>↑</i><i>↓</i><i class="del">✕</i></div></div>
+          <div class="thumb thumb-light"><div class="img">IMG</div><div class="bar"><i>↑</i><i>↓</i><i class="del">✕</i></div></div>
+        </div>
+      </div>
+      <!-- 右栏：发送设置（分组卡） -->
+      <div class="send-sec-light">
+        <div class="sec-t">Target · 发送目标</div>
+        <div class="frow"><label class="flabel">地区</label><select class="sel" style="width:100%;margin-top:6px"><option>日服</option><option>繁中服</option><option>东南亚服</option><option>韩服</option></select></div>
+        <div class="frow"><label class="flabel">频道</label><select class="sel" style="width:100%;margin-top:6px"><option>日服-测试频道</option><option>繁中服-测试频道</option><option>东南亚服-测试频道</option></select></div>
+        <div class="frow"><label class="flabel">发送人</label><input class="sel" style="width:100%;margin-top:6px" value="日服-测试发送者" readonly><div style="font-size:10px;color:var(--mut);margin-top:5px">选择频道后自动带出</div></div>
+        <div class="send-div-light"></div>
+        <div class="sec-t">Timing · 发送时机</div>
+        <div class="frow"><label class="flabel">发送模式</label><select class="sel" style="width:100%;margin-top:6px"><option>立即发送</option><option selected>定时发送</option></select></div>
+        <div class="frow"><label class="flabel">定时时间 · 须为将来时间</label><input class="sel" type="datetime-local" style="width:100%;margin-top:6px" value="2026-08-04T20:00"></div>
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <a class="btn btn-solid" style="flex:1;justify-content:center">定时发送 <span class="ar">→</span></a>
+          <a class="btn btn-warn-ghost" href="#">清空</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 任务列表（白卡 · 真实数据） -->
+  <div class="card mb32">
+    <div class="card-pad" style="padding-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+      <div><div class="micro" style="margin-bottom:6px">Task List</div><div class="card-title" style="font-size:17px">全部任务 · 共 15 条</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select class="sel"><option>全部状态</option><option>已发送</option><option>失败</option><option>已撤回</option></select>
+        <select class="sel"><option>全部频道</option><option>日服-测试频道</option><option>繁中服-测试频道</option><option>东南亚服-测试频道</option></select>
+        <input class="sea" style="min-width:200px" placeholder="搜索内容/频道/操作人...">
+        <a class="btn btn-ghost btn-sm" href="#">刷新</a>
+        <a class="btn btn-ghost btn-sm" href="#">导出报告</a>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th style="width:30px"><input type="checkbox"></th><th>ID</th><th>频道</th><th>内容</th><th>类型</th><th>状态</th><th>定时时间</th><th>实际发送时间</th><th>发送人</th><th>操作人</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr><td><input type="checkbox"></td><td class="strong">15</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">eee</td><td class="mono">发送</td><td><span class="tag err">失败</span></td><td class="mono">—</td><td class="mono">—</td><td>メイ メイ</td><td>11 ETHAN</td><td><a class="btn-op" href="#">重试</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">14</td><td>繁中服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">為了守護大腦的繁榮與穩定，王城騎…</td><td class="mono">发送</td><td><span class="tag ok">已发送</span></td><td class="mono">—</td><td class="mono">07-29 15:39</td><td>小梅</td><td>11 ETHAN</td><td><a class="btn-op" href="#">DC效果</a><a class="btn-op danger" href="#">撤回消息</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">13</td><td>繁中服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">為了守護大腦的繁榮與穩定，王城騎…</td><td class="mono">发送</td><td><span class="tag err">失败</span></td><td class="mono">—</td><td class="mono">—</td><td>小梅</td><td>11 ETHAN</td><td><a class="btn-op" href="#">重试</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">12</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">aaa</td><td class="mono">发送</td><td><span class="tag ok">已发送</span></td><td class="mono">—</td><td class="mono">07-29 10:47</td><td>メイ メイ</td><td>11 ETHAN</td><td><a class="btn-op" href="#">DC效果</a><a class="btn-op danger" href="#">撤回消息</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">11</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">test</td><td class="mono">撤回</td><td><span class="tag idle">已撤回</span></td><td class="mono">—</td><td class="mono">07-28 15:12</td><td>メイ メイ</td><td>Jingcheng Peng</td><td><span class="micro">—</span></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">10</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">test</td><td class="mono">撤回</td><td><span class="tag idle">已撤回</span></td><td class="mono">—</td><td class="mono">07-28 15:07</td><td>メイ メイ</td><td>Jingcheng Peng</td><td><span class="micro">—</span></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">9</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">ssss</td><td class="mono">发送</td><td><span class="tag ok">已发送</span></td><td class="mono">—</td><td class="mono">07-28 14:53</td><td>メイ メイ</td><td>11 ETHAN</td><td><a class="btn-op" href="#">DC效果</a><a class="btn-op danger" href="#">撤回消息</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">8</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">ssss</td><td class="mono">发送</td><td><span class="tag err">失败</span></td><td class="mono">—</td><td class="mono">—</td><td>メイ メイ</td><td>11 ETHAN</td><td><a class="btn-op" href="#">重试</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">7</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">dfg</td><td class="mono">发送</td><td><span class="tag err">失败</span></td><td class="mono">—</td><td class="mono">—</td><td>メイ メイ</td><td>11 ETHAN</td><td><a class="btn-op" href="#">重试</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">6</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">sddddd</td><td class="mono">发送</td><td><span class="tag err">失败</span></td><td class="mono">—</td><td class="mono">—</td><td>メイ メイ</td><td>11 ETHAN</td><td><a class="btn-op" href="#">重试</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">5</td><td>东南亚服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">dfsdfs</td><td class="mono">发送</td><td><span class="tag ok">已发送</span></td><td class="mono">—</td><td class="mono">07-28 14:02</td><td>Mei</td><td>11 ETHAN</td><td><a class="btn-op" href="#">DC效果</a><a class="btn-op danger" href="#">撤回消息</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">4</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">sdfgh</td><td class="mono">发送</td><td><span class="tag err">失败</span></td><td class="mono">—</td><td class="mono">—</td><td>メイ メイ</td><td>11 ETHAN</td><td><a class="btn-op" href="#">重试</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">3</td><td>繁中服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">dsgfghhj</td><td class="mono">发送</td><td><span class="tag ok">已发送</span></td><td class="mono">—</td><td class="mono">07-28 14:00</td><td>小梅</td><td>11 ETHAN</td><td><a class="btn-op" href="#">DC效果</a><a class="btn-op danger" href="#">撤回消息</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">2</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">sssss</td><td class="mono">发送</td><td><span class="tag err">失败</span></td><td class="mono">—</td><td class="mono">—</td><td>メイ メイ</td><td>11 ETHAN</td><td><a class="btn-op" href="#">重试</a></td></tr>
+        <tr><td><input type="checkbox"></td><td class="strong">1</td><td>日服-测试频道</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">asdfasdfasdsf</td><td class="mono">发送</td><td><span class="tag err">失败</span></td><td class="mono">—</td><td class="mono">—</td><td>メイ メイ</td><td>11 ETHAN</td><td><a class="btn-op" href="#">重试</a></td></tr>
+      </tbody>
+    </table>
+    <div class="pager"><span class="micro" style="align-self:center;margin-right:auto;letter-spacing:.15em">共 15 条 · 第 1 页 / 共 1 页</span><button class="pgc">↑</button><button class="pgc">↓</button></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ 03 舆情监控 ═══ -->
+<div class="page" id="pg3">
+<!-- 03 舆情监控 -->
+<div class="wrap page-head" style="padding:36px 0 20px">
+  <div class="micro">Sentiment · 舆情监控面板 — 实时追踪 Twitter + Discord + Naver 玩家反馈</div>
+  <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Sentiment Monitor</div>
+  <div class="chips">
+    <span class="chip"><span class="dot" style="background:var(--ok)"></span>运行正常 · 已运行 1时11分</span>
+    <span class="chip">今日采集 · TW 0 / DC 0 / KR -</span>
+    <span class="chip">话题 · 4 个已就绪</span>
+    <a class="btn btn-solid btn-sm" style="margin-left:auto" href="#">刷新分析 <span class="ar">→</span></a>
+  </div>
+</div>
+<div class="wrap">
+  <!-- 今日快报 + 发言概况（紧凑黑面板） -->
+  <div class="panel-cut mb32" style="padding:34px 34px 30px">
+    <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+      <h2 style="font-size:20px">Today Brief<br>今日快报 · 发言概况</h2>
+      <p class="desc">监控时间 2026/8/1 8:30 ~ 2026/8/2 8:30</p>
+    </div>
+    <div class="brief5" style="margin-bottom:16px">
+      <div class="dcard-sm" style="border-left:3px solid #4A9EDA"><div class="big">17</div><h4>Twitter</h4><p>日服今日发言</p></div>
+      <div class="dcard-sm" style="border-left:3px solid #6A5ACD"><div class="big">1</div><h4>Discord</h4><p>繁中今日发言</p></div>
+      <div class="dcard-sm" style="border-left:3px solid #E8A33D"><div class="big">0</div><h4>韩服 Naver</h4><p>今日暂无发言</p></div>
+      <div class="dcard-sm" style="border-left:3px solid var(--ok)"><div class="big" style="color:#7CC79A">低</div><h4>风险等级</h4><p>整体可控</p></div>
+      <div class="dcard-sm" style="border-left:3px solid var(--ok)"><div class="big">平稳</div><h4>整体情绪</h4><p>正面为主</p></div>
+    </div>
+    <div class="cols3">
+      <div><span class="tcol-h plat-tw">日服 Twitter</span><div class="sumbox-dark" style="margin-top:8px">总共发言17条，正面情绪为主，主要在聊：日常聊天(16条)、骑士团(1条)。</div></div>
+      <div><span class="tcol-h plat-dc">繁中 Discord</span><div class="sumbox-dark" style="margin-top:8px">总共发言1条，负面情绪偏多，主要在聊：日常聊天(1条)。</div></div>
+      <div><span class="tcol-h plat-kr">韩服 Naver</span><div class="sumbox-dark" style="margin-top:8px">今日暂无玩家发言</div></div>
+    </div>
+  </div>
+  <!-- 玩家发言原声（常开滚动列表 · 白色） -->
+  <div class="voice-box open mb32" id="voiceBox">
+    <div class="voice-bar">
+      <span class="vt">玩家发言原声</span>
+      <span class="cnt">共 17 条发言</span>
+    </div>
+    <div class="voice-list">
+      <div class="voice-tabs" onclick="event.stopPropagation()">
+        <span class="pill on">日服 Twitter</span><span class="pill">繁中 Discord</span><span class="pill">韩服 Naver</span>
+      </div>
+      <div class="vpost">
+        <div class="vh"><span>😊</span><span class="name">みるくま(milkma)</span><span class="handle">(@369ma3)</span><span class="time">08-01 13:06 · <a class="oplink" style="margin:0" href="#">原文 ↗</a></span></div>
+        <div class="body">ツリネバ日记19 天气不好的日子，日常任务会休息 不过要做的事情还是很多death☆ #ツリネバ #TOSN https://t.co/BcTzegOfcH</div>
+        <div class="orig">原文: ツリネバ日记19 天气悪い日は日课がお休みになります でもやることは多いdeath☆ #ツリネバ #TOSN https://t.co/BcTzegOfcH</div>
+      </div>
+      <div class="vpost">
+        <div class="vh"><span>😊</span><span class="name">mnk</span><span class="handle">(@mnnnmnnk10)</span><span class="time">08-02 07:20 · <a class="oplink" style="margin:0" href="#">原文 ↗</a></span></div>
+        <div class="body">@momowan_nyan ツリネバまた现役ですがすごいわかります(´ω`)今日は消减と薬毒だ(∵´)</div>
+      </div>
+      <div class="vpost">
+        <div class="vh"><span>😊</span><span class="name">いるいお</span><span class="handle">(@kutikineko_10)</span><span class="time">08-02 06:34 · <a class="oplink" style="margin:0" href="#">原文 ↗</a></span></div>
+        <div class="body">一直在借用你的提示词玩玩w 用的是ツリネバ的翻译www 最近，搭档说一直在用白发。我也想学学，最近也换成了白发www 对于一直用红紫色的人来说挺新鲜的，有种清纯感，意外地很喜欢(´ω`) https://t.co/H8Lb62iRVQ</div>
+        <div class="orig">原文: あっちゃんプロンプトお借りして游んでみたw ツリネバSS 使ってまずw 最近，相方が前から使ってるという白髪に，真似して最近も白髪www 赤紫ばっかりしてたうちからしたら新鲜で，清纯感出てて意…</div>
+      </div>
+      <div class="vpost" style="border-left-color:var(--warn)">
+        <div class="vh"><span>😊</span><span class="name">キリタ</span><span class="handle">(@IY_26Ametrine7)</span><span class="time">08-02 06:27 · <a class="oplink" style="margin:0" href="#">原文 ↗</a></span></div>
+        <div class="body">想找都边用Discord边一起玩的好友 😊 超自然小队 ツリネバ 宝可梦大集结 荒野乱斗 第五人格 荒野行动 泰拉瑞亚 #游戏好友招募 #游戏好友招募</div>
+        <div class="orig">原文: ディスコで暇ながら游べるフレンド欲しい 😊 超自然スクワッド ツリネバ ポコナ ポコスカ 第五人格 荒野行动 テラリア #ゲーム友達募集 #ゲームフレンド募集</div>
+      </div>
+      <div class="voice-more">显示 4 / 17 条 · 向下滚动加载更多</div>
+    </div>
+  </div>
+
+  <!-- 七日舆情趋势（黑面板 · 与今日快报同规范） -->
+  <div class="panel-cut trend-panel mb32" style="padding:34px 34px 30px">
+    <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+      <h2 style="font-size:20px">Weekly Trend<br>七日舆情趋势</h2>
+      <p class="desc">近7天数据总览，发现趋势和异常</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px">
+      <div class="lstat"><div class="n">108</div><div class="t">7日总量 · TW:70 DC:16 KR:22</div></div>
+      <div class="lstat"><div class="n">15</div><div class="t">日均发言 · 条/天</div></div>
+      <div class="lstat"><div class="n" style="color:var(--ok)">-11 ↓</div><div class="t">趋势变化 · 较前一日</div></div>
+      <div class="lstat"><div class="n" style="font-size:22px">服务器…</div><div class="t">最热话题 · 3 条讨论</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+      <div class="card-sub">逐日发言量 · Twitter / Discord / Naver</div>
+      <div class="legend"><span><i style="background:#4A9EDA"></i>Twitter</span><span><i style="background:#6A5ACD"></i>Discord</span><span><i style="background:#E8A33D"></i>Naver</span></div>
+    </div>
+    <div class="duo">
+      <div class="g"><div class="col"><span class="v">11</span><div class="b1" style="height:73%"></div></div><div class="col"><span class="v">2</span><div class="b2" style="height:13%"></div></div><div class="col"><span class="v">3</span><div class="b3" style="height:20%"></div></div></div>
+      <div class="g"><div class="col"><span class="v">11</span><div class="b1" style="height:73%"></div></div><div class="col"><span class="v">9</span><div class="b2" style="height:60%"></div></div><div class="col"><span class="v">5</span><div class="b3" style="height:33%"></div></div></div>
+      <div class="g"><div class="col"><span class="v">9</span><div class="b1" style="height:60%"></div></div><div class="col"><span class="v">3</span><div class="b2" style="height:20%"></div></div><div class="col"><span class="v">2</span><div class="b3" style="height:13%"></div></div></div>
+      <div class="g"><div class="col"><span class="v">6</span><div class="b1" style="height:40%"></div></div><div class="col"><span class="v">1</span><div class="b2" style="height:7%"></div></div><div class="col"><span class="v">4</span><div class="b3" style="height:27%"></div></div></div>
+      <div class="g"><div class="col"><span class="v">14</span><div class="b1" style="height:93%"></div></div><div class="col"><span class="v">1</span><div class="b2" style="height:7%"></div></div><div class="col"><span class="v">6</span><div class="b3" style="height:40%"></div></div></div>
+      <div class="g"><div class="col"><span class="v">15</span><div class="b1" style="height:100%"></div></div><div class="col"><span class="v">0</span><div class="b2" style="height:3%"></div></div><div class="col"><span class="v">2</span><div class="b3" style="height:13%"></div></div></div>
+      <div class="g"><div class="col"><span class="v">4</span><div class="b1" style="height:27%"></div></div><div class="col"><span class="v">0</span><div class="b2" style="height:3%"></div></div><div class="col"><span class="v">0</span><div class="b3" style="height:3%"></div></div></div>
+    </div>
+    <div class="duo-x"><span><b>7/28</b><i>16</i></span><span><b>7/29</b><i>25</i></span><span><b>7/30</b><i>14</i></span><span><b>7/31</b><i>11</i></span><span><b>8/1</b><i>21</i></span><span><b>8/2</b><i>17</i></span><span><b>8/3(今)</b><i>4</i></span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:26px 0 4px">
+      <div class="card-sub">情绪变化趋势 · 正面 / 负面 占比</div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>正面 😊</span><span><i style="background:var(--err)"></i>负面 😡</span></div>
+    </div>
+    <div class="mood-grid">
+      <div class="mood-cell"><div class="md">7/28</div>
+        <div class="mb"><div class="mtrack"><i style="width:0%;background:var(--ok)"></i></div><span class="mv">😊 0%</span></div>
+        <div class="mb"><div class="mtrack"><i style="width:0%;background:var(--err)"></i></div><span class="mv">😡 0%</span></div></div>
+      <div class="mood-cell"><div class="md">7/29</div>
+        <div class="mb"><div class="mtrack"><i style="width:0%;background:var(--ok)"></i></div><span class="mv">😊 0%</span></div>
+        <div class="mb"><div class="mtrack"><i style="width:0%;background:var(--err)"></i></div><span class="mv">😡 0%</span></div></div>
+      <div class="mood-cell"><div class="md">7/30</div>
+        <div class="mb"><div class="mtrack"><i style="width:0%;background:var(--ok)"></i></div><span class="mv">😊 0%</span></div>
+        <div class="mb"><div class="mtrack"><i style="width:0%;background:var(--err)"></i></div><span class="mv">😡 0%</span></div></div>
+      <div class="mood-cell"><div class="md">7/31</div>
+        <div class="mb"><div class="mtrack"><i style="width:29%;background:var(--ok)"></i></div><span class="mv">😊 29%</span></div>
+        <div class="mb"><div class="mtrack"><i style="width:0%;background:var(--err)"></i></div><span class="mv">😡 0%</span></div></div>
+      <div class="mood-cell"><div class="md">8/1</div>
+        <div class="mb"><div class="mtrack"><i style="width:40%;background:var(--ok)"></i></div><span class="mv">😊 40%</span></div>
+        <div class="mb"><div class="mtrack"><i style="width:20%;background:var(--err)"></i></div><span class="mv">😡 20%</span></div></div>
+      <div class="mood-cell"><div class="md">8/2</div>
+        <div class="mb"><div class="mtrack"><i style="width:47%;background:var(--ok)"></i></div><span class="mv">😊 47%</span></div>
+        <div class="mb"><div class="mtrack"><i style="width:13%;background:var(--err)"></i></div><span class="mv">😡 13%</span></div></div>
+      <div class="mood-cell"><div class="md">8/3 (今)</div>
+        <div class="mb"><div class="mtrack"><i style="width:40%;background:var(--ok)"></i></div><span class="mv">😊 40%</span></div>
+        <div class="mb"><div class="mtrack"><i style="width:0%;background:var(--err)"></i></div><span class="mv">😡 0%</span></div></div>
+    </div>
+  </div>
+
+  <!-- 七日热门话题（白色卡片，节奏：黑-白-黑-白） -->
+  <div class="card card-pad mb32">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+      <div class="card-title" style="font-size:17px">七日热门话题</div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        <span class="micro" style="letter-spacing:.15em">7日数据聚合，发现持续热点</span>
+        <span class="legend">卡片下细条 = 情绪倾向：<i style="background:var(--ok)"></i>正面 <i style="background:var(--err)"></i>负面 <i style="background:#6E7076"></i>中性</span>
+      </div>
+    </div>
+    <div class="topic-grid">
+      <!-- Twitter 列 -->
+      <div>
+        <span class="tcol-h plat-tw">日服 Twitter</span>
+        <div class="tcard tw">
+          <div class="top"><span class="tcol-h plat-tw" style="margin:0">抽卡</span><span class="heat">🔥 1/10</span></div>
+          <div class="meta">2条讨论 · 👍0 · 👎0</div>
+          <div class="sbar"><i style="width:100%;background:var(--hair)"></i></div>
+          <div class="sumbox">玩家们讨论了抽卡模拟器的通用性，并提到《命之国度的》的特定专用模拟器，同时，有玩家认为《命之国度的》的抽卡系统在历代游戏中是比较严苛的，表达了不满。</div>
+          <div class="quote"><div class="q">我做了一个通用的抽卡模拟器，适用于所有手机游戏抽卡。- ツリネバ 的命国运转盘有专用模拟器，请使用那个。- 至于其他抽卡，本模拟器基本都能对应。</div><div class="a">👤 ゆき＆Aur… (@meguminm) · 原帖↗</div></div>
+          <div class="quote"><div class="q">俺がね、制作で気分だけw お祭りかぁ、今のゲームはそういう個人イベント…（抽卡概率太低，SSR 拿不到）</div><div class="a">👤 るい♡るい (@rukiineko_10) · 原帖↗</div></div>
+        </div>
+        <div class="tcard tw">
+          <div class="top"><span class="tcol-h plat-tw" style="margin:0">活动</span><span class="heat">🔥 1/10</span></div>
+          <div class="meta">2条讨论 · 👍1 · 👎0</div>
+          <div class="sbar"><i style="width:100%;background:var(--ok)"></i></div>
+          <div class="sumbox">玩家分享了丰收：活动气氛的感想，并提到游戏内缺少浴衣和温泉原图，希望能更多个人活动来增加节日感，表达了遗憾。</div>
+          <div class="quote"><div class="q">ツリネバ18日目18 丰收 - 疯贝活动的感谢 w。</div><div class="a">👤 るい♡るい (@rukiineko_10) · 原帖↗</div></div>
+          <div class="quote"><div class="q">浴衣着せてみたw ツリネバさん、なんで、既に浴衣無いのよw お祭り気分でSSR獲れないやない！お祭り温泉図の理所も無いけどw だから、制作で気分だけw お祭りかぁ、今のゲームはそういう個人イベント…</div><div class="a">👤 るい♡るい (@rukiineko_10) · 原帖↗</div></div>
+        </div>
+        <div class="tcard tw">
+          <div class="top"><span class="tcol-h plat-tw" style="margin:0">拍照</span><span class="heat">🔥 1/10</span></div>
+          <div class="meta">1条讨论 · 👍1 · 0</div>
+          <div class="sbar"><i style="width:100%;background:var(--ok)"></i></div>
+          <div class="sumbox">一位玩家表示玩了近两年，因人生阶段变化可能退游，但珍惜游戏中的回忆，计划退游前拍照留念，并期待下次聚会。</div>
+          <div class="quote"><div class="q">说起来，我玩ツリネバ也差不多快两年了。虽然不久后我就将迈向人生的下一阶段，可能会因此退游。但在这里遇到的人与留下的回忆，即便是游戏里的，我想也会是永恒的。退游那天，至少想拍张照留念！补充一句，线下聚会…</div><div class="a">👤 またたび (@nyantatabi) · 原帖↗</div></div>
+        </div>
+        <div class="tcard tw">
+          <div class="top"><span class="tcol-h plat-tw" style="margin:0">骑士团</span><span class="heat">🔥 1/10</span></div>
+          <div class="meta">1条讨论 · 👍1 · 👎0</div>
+          <div class="sbar"><i style="width:100%;background:var(--ok)"></i></div>
+          <div class="sumbox">玩家描述了周日骑士团活动中的增添责任感，提到胜利获得的成就感，并觉得活动轻松愉快，大家一起打团很开心，直到没完为止。</div>
+          <div class="quote"><div class="q">俺は騎団はさ、今週は最終日の達成感が ツリネバ 日曜騎士団 団活、死なないなら終わらないし掃除でもないw 戦闘じゃなくてw 団活は楽しいw ずっとプレイしてきたw 🥰🥰🥰</div><div class="a">👤 ゆき＆きゅ (@momomomomi-nyan) · 原帖↗</div></div>
+        </div>
+      </div>
+      <!-- Discord 列 -->
+      <div>
+        <span class="tcol-h plat-dc">繁中 Discord</span>
+        <div class="tcard dc">
+          <div class="top"><span class="tcol-h plat-dc" style="margin:0">服务器</span><span class="heat">🔥 1/10</span></div>
+          <div class="meta">3条讨论 · 👍0 · 👎0</div>
+          <div class="sbar"><i style="width:100%;background:var(--hair)"></i></div>
+          <div class="sumbox">玩家抱怨更新公告不完整，要求官方在Discord上同步披露的更新内容，并分享具体的更新细节和骑士团日帽调整、光辉链接规则优化、扭蛋箱数奖励功能调整。</div>
+          <div class="quote"><div class="q">现在更新都不把文字打出来太过分了吧</div><div class="a">👤 xinlin</div></div>
+          <div class="quote"><div class="q">&lt; 更新内容的部分逻辑可以也同步公告吗？</div><div class="a">👤 Mei-kei</div></div>
+          <div class="quote"><div class="q">★骑士团遇非节假日且国定假日将延30号下班至25号，优化光辉链接活动规则，调整宝箱奖励功能…</div><div class="a">👤 光辉使者</div></div>
+        </div>
+        <div class="tcard dc">
+          <div class="top"><span class="tcol-h plat-dc" style="margin:0">画像</span><span class="heat">🔥 1/10</span></div>
+          <div class="meta">1条讨论 · 👍0 · 0</div>
+          <div class="sbar"><i style="width:100%;background:var(--hair)"></i></div>
+          <div class="sumbox">玩家指出当前内聊天框限于各自伺服器，官方在社交媒体上缺乏经营，表达对运营社交和官方互动的不满。</div>
+          <div class="quote"><div class="q">只有各自伺服器自己的贴吧，社交媒体官方无心经营</div><div class="a">👤 光辉使者</div></div>
+        </div>
+        <div class="tcard dc">
+          <div class="top"><span class="tcol-h plat-dc" style="margin:0">时装</span><span class="heat">🔥 1/10</span></div>
+          <div class="meta">1条讨论 · 👍0 · 0</div>
+          <div class="sbar"><i style="width:100%;background:var(--hair)"></i></div>
+          <div class="sumbox">玩家讨论黄金组级活动的参与条件和等级上限提升至110级，并新增特殊的时装可选108级装备或特等级奖励获取。</div>
+          <div class="quote"><div class="q">五、黄金组级活动 活动时间：2026年8月1日5:00-8月8日3:59UTC+8 参与条件：勇者等级达到108级，或装备等级上限由100级提高至110级，伴随装备等级上限提高，游戏内新增了一批可选奖励。</div><div class="a">👤 光辉使者</div></div>
+        </div>
+      </div>
+      <!-- KR Naver 列 -->
+      <div>
+        <span class="tcol-h plat-kr">韩服 Naver</span>
+        <div class="tcard kr">
+          <div class="top"><span class="tcol-h plat-kr" style="margin:0">玩家投诉</span><span class="heat" style="color:var(--err)">🔥 10/10</span></div>
+          <div class="meta">36条讨论 · 👍0 · <span style="color:var(--err)">👎36</span></div>
+          <div class="sbar"><i style="width:100%;background:var(--err)"></i></div>
+          <div class="sumbox">36条关于「玩家投诉」的讨论</div>
+          <div class="quote"><div class="q">奇怪的人真多啊</div><div class="a">👤 박윤지 초공자 · 原帖↗</div></div>
+          <div class="quote"><div class="q">技能图书非文件事实整理/补充</div><div class="a">👤 은지 · 原帖↗</div></div>
+          <div class="quote"><div class="q">란란선생님, 안녕하세요,</div><div class="a">👤 geonwoong · 原帖↗</div></div>
+        </div>
+        <div class="tcard kr">
+          <div class="top"><span class="tcol-h plat-kr" style="margin:0">建议反馈</span><span class="heat" style="color:var(--warn)">🔥 5/10</span></div>
+          <div class="meta">9条讨论 · 👍2 · 👎3</div>
+          <div class="sbar"><i style="width:50%;background:var(--err)"></i></div>
+          <div class="sumbox">9条关于「建议反馈」的讨论</div>
+          <div class="quote"><div class="q">请让大法师也能和聊天一起使用。</div><div class="a">👤 철현지 초공자 · 原帖↗</div></div>
+          <div class="quote"><div class="q">骑士团副本是换产骑交换成3次的吧</div><div class="a">👤 공공공 · 原帖↗</div></div>
+          <div class="quote"><div class="q">请翻译文碎片整合一下吧，太乱了。</div><div class="a">👤 철현지 초공자 · 原帖↗</div></div>
+        </div>
+        <div class="tcard kr">
+          <div class="top"><span class="tcol-h plat-kr" style="margin:0">玩家提问</span><span class="heat">🔥 3/10</span></div>
+          <div class="meta">9条讨论 · 👍1 · 👎0</div>
+          <div class="sbar"><i style="width:30%;background:var(--hair)"></i></div>
+          <div class="sumbox">9条关于「玩家提问」的讨论</div>
+          <div class="quote"><div class="q">为什么帖子都没人回审核...</div><div class="a">👤 지자자작 · 原帖↗</div></div>
+          <div class="quote"><div class="q">1회</div><div class="a">👤 공공공지 파가능 5075 · 原帖↗</div></div>
+          <div class="quote"><div class="q">官职提升到几级啊?</div><div class="a">👤 문문이 · 原帖↗</div></div>
+        </div>
+        <div class="tcard kr">
+          <div class="top"><span class="tcol-h plat-kr" style="margin:0">好评反馈</span><span class="heat" style="color:var(--ok)">🔥 2/10</span></div>
+          <div class="meta">8条讨论 · 👍8 · 0</div>
+          <div class="sbar"><i style="width:100%;background:var(--ok)"></i></div>
+          <div class="sumbox">8条关于「好评反馈」的讨论</div>
+          <div class="quote"><div class="q">温度温泉有花田</div><div class="a">👤 내장함지 초공자 · 原帖↗</div></div>
+          <div class="quote"><div class="q">高危运行证箱子👍</div><div class="a">👤 철현지 월자 14785192 · 原帖↗</div></div>
+          <div class="quote"><div class="q">加韩语文+追加</div><div class="a">👤 박가짜 공긍능 7515 · 原帖↗</div></div>
+        </div>
+        <div class="tcard kr">
+          <div class="top"><span class="tcol-h plat-kr" style="margin:0">event</span><span class="heat" style="color:var(--ok)">🔥 1/10</span></div>
+          <div class="meta">1条讨论 · 👍1 · 👎0</div>
+          <div class="sbar"><i style="width:100%;background:var(--ok)"></i></div>
+          <div class="sumbox">1条关于「event」的讨论</div>
+          <div class="quote"><div class="q">🌊六月满月录｜夏日三行诗挑战！📖</div><div class="a">👤 GM 지자작 · 原帖↗</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 每日舆情存档 -->
+  <div class="card card-pad mb20">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+      <div class="card-title" style="font-size:17px">每日舆情存档</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <span class="micro" style="letter-spacing:.15em">每天自动存档，不调用 AI，只读取已有分析</span>
+        <a class="btn btn-ghost btn-sm" href="#">保存今日存档</a>
+      </div>
+    </div>
+    <div class="arch">
+      <div class="arch-card"><div class="d">2026-08-01</div><div class="n">17 条记录</div><div class="s" style="color:var(--ok)">✓ AI分析: <span class="jargon">T4+D0<span class="jt">AI 分析了 Twitter 4 条 + Discord 0 条发言</span></span></div></div>
+      <div class="arch-card"><div class="d">2026-07-31</div><div class="n">108 条记录</div><div class="s" style="color:var(--ok)">✓ AI分析: <span class="jargon">T1+D1<span class="jt">AI 分析了 Twitter 1 条 + Discord 1 条发言</span></span></div></div>
+      <div class="arch-card"><div class="d">2026-07-30</div><div class="n">10 条记录</div><div class="s" style="color:var(--ok)">✓ AI分析: <span class="jargon">T1+D0<span class="jt">AI 分析了 Twitter 1 条 + Discord 0 条发言</span></span></div></div>
+      <div class="arch-card"><div class="d">2026-07-29</div><div class="n">19 条记录</div><div class="s" style="color:var(--mut)">○ 无AI分析</div></div>
+      <div class="arch-card"><div class="d">2026-07-28</div><div class="n">12 条记录</div><div class="s" style="color:var(--ok)">✓ AI分析: <span class="jargon">T1+D0<span class="jt">AI 分析了 Twitter 1 条 + Discord 0 条发言</span></span></div></div>
+      <div class="arch-card"><div class="d">2026-07-27</div><div class="n">19 条记录</div><div class="s" style="color:var(--mut)">○ 无AI分析</div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ 05 周报管理 ═══ -->
+<div class="page" id="pg5">
+<!-- 05 周报管理 -->
+<div class="wrap page-head" style="padding:36px 0 20px">
+  <div class="micro">Weekly Reports · 周报管理 — 查看和管理舆情周报，支持手动生成新报告</div>
+  <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Report Archive</div>
+  <div class="chips">
+    <span class="chip">共 2 份报告</span>
+    <a class="btn btn-ghost btn-sm" href="#">检查数据状态</a>
+    <a class="btn btn-ghost btn-sm" href="#">刷新列表</a>
+    <a class="btn btn-solid btn-sm" style="margin-left:auto" href="#">生成新周报 <span class="ar">→</span></a>
+  </div>
+</div>
+<div class="wrap">
+  <!-- 当前周报（黑切角大面板 · 时间最近一份 · 报告精华） -->
+  <div class="panel-cut mb32" style="padding:34px 34px 30px">
+    <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:22px">
+      <h2 style="font-size:20px">Current Report<br>当前周报 · 2026-07-27</h2>
+      <p class="desc">生成于 2026-08-03 18:15 · 报告周期 07/27 – 08/02<br>数据来源：Twitter（Yahoo实时搜索）+ Discord（繁中服）</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+      <div class="lstat"><div class="n">108</div><div class="t">本周共收集 · 条</div></div>
+      <div class="lstat" style="border-left:3px solid #4A9EDA"><div class="n">90</div><div class="t">Twitter</div></div>
+      <div class="lstat" style="border-left:3px solid #6A5ACD"><div class="n">18</div><div class="t">Discord</div></div>
+      <div class="lstat" style="border-left:3px solid var(--ok)"><div class="n" style="color:#7CC79A">低</div><div class="t">风险等级</div></div>
+    </div>
+
+    <div class="rpt-sec">一、本周总览</div>
+    <table class="tbl-dark">
+      <thead><tr><th>平台</th><th>总量</th><th>正面</th><th>中性</th><th>负面</th></tr></thead>
+      <tbody>
+        <tr><td>Twitter</td><td>90</td><td>20</td><td>66</td><td>4</td></tr>
+        <tr><td>Discord</td><td>18</td><td>1</td><td>17</td><td>0</td></tr>
+        <tr><td>合计</td><td>108</td><td>21</td><td>83</td><td>4</td></tr>
+      </tbody>
+    </table>
+
+    <div class="rpt-sec">二、社区发言概况</div>
+    <div class="rpt-quote">🐦 Twitter（日服）· 90 条发言：玩家主要讨论 其他讨论、骑士团/公会、抽卡/扭蛋。<br>代表性发言：玩家回忆最初加入的骑士团，但已忘记团名，引发共鸣。</div>
+    <div class="rpt-quote">💬 Discord（繁中服）· 18 条发言：玩家主要讨论 其他讨论、服务器/网络、时装/外观。<br>代表性发言：玩家讨论如「现在更新都不把文字打出来太狠分了吧…」等 5 条相关发言。</div>
+
+    <div class="rpt-sec">三、AI 智能分析</div>
+    <div class="sumbox-dark" style="margin-bottom:20px">整体情绪中性偏正面，玩家活跃度高，社区讨论集中于游戏攻略、赛事及设备适配问题。主要关注点：更新内容透明度不足（Discord 反馈）、抽卡模拟器工具需求。风险等级低，无负面舆情。建议：加强更新公告同步至 Discord，优化安卓端体验，并考虑官方支持模拟器工具以提升玩家满意度。</div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <a class="btn btn-light" href="#">查看完整报告 <span class="ar">→</span></a>
+      <a class="btn btn-ghost-panel" href="#">下载报告</a>
+    </div>
+  </div>
+
+  <!-- 历史报告（白卡 · 全部报告含当前这份） -->
+  <div class="card card-pad mb32">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div><div class="micro" style="margin-bottom:6px">History</div><div class="card-title" style="font-size:17px">历史报告</div></div>
+      <span class="micro" style="letter-spacing:.15em">共 2 份 · 按时间倒序</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="rep-card">
+        <div class="rh"><span class="rt">舆情周报 · 2026-07-27</span><span class="tag ok">低风险</span></div>
+        <div class="rm">📅 2026-08-03 10:15 生成</div>
+        <div class="rm">📊 90 Twitter · 18 Discord</div>
+        <div class="rv">💡 核心观点：本周共收集 **108** 条玩家反馈，整体情绪 **😊 正面**。</div>
+        <div style="margin-top:12px"><a class="btn-op" href="#">查看</a><a class="btn-op" href="#">下载</a></div>
+      </div>
+      <div class="rep-card">
+        <div class="rh"><span class="rt">舆情周报 · 2026-07-20</span><span class="tag ok">低风险</span></div>
+        <div class="rm">📅 2026-07-30 10:55 生成</div>
+        <div class="rm">📊 100 Twitter · 30 Discord</div>
+        <div class="rv">💡 核心观点：本周共收集 <strong>130</strong> 条玩家反馈，整体情绪 <strong>😊 正面</strong>。</div>
+        <div style="margin-top:12px"><a class="btn-op" href="#">查看</a><a class="btn-op" href="#">下载</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ 06 玩家洞察 ═══ -->
+<div class="page" id="pg6">
+<!-- 06 玩家洞察 -->
+<div class="wrap page-head" style="padding:36px 0 20px">
+  <div class="micro">Player Insights · 玩家洞察 — AI 驱动的玩家需求分析报告</div>
+  <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Player Insights</div>
+  <div class="chips">
+    <span class="chip">分析周期 · 2026-07-31 ~ 2026-08-06</span>
+    <span class="chip">历史报告 · 1 份</span>
+    <a class="btn btn-ghost btn-sm" style="margin-left:auto" href="#">生成洞察报告 <span class="ar">→</span></a>
+  </div>
+</div>
+<div class="wrap">
+  <!-- 当前洞察（黑切角面板 · 设计化空状态） -->
+  <div class="panel-cut mb32" style="padding:48px 44px 44px;text-align:center">
+    <div class="micro" style="color:var(--cut-mut);margin-bottom:20px">Current Insight · 分析周期 2026-07-31 ~ 2026-08-06</div>
+    <div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;margin:0 auto 18px">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2F2F0" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    </div>
+    <div style="font-size:20px;font-weight:700;color:#F2F2F0;margin-bottom:10px">还没有洞察报告</div>
+    <p style="color:var(--cut-mut);font-size:13px;max-width:440px;margin:0 auto 24px;line-height:1.7">点击「生成洞察报告」，AI 将分析上周五到本周四的玩家发言，<br>为你输出专业的分析报告</p>
+    <a class="btn btn-light" href="#">生成洞察报告 <span class="ar">→</span></a>
+  </div>
+
+  <!-- 历史报告存档（白卡 · 真实存档 1 条） -->
+  <div class="card card-pad mb32">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div><div class="micro" style="margin-bottom:6px">History</div><div class="card-title" style="font-size:17px">历史报告存档 · 共 1 份</div></div>
+    </div>
+    <div class="rep-card">
+      <div class="rh"><span class="rt">2026-07-31 ~ 2026-08-06</span><span class="chip" style="padding:2px 8px;font-size:10px">4 条数据 · JP 4 · TW 0</span></div>
+      <div class="rm">📅 生成于 2026-07-31 21:48</div>
+      <div style="margin-top:12px"><a class="btn-op" href="#">查看</a><a class="btn-op danger" href="#">删除</a></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ 07 术语校对 ═══ -->
+<div class="page" id="pg7">
+<!-- 07 术语校对 -->
+<div class="wrap page-head" style="padding:36px 0 20px">
+  <div class="micro">Terminology · 术语校对 — 多语言聚合版 · 支持 7 种语言 · 离线可用</div>
+  <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Term Checker</div>
+  <div class="chips">
+    <span class="chip">术语库 · 60,221 条</span>
+    <span class="chip">7 种语言 · 中/日/英/韩/繁中/越/印尼/泰</span>
+    <a class="btn btn-ghost btn-sm" style="margin-left:auto" href="#">🔄 更新术语表</a>
+  </div>
+</div>
+<div class="wrap">
+  <!-- 主体工具卡（3 标签） -->
+  <div class="card mb32">
+    <div class="card-pad" style="padding-bottom:0">
+      <div class="seg-bar" id="termSeg">
+        <button class="on" onclick="setTermTab(1)">🔍 搜索</button>
+        <button onclick="setTermTab(2)">📝 校对</button>
+        <button onclick="setTermTab(3)">📦 批量校对</button>
+      </div>
+    </div>
+
+    <!-- 标签1：搜索（对齐真实脚本渲染：中文大字+命中高亮+逐行译文+分类徽章） -->
+    <div class="adm-sub on card-pad" id="term1" style="border-top:1px solid var(--hair)">
+      <div style="display:flex;gap:12px;margin-bottom:16px">
+        <input class="sel" style="flex:1" value="骑士团">
+        <a class="btn btn-solid btn-sm" href="#">搜索 <span class="ar">→</span></a>
+      </div>
+      <div class="card-sub mb20">找到 367 条结果 · 当前显示 1–3 条</div>
+
+      <div class="rep-card mb20">
+        <div class="rt" style="font-size:16px;margin-bottom:12px"><span style="background:rgba(201,151,59,.28);border-radius:4px;padding:0 3px">骑士团</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:13px">
+          <div><span style="color:var(--mut)">🇯🇵 日语</span>&nbsp;&nbsp;<span style="color:var(--ink)">騎士団</span></div>
+          <div><span style="color:var(--mut)">🇬🇧 英语</span>&nbsp;&nbsp;<span style="color:var(--ink)">Order</span></div>
+          <div><span style="color:var(--mut)">🇰🇷 韩语</span>&nbsp;&nbsp;<span style="color:var(--ink)">기사단</span></div>
+          <div><span style="color:var(--mut)">🇹🇼 繁中</span>&nbsp;&nbsp;<span style="color:var(--ink)">騎士團</span></div>
+          <div><span style="color:var(--mut)">🇻🇳 越南语</span>&nbsp;&nbsp;<span style="color:var(--ink)">Đoàn Kỵ Sĩ</span></div>
+          <div><span style="color:var(--mut)">🇮🇩 印尼语</span>&nbsp;&nbsp;<span style="color:var(--ink)">Ordo</span></div>
+          <div><span style="color:var(--mut)">🇹🇭 泰语</span>&nbsp;&nbsp;<span style="color:var(--ink)">กลุ่มอัศวิน</span></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip" style="padding:2px 8px;font-size:10px">zh_CN</span><span style="font-size:11px;color:var(--mut);font-family:'Space Grotesk',monospace">CHAT_CHANNEL_GUILD</span><a class="btn-op" href="#" style="margin-left:auto;margin-right:0">复制全部译文</a></div>
+      </div>
+
+      <div class="rep-card mb20">
+        <div class="rt" style="font-size:16px;margin-bottom:12px"><span style="background:rgba(201,151,59,.28);border-radius:4px;padding:0 3px">骑士团</span>宝箱</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:13px">
+          <div><span style="color:var(--mut)">🇯🇵 日语</span>&nbsp;&nbsp;<span style="color:var(--ink)">騎士団宝箱</span></div>
+          <div><span style="color:var(--mut)">🇬🇧 英语</span>&nbsp;&nbsp;<span style="color:var(--ink)">Order Chest</span></div>
+          <div><span style="color:var(--mut)">🇰🇷 韩语</span>&nbsp;&nbsp;<span style="color:var(--ink)">기사단 보물상자</span></div>
+          <div><span style="color:var(--mut)">🇹🇼 繁中</span>&nbsp;&nbsp;<span style="color:var(--ink)">騎士團寶箱</span></div>
+          <div><span style="color:var(--mut)">🇻🇳 越南语</span>&nbsp;&nbsp;<span style="color:var(--ink)">Rương Đoàn Kỵ Sĩ</span></div>
+          <div><span style="color:var(--mut)">🇮🇩 印尼语</span>&nbsp;&nbsp;<span style="color:var(--ink)">Peti Harta Ordo</span></div>
+          <div><span style="color:var(--mut)">🇹🇭 泰语</span>&nbsp;&nbsp;<span style="color:var(--ink)">หีบกลุ่มอัศวิน</span></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip" style="padding:2px 8px;font-size:10px">d道具获取指引</span><a class="btn-op" href="#" style="margin-left:auto;margin-right:0">复制全部译文</a></div>
+      </div>
+
+      <div class="rep-card">
+        <div class="rt" style="font-size:16px;margin-bottom:12px"><span style="background:rgba(201,151,59,.28);border-radius:4px;padding:0 3px">骑士团</span>排名</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:13px">
+          <div><span style="color:var(--mut)">🇯🇵 日语</span>&nbsp;&nbsp;<span style="color:var(--ink)">騎士団順位</span></div>
+          <div><span style="color:var(--mut)">🇬🇧 英语</span>&nbsp;&nbsp;<span style="color:var(--ink)">Order Ranking</span></div>
+          <div><span style="color:var(--mut)">🇰🇷 韩语</span>&nbsp;&nbsp;<span style="color:var(--ink)">기사단 랭킹</span></div>
+          <div><span style="color:var(--mut)">🇹🇼 繁中</span>&nbsp;&nbsp;<span style="color:var(--ink)">騎士團排名</span></div>
+          <div><span style="color:var(--mut)">🇻🇳 越南语</span>&nbsp;&nbsp;<span style="color:var(--ink)">Xếp hạng Đoàn Kỵ Sĩ</span></div>
+          <div><span style="color:var(--mut)">🇮🇩 印尼语</span>&nbsp;&nbsp;<span style="color:var(--ink)">Rank Ordo</span></div>
+          <div><span style="color:var(--mut)">🇹🇭 泰语</span>&nbsp;&nbsp;<span style="color:var(--ink)">อันดับกลุ่มอัศวิน</span></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip" style="padding:2px 8px;font-size:10px">zh_CN</span><span style="font-size:11px;color:var(--mut);font-family:'Space Grotesk',monospace">BEST_GUILD_RANK</span><a class="btn-op" href="#" style="margin-left:auto;margin-right:0">复制全部译文</a></div>
+      </div>
+
+      <div class="pager"><span class="micro" style="align-self:center;margin-right:auto;letter-spacing:.15em">共 367 条 · 第 1 页 / 共 19 页</span><button class="pgc">↑</button><button class="pgc">↓</button></div>
+    </div>
+
+    <!-- 标签2：校对 -->
+    <div class="adm-sub card-pad" id="term2" style="border-top:1px solid var(--hair)">
+      <textarea class="txta" style="min-height:110px">ランク1 の対戦に参加します。騎士団の集合時間に遅れないでください。</textarea>
+      <div style="display:flex;gap:12px;align-items:center;margin:14px 0;flex-wrap:wrap">
+        <a class="btn btn-solid btn-sm" href="#">开始校对 <span class="ar">→</span></a>
+        <a class="btn btn-ghost btn-sm" href="#">清空</a>
+        <span style="margin-left:auto;font-size:12px;color:var(--mut)">自动识别 7 种语言</span>
+      </div>
+      <div class="card-title" style="font-size:14px;margin-bottom:10px">校对结果 · 发现 2 个术语</div>
+      <div class="fb-card" style="border-left-color:var(--info)">
+        <div style="font-size:13px;color:var(--ink)"><span style="background:rgba(90,124,165,.22);border-radius:4px;padding:1px 4px;font-weight:700">ランク1</span> の対戦に参加します。</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="chip" style="padding:2px 8px;font-size:10px;color:var(--info);border-color:rgba(90,124,165,.45)">ランク1 → 1阶（3V3积分）</span>
+          <a class="btn-op" href="#">复制译文</a>
+        </div>
+      </div>
+      <div class="fb-card" style="border-left-color:var(--info)">
+        <div style="font-size:13px;color:var(--ink)"><span style="background:rgba(90,124,165,.22);border-radius:4px;padding:1px 4px;font-weight:700">騎士団</span>の集合時間に遅れないでください。</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="chip" style="padding:2px 8px;font-size:10px;color:var(--info);border-color:rgba(90,124,165,.45)">騎士団 → 骑士团（zh_CN · CHAT_CHANNEL_GUILD）</span>
+          <a class="btn-op" href="#">复制译文</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 标签3：批量校对 -->
+    <div class="adm-sub card-pad" id="term3" style="border-top:1px solid var(--hair)">
+      <div class="drop mb20"><div class="ico">⬆</div><div class="t1">点击或拖拽上传文件</div><div class="t2">支持 .txt / .json / .csv（每行一条文案）</div></div>
+      <div class="card-title" style="font-size:14px;margin-bottom:10px">批量校对完成 — 共 3 条文案，发现 4 个术语</div>
+      <table>
+        <thead><tr><th>#</th><th>原文</th><th>术语匹配</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">1</td><td>今天开了三把3V3，打到了ランク1</td><td>ランク1</td><td><span class="tag ok">✅ 1 个术语</span></td></tr>
+          <tr><td class="mono">2</td><td>新出的时装真好看，0阶就能穿</td><td>时装, 0阶</td><td><span class="tag ok">✅ 2 个术语</span></td></tr>
+          <tr><td class="mono">3</td><td>今晚八点骑士团集合打团本</td><td>骑士团</td><td><span class="tag ok">✅ 1 个术语</span></td></tr>
+        </tbody>
+      </table>
+      <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
+        <a class="btn btn-solid btn-sm" href="#">⬇ 下载校对报告</a>
+        <a class="btn btn-ghost btn-sm" href="#">重新上传</a>
+        <span style="margin-left:auto;font-size:12px;color:var(--mut);align-self:center">术语命中率 100% · 3/3 条文案含术语</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 更新术语表（黑切角面板） -->
+  <div class="panel-cut mb32" style="padding:28px 28px 26px">
+    <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+      <h2 style="font-size:20px">Update Glossary<br>更新术语表</h2>
+      <p class="desc">支持单语言更新或 7 种语言批量合并导入</p>
+    </div>
+    <div class="seg-bar" id="updSeg" style="margin-bottom:18px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.1)">
+      <button class="on" onclick="setUpdTab(1)" style="background:rgba(255,255,255,.14);color:#F2F2F0;border-color:transparent;box-shadow:none">📦 批量导入</button>
+      <button onclick="setUpdTab(2)" style="background:transparent;color:#C9CBD1;border-color:transparent">📝 单语言更新</button>
+    </div>
+    <div class="adm-sub on" id="upd1">
+      <div class="drop drop-dark"><div class="ico">📁</div><div class="t1">拖拽多个 Excel 文件到这里，或点击选择</div><div class="t2">同时拖入日/英/韩/繁中/越南/印尼/泰语 Excel，自动识别并合并</div></div>
+    </div>
+    <div class="adm-sub" id="upd2">
+      <div class="perm-grp" style="margin-bottom:16px"><span class="gl" style="color:var(--cut-mut)">语言</span><span class="perm-chip on" onclick="this.parentNode.querySelectorAll('.perm-chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">🇯🇵 日语</span><span class="perm-chip" onclick="this.parentNode.querySelectorAll('.perm-chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">🇬🇧 英语</span><span class="perm-chip" onclick="this.parentNode.querySelectorAll('.perm-chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">🇰🇷 韩语</span><span class="perm-chip" onclick="this.parentNode.querySelectorAll('.perm-chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">🇹🇼 繁中</span><span class="perm-chip" onclick="this.parentNode.querySelectorAll('.perm-chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">🇻🇳 越南语</span><span class="perm-chip" onclick="this.parentNode.querySelectorAll('.perm-chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">🇮🇩 印尼语</span><span class="perm-chip" onclick="this.parentNode.querySelectorAll('.perm-chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">🇹🇭 泰语</span></div>
+      <div class="drop drop-dark"><div class="ico">📁</div><div class="t1">拖拽 Excel 文件到这里，或点击选择</div><div class="t2">上传所选语言的术语 Excel 文件</div></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:18px">
+      <a class="btn btn-light btn-sm" href="#">开始更新 <span class="ar">→</span></a>
+      <a class="btn btn-ghost-panel btn-sm" href="#">💾 下载更新后的工具</a>
+      <span style="margin-left:auto;font-size:12px;color:var(--cut-mut);align-self:center">当前版本：多语言聚合版 · 离线可用</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ 08 贴文助手 ═══ -->
+<div class="page" id="pg8">
+<!-- 08 贴文助手 -->
+<div class="wrap page-head" style="padding:36px 0 20px">
+  <div class="micro">Post Assistant · 贴文助手 — AI 帮你写多语言社区公告初稿</div>
+  <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Post Assistant</div>
+  <div class="chips">
+    <span class="chip">AI 生成 · 说清主题和语气即可</span>
+    <span class="chip">支持 Discord 预览</span>
+  </div>
+</div>
+<div class="wrap">
+  <!-- 上板块：AI Studio 对话（外部嵌入，留空占位） -->
+  <div class="card card-pad mb32">
+    <div class="ok-banner mb20">这是阿里 <strong>AI Studio</strong>，公司账号，<strong>不花钱、随便用</strong>！在这里让 AI 帮你写贴文初稿。</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div class="card-title" style="font-size:15px">💬 AI Studio 对话</div>
+      <span style="font-size:11px;color:var(--mut)">需内网环境</span>
+    </div>
+    <div class="embed-ph" style="min-height:560px">
+      <div class="ico">🔌</div>
+      <div class="t1">外部嵌入接口 · 此处留空</div>
+      <div class="t2">AI Studio 对话界面由外部站点提供，实际部署时以 iframe 嵌入，设计稿不绘制其内部内容</div>
+    </div>
+  </div>
+
+  <!-- 下板块：贴文编辑 -->
+  <div class="card card-pad mb32">
+    <div class="warn-banner-o mb20">下方翻译 &amp; 校对使用的是<strong>阿饱自费的 AI</strong>，每人每天 <strong>15 次</strong>，请注意不要浪费！</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title" style="font-size:15px">📝 贴文编辑</div>
+        <span class="chip" style="padding:2px 8px;font-size:10px;color:var(--warn);border-color:rgba(201,151,59,.45)">🌟 超级管理员 · 不限次</span>
+      </div>
+      <textarea class="txta" style="min-height:110px" placeholder="输入要翻译/校对的贴文内容..."></textarea>
+      <div style="display:flex;gap:12px;margin:14px 0;flex-wrap:wrap">
+        <a class="btn btn-solid btn-sm" href="#">🌐 翻译成 7 语言 <span class="ar">→</span></a>
+        <a class="btn btn-op ok" href="#" style="padding:8px 16px">✅ 校对翻译</a>
+        <a class="btn btn-ghost btn-sm" href="#">清空</a>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--mut);margin-bottom:18px"><span class="tag ok">翻译完成</span>结果已缓存（今日有效）</div>
+
+      <div class="seg-bar" style="margin-bottom:14px"><button class="on">🌐 翻译结果</button><button>✅ 校对结果</button></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="lang-box"><div class="lb">JP 日语</div><textarea placeholder="翻译结果..."></textarea></div>
+        <div class="lang-box"><div class="lb">GB 英语</div><textarea placeholder="翻译结果..."></textarea></div>
+        <div class="lang-box"><div class="lb">KR 韩语</div><textarea placeholder="翻译结果..."></textarea></div>
+        <div class="lang-box"><div class="lb">HK 繁中</div><textarea placeholder="翻译结果..."></textarea></div>
+        <div class="lang-box"><div class="lb">VN 越南语</div><textarea placeholder="翻译结果..."></textarea></div>
+        <div class="lang-box"><div class="lb">ID 印尼语</div><textarea placeholder="翻译结果..."></textarea></div>
+        <div class="lang-box"><div class="lb">TH 泰语</div><textarea placeholder="翻译结果..."></textarea></div>
+      </div>
+    <div style="margin-top:14px"><a class="btn btn-ghost btn-sm" href="#">📋 复制全部</a></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ 09 权限管理 ═══ -->
+<div class="page" id="pg9">
+<!-- 09 权限管理 -->
+<div class="wrap page-head" style="padding:36px 0 20px">
+  <div class="micro">Admin · 权限管理 — 用户角色、Bot Token、发布频道、数据库与意见反馈的统一管理台</div>
+  <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Admin Control</div>
+</div>
+<div class="wrap">
+  <div class="warn-banner">⚠ <strong>注意：</strong>此页面仅对管理员开放。请谨慎分配管理员权限，确保只有信任的用户才能获得完整功能访问权。</div>
+
+  <!-- 一级标签卡（4 组：角色权限 / Discord / 数据库 / 意见反馈） -->
+  <div class="tab-cards" id="admTabs">
+    <div class="tab-card on" onclick="setAdmTab(1)">
+      <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6"/></svg></div>
+      <div><div class="tn">角色权限</div><div class="td">用户角色与扩展权限</div></div>
+      <span class="cnt">4 人</span>
+    </div>
+    <div class="tab-card" onclick="setAdmTab(2)">
+      <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg></div>
+      <div><div class="tn">发布管理</div><div class="td">Bot Token · 发布频道</div></div>
+      <span class="cnt">4 · 20</span>
+    </div>
+    <div class="tab-card" onclick="setAdmTab(3)">
+      <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 5v14c0 1.7-4 3-9 3s-9-1.3-9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg></div>
+      <div><div class="tn">数据库</div><div class="td">数据表存储与历史数据</div></div>
+      <span class="cnt">13 表</span>
+    </div>
+    <div class="tab-card hot" onclick="setAdmTab(4)">
+      <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <div><div class="tn">意见反馈</div><div class="td">反馈与建议</div></div>
+      <span class="cnt">7 未读</span>
+    </div>
+  </div>
+
+  <!-- 标签1：用户权限 -->
+  <div class="adm-pane on" id="adm1">
+    <div class="card mb32">
+      <div class="card-pad" style="padding-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+        <div><div class="micro" style="margin-bottom:6px">Users</div><div class="card-title" style="font-size:17px">用户权限表</div></div>
+        <span class="micro" style="letter-spacing:.15em">共 4 人 · 角色变更实时生效</span>
+      </div>
+      <table>
+        <thead><tr><th>用户名</th><th>当前角色</th><th>权限说明</th><th>扩展权限</th><th>注册时间</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="strong">YING BAI</span><br><span style="font-size:11px;color:var(--mut)">baiying941222@gmail.com</span></td>
+            <td><span class="tag ok">运营员</span></td>
+            <td>DC发布 + 舆情/周报/历史(只读)</td>
+            <td>
+              <div class="perm-grp"><span class="gl">功能</span><span class="perm-chip" onclick="this.classList.toggle('on')">上传数据</span><span class="perm-chip" onclick="this.classList.toggle('on')">贴文助手</span></div>
+              <div class="perm-grp"><span class="gl">地区</span><span class="perm-chip" onclick="this.classList.toggle('on')">JP</span><span class="perm-chip" onclick="this.classList.toggle('on')">TW</span><span class="perm-chip on" onclick="this.classList.toggle('on')">SEA</span><span class="perm-chip on" onclick="this.classList.toggle('on')">KR</span></div>
+            </td>
+            <td class="mono">2026-07-29 17:27</td>
+            <td><select class="sel" style="padding:6px 10px;font-size:12px;margin-bottom:6px"><option selected>运营员</option><option>管理员</option><option>超级管理员</option><option>访客</option></select><br><a class="btn-op danger" href="#">删除</a></td>
+          </tr>
+          <tr>
+            <td><span class="strong">Jingcheng Peng</span><br><span style="font-size:11px;color:var(--mut)">jcpengxiaom@gmail.com</span></td>
+            <td><span class="tag err">超级管理员</span></td>
+            <td>最高权限，含删用户/玩家档案</td>
+            <td><span class="perm-chip lock">角色自带 · 全部权限</span></td>
+            <td class="mono">2026-07-28 23:04</td>
+            <td><select class="sel" style="padding:6px 10px;font-size:12px;margin-bottom:6px"><option selected>超级管理员</option><option>管理员</option><option>运营员</option><option>访客</option></select><br><a class="btn-op danger" href="#">删除</a></td>
+          </tr>
+          <tr>
+            <td><span class="strong">11 ETHAN</span> <span class="chip" style="padding:2px 8px;font-size:10px;color:var(--info);border-color:rgba(90,124,165,.5)">你</span><br><span style="font-size:11px;color:var(--mut)">wbpxy274299@gmail.com</span></td>
+            <td><span class="tag err">超级管理员</span></td>
+            <td>最高权限，含删用户/玩家档案</td>
+            <td><span class="perm-chip lock">角色自带 · 全部权限</span></td>
+            <td class="mono">2026-07-28 21:17</td>
+            <td><select class="sel" style="padding:6px 10px;font-size:12px"><option selected>超级管理员</option></select><br><span class="micro">当前账号</span></td>
+          </tr>
+          <tr>
+            <td><span class="strong">阿饱</span></td>
+            <td><span class="tag info">管理员</span></td>
+            <td>全部权限（除玩家档案/删用户）</td>
+            <td><span class="perm-chip lock">角色自带 · 全部权限</span></td>
+            <td class="mono">2026-07-28 21:12</td>
+            <td><select class="sel" style="padding:6px 10px;font-size:12px;margin-bottom:6px"><option selected>管理员</option><option>超级管理员</option><option>运营员</option><option>访客</option></select><br><a class="btn-op danger" href="#">删除</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 标签2：Discord 与数据（Token + 频道 + 数据库整合） -->
+  <div class="adm-pane" id="adm2">
+    <div class="seg-bar" id="admSeg">
+      <button class="on" onclick="setAdmSub(1)">Bot Token · 4</button>
+      <button onclick="setAdmSub(2)">发布频道 · 20</button>
+    </div>
+
+    <!-- 子面板1：Bot Token -->
+    <div class="adm-sub on" id="sub1">
+    <div class="card-sub mb20">查看、测试、更新各地区的 Bot Token</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px" class="mb32">
+      <div class="tok-card"><div style="display:flex;justify-content:space-between;align-items:center"><span class="strong">繁中服</span><span class="tag ok">已配置</span></div><div class="tok-mask">MTUwN...-J0Gg</div><div style="font-size:11px;color:var(--mut)">Token 长度: 72</div><div style="display:flex;gap:8px;margin-top:12px"><a class="btn-op" href="#">测试健康度</a><a class="btn-op" href="#">更新 Token</a></div></div>
+      <div class="tok-card"><div style="display:flex;justify-content:space-between;align-items:center"><span class="strong">日服</span><span class="tag ok">已配置</span></div><div class="tok-mask">MTUwN...Q8TJQ</div><div style="font-size:11px;color:var(--mut)">Token 长度: 72</div><div style="display:flex;gap:8px;margin-top:12px"><a class="btn-op" href="#">测试健康度</a><a class="btn-op" href="#">更新 Token</a></div></div>
+      <div class="tok-card"><div style="display:flex;justify-content:space-between;align-items:center"><span class="strong">东南亚服</span><span class="tag ok">已配置</span></div><div class="tok-mask">MTUwN...joJvc</div><div style="font-size:11px;color:var(--mut)">Token 长度: 72</div><div style="display:flex;gap:8px;margin-top:12px"><a class="btn-op" href="#">测试健康度</a><a class="btn-op" href="#">更新 Token</a></div></div>
+      <div class="tok-card"><div style="display:flex;justify-content:space-between;align-items:center"><span class="strong">韩服</span><span class="tag ok">已配置</span></div><div class="tok-mask">MTUwO...mJILg</div><div style="font-size:11px;color:var(--mut)">Token 长度: 72</div><div style="display:flex;gap:8px;margin-top:12px"><a class="btn-op" href="#">测试健康度</a><a class="btn-op" href="#">更新 Token</a></div></div>
+    </div>
+    </div>
+
+    <!-- 子面板2：发布频道 -->
+    <div class="adm-sub" id="sub2">
+    <div class="card-sub mb20">新增、删除发布目标频道</div>
+    <div class="card card-pad mb32">
+      <div class="card-title" style="font-size:14px;margin-bottom:14px">＋ 新增频道</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:10px">
+        <input class="sea" style="min-width:0" placeholder="频道名称（如：日服-活动频道）">
+        <select class="sel"><option>选择 Bot</option><option>日服</option><option>繁中服</option><option>东南亚服</option><option>韩服</option></select>
+        <input class="sea" style="min-width:0" placeholder="频道 ID">
+        <a class="btn btn-solid btn-sm">＋ 添加</a>
+      </div>
+    </div>
+    <div class="card card-pad mb32">
+      <div class="micro" style="margin-bottom:12px;color:var(--info)">日服 (4)</div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">日服-测试频道</span><span class="cid">1410077043789190117</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">日服-官方消息频道</span><span class="cid">1244398075135811893</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">日服-策划面对面频道</span><span class="cid">1220665511478053608</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">日服-公告发布频道</span><span class="cid">1228410997421838389</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="micro" style="margin:18px 0 12px;color:var(--info)">繁中服 (3)</div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">繁中服-测试频道</span><span class="cid">1435902827921021962</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">繁中服-甜梅爆料所</span><span class="cid">1226064636066728961</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">繁中服-重要通告</span><span class="cid">1247880987715275806</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="micro" style="margin:18px 0 12px;color:var(--info)">东南亚服 (13)</div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">东南亚服-测试频道</span><span class="cid">1514193499363217428</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">英-web商城频道</span><span class="cid">1320970432319757066</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">越-web商城频道</span><span class="cid">1320738587880325121</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">泰-web商城频道</span><span class="cid">1321004965079087134</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">英-公告发布频道</span><span class="cid">1258016998721716224</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">越-公告发布频道</span><span class="cid">1320737963142942720</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">泰-公告发布频道</span><span class="cid">1257222581500071680</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">英-日常宣发频道</span><span class="cid">1360136353493024800</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">越-日常宣发频道</span><span class="cid">1240917748184283550</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">泰-日常宣发频道</span><span class="cid">1340916452463083880</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">英-时装宣发频道</span><span class="cid">1240915525724072479</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div class="ch-row"><span class="strong" style="font-size:13px">越-时装宣发频道</span><span class="cid">1240917542023677982</span><span class="del"><a class="btn-op danger" href="#">删除</a></span></div>
+      <div style="font-size:11px;color:var(--mut);padding:6px 14px">… 另有 1 个东南亚频道未展开（共 13 个）</div>
+    </div>
+    </div>
+  </div>
+
+  <!-- 标签3：数据库（独立 tab） -->
+  <div class="adm-pane" id="adm3">
+    <div class="card-sub mb20">查看所有数据表的存储情况，管理历史数据</div>
+    <div class="card card-pad mb20" style="display:flex;gap:26px;flex-wrap:wrap;font-size:13px">
+      <span>📄 文件大小: <strong>2.4 MB</strong></span>
+      <span>📊 表数: <strong>13</strong></span>
+      <span>📋 总行数: <strong>2,785</strong></span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px" class="mb32">
+      <div class="db-card"><div class="b">舆</div><div><div class="n">舆情记录</div><div class="t">sentiment_records · 08-03 15:50</div></div><div class="r"><div class="rn" style="color:var(--ok)">2,190 行</div></div></div>
+      <div class="db-card"><div class="b">KR</div><div><div class="n">韩国帖子</div><div class="t">lounge_posts · 07-31 21:22</div></div><div class="r"><div class="rn">100 行</div></div></div>
+      <div class="db-card"><div class="b">评</div><div><div class="n">韩国评论</div><div class="t">lounge_comments · 07-31 21:22</div></div><div class="r"><div class="rn">326 行</div></div></div>
+      <div class="db-card"><div class="b">日</div><div><div class="n">韩国日报</div><div class="t">lounge_daily_reports · 08-01 05:18</div></div><div class="r"><div class="rn">1 行</div></div></div>
+      <div class="db-card"><div class="b">话</div><div><div class="n">话题历史</div><div class="t">topic_history · 08-03 10:15</div></div><div class="r"><div class="rn">19 行</div></div></div>
+      <div class="db-card"><div class="b">快</div><div><div class="n">每日快照</div><div class="t">daily_snapshots · 08-03 16:31</div></div><div class="r"><div class="rn">7 行</div></div></div>
+      <div class="db-card"><div class="b">反</div><div><div class="n">用户反馈</div><div class="t">feedbacks · 08-03 12:14</div></div><div class="r"><div class="rn">106 行</div></div></div>
+      <div class="db-card"><div class="b">洞</div><div><div class="n">洞察报告</div><div class="t">insights_reports · 07-31 21:48</div></div><div class="r"><div class="rn">1 行</div></div></div>
+      <div class="db-card"><div class="b">周</div><div><div class="n">周报</div><div class="t">weekly_reports · 08-03 10:15</div></div><div class="r"><div class="rn">2 行</div></div></div>
+      <div style="grid-column:1/-1;font-size:11px;color:var(--mut)">… 另有 4 张表未展开（共 13 张）</div>
+    </div>
+  </div>
+
+  <!-- 标签4：意见反馈 -->
+  <div class="adm-pane" id="adm4">
+    <div class="card-sub mb20">查看用户提交的反馈和建议 · 未读 7 条</div>
+    <div class="fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="strong" style="font-size:14px">运营发言-Discord-2026-08-03</span><span class="tag warn">未读</span></div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 系统采集 · 📅 2026-08-03 12:14:09</div>
+      <div class="fb-body">【小梅】小梅收到，小梅帮忙反馈，但是具体情况以游戏为准~</div>
+      <div style="display:flex;gap:8px"><a class="btn-op" href="#">标为已读</a><a class="btn-op ok" href="#">标为已处理</a><a class="btn-op danger" href="#">删除</a></div>
+    </div>
+    <div class="fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="strong" style="font-size:14px">运营发言-Discord-2026-08-03</span><span class="tag warn">未读</span></div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 系统采集 · 📅 2026-08-03 12:14:09</div>
+      <div class="fb-body">【小梅】小梅会收集反馈下情况~</div>
+      <div style="display:flex;gap:8px"><a class="btn-op" href="#">标为已读</a><a class="btn-op ok" href="#">标为已处理</a><a class="btn-op danger" href="#">删除</a></div>
+    </div>
+    <div class="fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="strong" style="font-size:14px">运营发言-Discord-2026-08-03</span><span class="tag warn">未读</span></div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 系统采集 · 📅 2026-08-03 12:14:09</div>
+      <div class="fb-body">【小梅】可以把伺服器信息、個人ID、組隊戰力截圖發給我喔<br>小梅安排查一下</div>
+      <div style="display:flex;gap:8px"><a class="btn-op" href="#">标为已读</a><a class="btn-op ok" href="#">标为已处理</a><a class="btn-op danger" href="#">删除</a></div>
+    </div>
+    <div class="fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="strong" style="font-size:14px">运营发言-Discord-2026-08-03</span><span class="tag warn">未读</span></div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 系统采集 · 📅 2026-08-03 12:14:09</div>
+      <div class="fb-body">【小梅】勇者安安，能给小梅提供下ID吗？小梅去找技术团队核查下</div>
+      <div style="display:flex;gap:8px"><a class="btn-op" href="#">标为已读</a><a class="btn-op ok" href="#">标为已处理</a><a class="btn-op danger" href="#">删除</a></div>
+    </div>
+    <div class="fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="strong" style="font-size:14px">运营发言-Discord-2026-08-03</span><span class="tag warn">未读</span></div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 系统采集 · 📅 2026-08-03 12:14:09</div>
+      <div class="fb-body">【小梅】安安，可以给小梅私聊发一下登录的设备和设备信息，小梅收集起来反馈给技术团队查看</div>
+      <div style="display:flex;gap:8px"><a class="btn-op" href="#">标为已读</a><a class="btn-op ok" href="#">标为已处理</a><a class="btn-op danger" href="#">删除</a></div>
+    </div>
+    <div class="fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="strong" style="font-size:14px">运营发言-Discord-2026-08-03</span><span class="tag warn">未读</span></div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 系统采集 · 📅 2026-08-03 12:14:09</div>
+      <div class="fb-body">【小梅】3.19正式開始嘍</div>
+      <div style="display:flex;gap:8px"><a class="btn-op" href="#">标为已读</a><a class="btn-op ok" href="#">标为已处理</a><a class="btn-op danger" href="#">删除</a></div>
+    </div>
+    <div class="fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="strong" style="font-size:14px">运营发言-Discord-2026-08-03</span><span class="tag warn">未读</span></div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 系统采集 · 📅 2026-08-03 12:14:09</div>
+      <div class="fb-body">【小梅】收到 反馈中!</div>
+      <div style="display:flex;gap:8px"><a class="btn-op" href="#">标为已读</a><a class="btn-op ok" href="#">标为已处理</a><a class="btn-op danger" href="#">删除</a></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ 10 数据采集 ═══ -->
+<div class="page" id="pg10">
+<!-- 10 历史数据 -->
+<div class="wrap page-head" style="padding:36px 0 20px">
+  <div class="micro">History · 历史数据 — Twitter / Discord / 韩国社区 历史舆情存档</div>
+  <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Data Archive</div>
+</div>
+<div class="wrap">
+  <div class="tab-cards" id="hisTabs" style="grid-template-columns:repeat(2,1fr)">
+    <div class="tab-card on" onclick="setHisTab(1)">
+      <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53A4.48 4.48 0 0 0 12 8v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></svg></div>
+      <div><div class="tn">Twitter + Discord</div><div class="td">日服推文 · 繁中聊天记录</div></div>
+      <span class="cnt">13 条</span>
+    </div>
+    <div class="tab-card" onclick="setHisTab(2)">
+      <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+      <div><div class="tn">KR 韩国社区</div><div class="td">Naver Game Lounge · Tree of Savior</div></div>
+      <span class="cnt">100 条</span>
+    </div>
+  </div>
+
+  <!-- 标签1：Twitter + Discord -->
+  <div class="adm-pane on" id="his1">
+    <!-- 数据采集 + 手动上传（黑切角整合面板） -->
+    <div class="panel-cut mb20" style="padding:28px 28px 26px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+        <span class="strong" style="font-size:14px;color:#F2F2F0">📡 数据采集</span>
+        <span class="tag ok" style="color:#7CC79A">就绪</span>
+        <a class="btn btn-light btn-sm" style="margin-left:auto" href="#">▶ 启动抓取</a>
+        <a class="btn btn-ghost-panel btn-sm" href="#">展开 / 收起</a>
+      </div>
+      <div class="micro" style="margin-bottom:12px;color:var(--cut-mut)">Manual Upload · 手动补录历史数据</div>
+      <div class="cols2" style="align-items:stretch">
+        <div>
+          <div class="card-title" style="font-size:14px;margin-bottom:4px;color:#F2F2F0">Twitter CSV 上传</div>
+          <div class="card-sub mb20" style="color:var(--cut-mut)">需包含 created_at / full_text / url 字段</div>
+          <div class="drop drop-dark"><div class="ico">⬆</div><div class="t1">选择 Twitter 搜索导出的 CSV 文件</div><div class="t2">点击或拖拽到此处上传</div></div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:12px"><a class="btn btn-ghost-panel btn-sm" href="#">选择文件</a><span style="font-size:12px;color:var(--cut-mut)">未选择任何文件</span><a class="btn btn-light btn-sm" style="margin-left:auto" href="#">上传并处理 <span class="ar">→</span></a></div>
+        </div>
+        <div>
+          <div class="card-title" style="font-size:14px;margin-bottom:4px;color:#F2F2F0">Discord 聊天记录粘贴</div>
+          <div class="card-sub mb20" style="color:var(--cut-mut)">格式：用户名 --- 日期 时间，下一行为消息内容</div>
+          <textarea class="txta txta-dark" style="min-height:120px" placeholder="玩家A --- 2026-08-03 18:30&#10;这次维护补偿给得真大方！"></textarea>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:12px"><a class="btn btn-ghost-panel btn-sm" href="#">清空文本</a><a class="btn btn-light btn-sm" style="margin-left:auto" href="#">上传并处理 <span class="ar">→</span></a></div>
+        </div>
+      </div>
+    </div>
+    <div class="card card-pad mb20" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select class="sel"><option>全部平台</option><option>Twitter</option><option>Discord</option></select>
+      <input class="sel" type="date" value="2026-07-28"><span style="color:var(--mut)">~</span><input class="sel" type="date" value="2026-08-04">
+      <a class="btn btn-ghost btn-sm" href="#">🔍 查询</a>
+    </div>
+    <div class="card mb32">
+      <table>
+        <thead><tr><th>平台</th><th>作者</th><th>发布时间</th><th>内容</th><th>链接</th></tr></thead>
+        <tbody>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">伊藤<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@gaee_83imo)</span></td><td class="mono">08-03 22:38</td><td style="max-width:520px">算了一下在ツリネバ里氪了多少金，发现其实没花那么多。才氪了14万日元而已（仅主战角色）。14万日元能拿到1900万评分，挺划算的吧 https://t.co/D8pxlmihTz</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">灯火⁺⁺<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@tomoka625)</span></td><td class="mono">08-03 22:21</td><td style="max-width:520px">@highestlight666 没想到ツリネバ的好朋友会来！！你能玩得开心的话我就很高兴了😊 虽然不知道还有没有下次，但如果有的话我会通知你的\( ˆoˆ )/🌟 这次这么突然，真的感谢你的付出(•ᴗ•｡)</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">め！！<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@tree_kpppp)</span></td><td class="mono">08-03 21:47</td><td style="max-width:520px">ツリネバ日常拉落确定了，正想着呢。结果5天里3天都是雨天玩法，感觉有点亏……明天开始120级开放了( 'ᴗ'`) #ツリネバ</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">RINKA（趣味）<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@RiNkA00AkNiR)</span></td><td class="mono">08-03 19:27</td><td style="max-width:520px">再见了！ツリネバ 来吧！龙之咆哮…… 有点像卡利益呢……</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">🌙さくたん🌸<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@ob5rvbbz139s)</span></td><td class="mono">08-03 17:00</td><td style="max-width:520px">@1i5Br6ByRX24807 风花！好久不见(ˆᴗˆ)/ 嗨，你元气满满的吗？现在的ツリネバ怎么样了？说不定婚礼场地变多了吧？有机会的话想去看看。虽然又要从头开始笑，不过因为已经退坑了，可能回不去了(´･_･`)</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">ななせ。<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@_RainRaing)</span></td><td class="mono">08-03 15:50</td><td style="max-width:520px">大家注意。工作场所乱成一团了。在平静下来之前，ツリネバ真的会缩减到最小限度。</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">みるくま(milkma)<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@369ma3)</span></td><td class="mono">08-03 15:09</td><td style="max-width:520px">ツリネバ日记20 今晚的猫咪集会(•ᴗ•)♪☆（※酱油是4瓶400金币的老恶）#ツリネバ #TOSN https://t.co/xLHXrFEUVh</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">アトレちゃん☆<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@atore3012)</span></td><td class="mono">08-03 13:01</td><td style="max-width:520px">( 'ᴗ'σ)ツリネバo 【本周个人日程表】(•ᴗ•)ノ♪ [o]o候风扫荡后3天为止]o 今天也🎁[毛球] 看🐾 摄摄/|•ᴗ•\ ( /)•ᴗ•( \)摄摄短 | 'ᴗ'`)/[已结束] https://t.co/0Rnud5WhCS</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">しなも@ツリネバスタレゾ<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@shinamon_kineko)</span></td><td class="mono">08-03 08:05</td><td style="max-width:520px">@herosianoro 物理职业是这样呢，顺带说不是ツリネバ啦www</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">なかむん🌙<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@nkmgm06)</span></td><td class="mono">08-03 07:05</td><td style="max-width:520px">@_ato_chi_ 家だツリネバメインの家にあってくむむむ</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#6A5ACD;border-color:rgba(123,104,238,.45)">Discord</span></td><td class="strong">青</td><td class="mono">08-03 05:32</td><td style="max-width:520px">原来這裡可以聊天嗎</td><td><span style="color:var(--mut)">-</span></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">なえたん<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@naetakn)</span></td><td class="mono">08-03 05:19</td><td style="max-width:520px">说起来，我玩ツリネバ也差不多快两年了。虽然不久后我就要迈向人生的下一阶段，可能会因此退坑。但在这里遇到的人们留下的回忆，即便是游戏里的，我想也会是永恒的。退坑那天，至少想拍张照留念！补充一句，线下聚会我很期待。虽然不知道还能不能玩其他游戏，但如果有的话，请多关照啦。</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+          <tr><td><span class="chip" style="padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)">Twitter</span></td><td class="strong">かまたりさん<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@KamatarI0329)</span></td><td class="mono">08-03 01:43</td><td style="max-width:520px">@kabayakitako 我也退了，下次再说吧。反复登录账号不会出问题吗？我被封过大概两次呢。ツリネバ会怎么样呢？</td><td><a class="oplink" href="#">查看原帖 →</a></td></tr>
+        </tbody>
+      </table>
+      <div class="pager"><span class="micro" style="align-self:center;margin-right:auto;letter-spacing:.15em">共 13 条 · 第 1 页 / 共 1 页</span><button class="pgc">↑</button><button class="pgc">↓</button></div>
+    </div>
+  </div>
+
+  <!-- 标签2：KR 韩国社区 -->
+  <div class="adm-pane" id="his2">
+    <!-- 抓取控制台（黑切角面板） -->
+    <div class="panel-cut mb20" style="padding:28px 28px 26px">
+      <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+        <h2 style="font-size:20px">Naver Lounge Crawler<br>韩国社区抓取控制台</h2>
+        <p class="desc">Naver Game Lounge · Tree of Savior<br>自动抓取帖子并翻译为中文</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
+        <div class="lstat"><div class="n">100</div><div class="t">累计帖子</div></div>
+        <div class="lstat" style="border-left:3px solid var(--info)"><div class="n">80</div><div class="t">已翻译</div></div>
+        <div class="lstat"><div class="n">80%</div><div class="t">翻译进度</div></div>
+        <div class="lstat" style="border-left:3px solid var(--ok)"><div class="n" style="font-size:15px;line-height:1.9">07-31 21:22</div><div class="t">最近一次抓取</div></div>
+      </div>
+      <div class="progress mb20" style="background:rgba(255,255,255,.12)"><i style="width:80%;background:#F2F2F0"></i></div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <a class="btn btn-light" href="#">▶ 立即抓取 <span class="ar">→</span></a>
+        <a class="btn btn-ghost-panel" href="#">🔄 刷新</a>
+        <span style="margin-left:auto;font-size:12px;color:var(--cut-mut)">上次抓取用时 42 秒 · 增量模式（仅抓新帖）</span>
+      </div>
+    </div>
+    <div class="card card-pad mb20" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select class="sel"><option>全部情感</option><option>正面</option><option>中性</option><option>负面</option></select>
+      <select class="sel"><option>全部分类</option><option>建议</option><option>好评</option><option>提问</option><option>投诉</option><option>event</option><option>其他</option></select>
+      <input class="sel" type="date" value="2026-07-28"><span style="color:var(--mut)">~</span><input class="sel" type="date" value="2026-08-04">
+      <a class="btn btn-ghost btn-sm" href="#">🔍 查询</a>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--err)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag err">负面</span><span class="chip" style="padding:2px 8px;font-size:10px">建议</span></div>
+      <div class="strong" style="font-size:14px">请给咔咔抽奖机视频加上跳过功能吧</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 심연정지 줄고래 · 👁 118 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--ok)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag ok">正面</span><span class="chip" style="padding:2px 8px;font-size:10px">好评</span></div>
+      <div class="strong" style="font-size:14px">🎮 新奇的福袋！会变色的猫咪装饰~ 🐱✨</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 GM 티메이 · 👁 543 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--warn)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag warn">中性</span><span class="chip" style="padding:2px 8px;font-size:10px">提问</span></div>
+      <div class="strong" style="font-size:14px">120张地图全跑完的话，最好的奖励是什么？</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 의존직 초심자 a561020 · 👁 224 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--ok)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag ok">正面</span><span class="chip" style="padding:2px 8px;font-size:10px">event</span></div>
+      <div class="strong" style="font-size:14px">🌊六月见闻录 | 夏日三行诗挑战！📖</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 GM 티메이 · 👁 261 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--err)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag err">负面</span><span class="chip" style="padding:2px 8px;font-size:10px">投诉</span></div>
+      <div class="strong" style="font-size:14px">烟花怪物蘑菇人玩腻了，给我出点别的吧。</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 심연정지 줄고래 · 👁 181 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--ok)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag ok">正面</span><span class="chip" style="padding:2px 8px;font-size:10px">其他</span></div>
+      <div class="strong" style="font-size:14px">大家快来领三星应用商店的20%折扣券哦♡</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 귀검들이데터 · 👁 103 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--ok)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag ok">正面</span><span class="chip" style="padding:2px 8px;font-size:10px">建议</span></div>
+      <div class="strong" style="font-size:14px">购买大会员等时请使用Galaxy Store！（20%折扣）</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 유시항 4567 · 👁 160 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--ok)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag ok">正面</span><span class="chip" style="padding:2px 8px;font-size:10px">好评</span></div>
+      <div class="strong" style="font-size:14px">快来领取GALAXY商店20%优惠券吧！</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 전진짜자짜확 · 👁 128 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--warn)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag warn">中性</span><span class="chip" style="padding:2px 8px;font-size:10px">其他</span></div>
+      <div class="strong" style="font-size:14px">更新公告</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 GM 티메이 · 👁 687 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--ok)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag ok">正面</span><span class="chip" style="padding:2px 8px;font-size:10px">好评</span></div>
+      <div class="strong" style="font-size:14px">炎热的夏天就该用青蛙泳圈穿搭！</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 심연정지 줄고래 · 👁 182 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--err)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag err">负面</span><span class="chip" style="padding:2px 8px;font-size:10px">投诉</span></div>
+      <div class="strong" style="font-size:14px">冒险服务器现在也没人了。</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 초심이 · 👁 484 · 💬 1条评论 · <a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div class="fb-card" style="border-left-color:var(--warn)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag warn">中性</span><span class="chip" style="padding:2px 8px;font-size:10px">提问</span></div>
+      <div class="strong" style="font-size:14px">宙斯要升到几星啊？</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px"><a class="oplink" href="#">原帖 ↗</a></div>
+    </div>
+    <div style="font-size:11px;color:var(--mut);padding:4px 2px 0">… 另有 88 条帖子未展开（共 100 条）</div>
+  </div>
+</div>
+
+</div>
+
+<!-- 回到顶部 -->
+<button class="pgc" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">↑</button>
+<style>
+#backTop{position:fixed;right:28px;bottom:28px;width:44px;height:44px;z-index:110;background:var(--panel);box-shadow:0 8px 24px rgba(0,0,0,.18)}
+</style>
+
+<!-- 全局页脚 -->
+<footer>
+  <div class="wrap">
+    <div class="foot-row"><span>© 2026 M2G OVERSEAS COMMUNITY CONSOLE</span><span>JP · TC · SEA · KR</span><span>Design Preview · V3 Final</span></div>
+  </div>
+  <div class="mega">Console</div>
+</footer>
+
+<script>
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  document.getElementById('btnLight').classList.toggle('on',t==='light');
+  document.getElementById('btnDark').classList.toggle('on',t==='dark');
+  const sd=document.getElementById('sideDark');
+  if(sd) sd.classList.toggle('on-dark',t==='dark');
+}
+function setPage(n){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  const pg=document.getElementById('pg'+n);
+  if(!pg){return}
+  pg.classList.add('on');
+  // 顶部导航按 data-page 匹配高亮（删除页面后序号不连续也不出错）
+  document.querySelectorAll('#pageNav button').forEach(b=>{
+    b.classList.toggle('on', b.getAttribute('data-page')===String(n));
+  });
+  // 侧边栏：登录页隐藏，其余页显示；选中项跟随
+  const sb=document.getElementById('sidebar');
+  if(sb) sb.style.display = (n===1) ? 'none' : 'flex';
+  document.querySelectorAll('.side-item[data-page]').forEach(a=>{
+    a.classList.toggle('on', a.getAttribute('data-page')===String(n));
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function toggleThemeFromSide(){
+  const cur=document.documentElement.getAttribute('data-theme');
+  setTheme(cur==='light'?'dark':'light');
+}
+function toggleVoice(){
+  document.getElementById('voiceBox').classList.toggle('open');
+}
+// 权限管理页 4 个一级标签切换（角色权限 / Discord / 数据库 / 意见反馈）
+function setAdmTab(n){
+  document.querySelectorAll('#admTabs .tab-card').forEach((t,i)=>t.classList.toggle('on',i===n-1));
+  for(let i=1;i<=4;i++){
+    const p=document.getElementById('adm'+i);
+    if(p) p.classList.toggle('on',i===n);
+  }
+}
+// 历史数据页 2 标签切换（Twitter+Discord / KR韩国社区）
+function setHisTab(n){
+  document.querySelectorAll('#hisTabs .tab-card').forEach((t,i)=>t.classList.toggle('on',i===n-1));
+  for(let i=1;i<=2;i++){
+    const p=document.getElementById('his'+i);
+    if(p) p.classList.toggle('on',i===n);
+  }
+}
+// 术语校对页 3 标签切换（搜索 / 校对 / 批量校对）
+function setTermTab(n){
+  document.querySelectorAll('#termSeg button').forEach((b,i)=>b.classList.toggle('on',i===n-1));
+  for(let i=1;i<=3;i++){
+    const p=document.getElementById('term'+i);
+    if(p) p.classList.toggle('on',i===n);
+  }
+}
+// 更新术语表面板 2 标签切换（批量导入 / 单语言更新）
+function setUpdTab(n){
+  const btns=document.querySelectorAll('#updSeg button');
+  btns.forEach((b,i)=>{
+    const on=(i===n-1);
+    b.classList.toggle('on',on);
+    b.style.background=on?'rgba(255,255,255,.14)':'transparent';
+    b.style.color=on?'#F2F2F0':'#C9CBD1';
+  });
+  for(let i=1;i<=2;i++){
+    const p=document.getElementById('upd'+i);
+    if(p) p.classList.toggle('on',i===n);
+  }
+}
+// Discord 标签内的段控子导航（Token / 频道）
+function setAdmSub(n){
+  document.querySelectorAll('#admSeg button').forEach((b,i)=>b.classList.toggle('on',i===n-1));
+  for(let i=1;i<=2;i++){
+    const s=document.getElementById('sub'+i);
+    if(s) s.classList.toggle('on',i===n);
+  }
+}
+// 计数徽章自动绑定真实数据（禁止写死样品数字）
+function syncAdminCounts(){
+  // 用户数 = 用户表格实际行数
+  const rows=document.querySelectorAll('#adm1 tbody tr').length;
+  const c1=document.querySelector('#admTabs .tab-card[onclick="setAdmTab(1)"] .cnt');
+  if(c1) c1.textContent=rows+' 人';
+  const tl=document.querySelector('#adm1 span.micro');
+  if(tl) tl.textContent='共 '+rows+' 人 · 角色变更实时生效';
+  // 未读反馈数 = 反馈区"未读"标签实际个数
+  const un=document.querySelectorAll('#adm4 .tag.warn').length;
+  const c4=document.querySelector('#admTabs .tab-card[onclick="setAdmTab(4)"] .cnt');
+  if(c4) c4.textContent=un+' 未读';
+}
+syncAdminCounts();
+// 侧边栏首次自动探头展示一次（引导用户发现菜单）
+let sidePeeked=false;
+document.addEventListener('mouseover',function(){
+  const sb=document.getElementById('sidebar');
+  if(!sidePeeked && sb && sb.style.display!=='none'){
+    sidePeeked=true;
+    sb.classList.add('peek');
+    setTimeout(()=>sb.classList.remove('peek'),1800);
+  }
+});
+</script>
+</body>
+</html>

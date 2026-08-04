@@ -555,7 +555,7 @@ function getActionBtns(t) {
 // ===== 任务详情弹窗 =====
 function showTaskDetail(t) {
   $('detailTitle').textContent = `任务详情 #${t.id}`;
-  const contentHtml = (t.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') || '<span style="color:var(--color-text-muted,#888);">无内容</span>';
+  const contentHtml = (t.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') || '<span style="color:var(--mut);">无内容</span>';
 
   let imagesHtml = '';
   if (t.image_urls) {
@@ -645,7 +645,7 @@ async function exportReport() {
 
 // ===== Discord Markdown 渲染 =====
 function renderDiscordMd(text) {
-  if (!text) return '<span style="color:var(--color-text-muted,#72767d);">（无文字）</span>';
+  if (!text) return '<span style="color:var(--mut);">（无文字）</span>';
   // 先转义 HTML
   let s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   // 按行处理

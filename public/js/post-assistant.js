@@ -274,16 +274,16 @@ function _paUpdateRemaining(remaining) {
   if (!el) return;
   if (remaining === Infinity || remaining === null) {
     el.textContent = '🌟 超级管理员 · 不限次';
-    el.style.color = 'var(--color-primary)';
+    el.style.color = 'var(--ink)';
   } else if (remaining > 5) {
     el.textContent = `今日剩余 ${remaining}/15 次`;
     el.style.color = '';
   } else if (remaining > 0) {
     el.textContent = `⚠️ 今日仅剩 ${remaining}/15 次`;
-    el.style.color = 'var(--color-warning, #f59e0b)';
+    el.style.color = 'var(--warn)';
   } else {
     el.textContent = '❗ 今日次数已用完（阿饱自费AI，勿浪费）';
-    el.style.color = 'var(--color-danger, #ef4444)';
+    el.style.color = 'var(--err)';
   }
 }
 

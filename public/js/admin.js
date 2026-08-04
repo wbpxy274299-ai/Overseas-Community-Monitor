@@ -74,7 +74,7 @@ function renderUserTable(users) {
     const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
     const roleSelector = buildRoleSelector(user.username, role, isSelf);
     const deleteBtn = isSuperAdmin && !isSelf
-      ? `<button class="btn btn-sm" style="background:var(--color-danger,#f56565);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-top:4px;" onclick="deleteUser('${escapeHtml(user.username)}')">🗑️ 删除</button>`
+      ? `<button class="btn btn-sm" style="background:var(--err);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-top:4px;" onclick="deleteUser('${escapeHtml(user.username)}')">🗑️ 删除</button>`
       : '';
 
     // 构建扩展权限控件（仅 operator 显示，admin/super_admin 默认全权限）
@@ -84,11 +84,11 @@ function renderUserTable(users) {
       <tr>
         <td>
           <strong>${escapeHtml(user.username)}</strong>
-          ${user.email ? `<br><small style="color:var(--color-text-muted,#888);">${escapeHtml(user.email)}</small>` : ''}
+          ${user.email ? `<br><small style="color:var(--mut);">${escapeHtml(user.email)}</small>` : ''}
           ${isSelf ? '<span class="badge badge-info" style="margin-left:6px;">你</span>' : ''}
         </td>
         <td>${roleBadge}</td>
-        <td><small style="color:var(--color-text-secondary,#666);">${roleInfo.desc}</small></td>
+        <td><small style="color:var(--mut);">${roleInfo.desc}</small></td>
         <td>${permsHtml}</td>
         <td>${formatDate(user.created_at)}</td>
         <td>${roleSelector}<br>${deleteBtn}</td>

@@ -1,26 +1,19 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <title>📋 M2G 舆情周报管理</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
-  <link rel="stylesheet" href="/static/css/base.css">
-  <link rel="stylesheet" href="/static/css/components.css">
-  <link rel="stylesheet" href="/static/css/pages/reports.css">
   <script src="/static/js/common.js"></script>
+  <link rel="stylesheet" href="/static/css/m2g-theme.css">
 </head>
 <body>
-  <header class="app-header">
-  <div class="app-header-inner">
-    <div class="header-left">
-      <h1>📋 舆情周报管理</h1>
-      <p>查看和管理历史舆情报告，支持手动生成新报告</p>
-    </div>
-    <nav class="header-nav" id="mainNav"></nav>
+  <div class="wrap page-head" style="padding:36px 0 20px">
+    <div class="micro">舆情周报管理</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">舆情周报管理</div>
   </div>
-  </header>
 
-  <div class="container">
+  <div class="wrap">
     <!-- 操作栏 -->
     <div class="action-bar">
       <div>
@@ -28,7 +21,7 @@
         <button class="btn btn-secondary" onclick="checkData()">🔍 检查数据状态</button>
         <button class="btn btn-secondary" onclick="loadReports()">🔃 刷新列表</button>
       </div>
-      <div style="font-size: 14px; color: var(--text-secondary);">
+      <div style="font-size: 14px; color: var(--mut);">
         共 <span id="reportCount">0</span> 份报告
       </div>
     </div>

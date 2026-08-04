@@ -1,27 +1,20 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <title>📚 舆情历史数据 - M2G 用户运营后台</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
-  <link rel="stylesheet" href="/static/css/base.css">
-  <link rel="stylesheet" href="/static/css/components.css">
-  <link rel="stylesheet" href="/static/css/pages/history.css">
   <script src="/static/js/common.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jschardet@3.1.4/dist/jschardet.min.js"></script>
+  <link rel="stylesheet" href="/static/css/m2g-theme.css">
 </head>
 <body>
-  <header class="app-header">
-  <div class="app-header-inner">
-    <div class="header-left">
-      <h1>📚 舆情历史数据</h1>
-      <p>所有采集到的玩家发言记录，用于周报分析</p>
-    </div>
-    <nav class="header-nav" id="mainNav"></nav>
+  <div class="wrap page-head" style="padding:36px 0 20px">
+    <div class="micro">舆情历史数据</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">舆情历史数据</div>
   </div>
-  </header>
 
-  <div class="container">
+  <div class="wrap">
     <!-- Tab 切换栏 -->
     <div class="history-tabs">
       <button class="history-tab active" data-tab="tw-dc" onclick="switchHistoryTab('tw-dc')">🐦 Twitter + 💬 Discord</button>
@@ -64,12 +57,12 @@
           <button id="uploadTabDiscord" class="btn btn-secondary btn-sm" onclick="switchUploadTab('discord')">💬 Discord 文本</button>
         </div>
         <div id="uploadTwitter">
-          <p style="font-size:12px; color:var(--color-text-secondary,#666); margin-bottom:8px;">选择 Twitter 搜索导出的 CSV 文件（需包含 created_at, full_text, url 等字段）</p>
+          <p style="font-size:12px; color:var(--mut); margin-bottom:8px;">选择 Twitter 搜索导出的 CSV 文件（需包含 created_at, full_text, url 等字段）</p>
           <input type="file" id="twitterCsvFile" accept=".csv" style="margin-bottom:8px;">
           <button class="btn btn-primary btn-sm" onclick="uploadTwitterCSV()">上传并处理</button>
         </div>
         <div id="uploadDiscord" style="display:none;">
-          <p style="font-size:12px; color:var(--color-text-secondary,#666); margin-bottom:8px;">粘贴 Discord 聊天记录（格式：用户名 — 日期 时间，下一行是消息内容）</p>
+          <p style="font-size:12px; color:var(--mut); margin-bottom:8px;">粘贴 Discord 聊天记录（格式：用户名 — 日期 时间，下一行是消息内容）</p>
           <textarea id="discordTextInput" rows="6" placeholder="Seraphm — 2026/7/23 22:06&#10;無盡大約有50人吧&#10;&#10;luguo1354 — 2026/7/24 16:07&#10;我們從1300升到1700多" style="width:100%; font-size:13px; padding:10px; border:1px solid #d1d5db; border-radius:6px; margin-bottom:8px; font-family:monospace;"></textarea>
           <button class="btn btn-primary btn-sm" onclick="uploadDiscordText()">上传并处理</button>
         </div>

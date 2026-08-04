@@ -1,97 +1,47 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>登录 - DC 发布管理系统</title>
+  <title>登录 - M2G 运营后台</title>
+  <link rel="stylesheet" href="/static/css/m2g-theme.css">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .login-container {
-      background: white;
-      padding: 40px;
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      max-width: 400px;
-      width: 90%;
-      text-align: center;
-    }
-    h1 { color: #333; margin-bottom: 10px; font-size: 28px; }
-    .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
-    .google-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      background: #fff;
-      color: #757575;
-      border: 1px solid #ddd;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      width: 100%;
-    }
-    .google-btn:hover {
-      background: #f8f9fa;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-      transform: translateY(-1px);
-    }
-    .google-btn:active { transform: translateY(0); }
-    .google-icon { width: 24px; height: 24px; }
-    .loading { display: none; margin-top: 20px; }
-    .spinner {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #667eea;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-      margin: 0 auto;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .error-message {
-      color: #dc3545;
-      margin-top: 15px;
-      padding: 10px;
-      background: #f8d7da;
-      border-radius: 6px;
-      display: none;
-    }
+    .screen-login{padding:90px 0 110px;position:relative;overflow:hidden;min-height:100vh;display:flex;align-items:center}
+    .loading{display:none;margin-top:20px;text-align:center}
+    .spinner{border:3px solid var(--hair);border-top:3px solid var(--ink);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto}
+    @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+    .error-message{color:var(--err);margin-top:15px;padding:10px;background:rgba(192,82,72,.1);border:1px solid rgba(192,82,72,.3);border-radius:6px;display:none;font-size:13px}
   </style>
 </head>
 <body>
-  <div class="login-container">
-    <h1>🔐 系统登录</h1>
-    <p class="subtitle">使用 Google 账号快速登录</p>
-    
-    <button class="google-btn" id="googleLoginBtn" onclick="handleGoogleLogin()">
-      <svg class="google-icon" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M23.745 12.27c0-.79-.07-1.54-.19-2.27h-11.3v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.28-2.09 3.56-5.17 3.56-8.82z"/>
-        <path fill="#34A853" d="M12.255 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.07.72-2.43 1.14-4.07 1.14-3.13 0-5.78-2.11-6.73-4.96h-3.98v3.09C3.515 21.3 7.565 24 12.255 24z"/>
-        <path fill="#FBBC05" d="M5.525 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.64h-3.98a11.9 11.9 0 000 10.72l3.98-3.09z"/>
-        <path fill="#EA4335" d="M12.255 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C18.205 1.19 15.495 0 12.255 0c-4.69 0-8.74 2.7-10.71 6.64l3.98 3.09c.95-2.85 3.6-4.98 6.73-4.98z"/>
-      </svg>
-      使用 Google 账号登录
-    </button>
-    
-    <div class="loading" id="loading">
-      <div class="spinner"></div>
-      <p style="margin-top: 10px; color: #666;">正在跳转...</p>
+
+<section class="screen-login grid-bg">
+  <div class="float-stat"><div><div class="n">M2G</div><div class="t">Console</div></div><div class="fs-div"></div><div><div class="n">4</div><div class="t">Regions</div></div></div>
+  <div class="wrap login-flex">
+    <div class="login-left">
+      <div class="micro">M2G · Overseas Community Console</div>
+      <div class="huge">Publish<br>Monitor<br>Report</div>
+      <p>发布、舆情、周报、洞察、术语——一套控制台管理海外四区社区运营的全部日常工作。</p>
     </div>
-    
-    <div class="error-message" id="errorMessage"></div>
+    <div class="login-card">
+      <div class="micro">Sign In</div>
+      <h3>登录控制台</h3>
+      
+      <button class="g-btn" id="googleLoginBtn" onclick="handleGoogleLogin()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21.35 11.1H12v2.9h5.35c-.5 2.4-2.55 4.1-5.35 4.1a5.9 5.9 0 0 1 0-11.8c1.5 0 2.85.55 3.9 1.45l2.15-2.15A8.9 8.9 0 0 0 12 3a9 9 0 1 0 0 18c5.2 0 8.65-3.65 8.65-8.8 0-.4-.1-.75-.3-1.1z"/></svg>
+        使用 Google 账号登录
+      </button>
+      
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p style="margin-top:10px;color:var(--mut);font-size:13px">正在跳转...</p>
+      </div>
+      
+      <div class="error-message" id="errorMessage"></div>
+      <div class="hint">仅限授权运营人员访问</div>
+    </div>
   </div>
+</section>
   
   <script>
     // 页面加载时检查是否已登录（Cookie 有效则直接跳转首页）

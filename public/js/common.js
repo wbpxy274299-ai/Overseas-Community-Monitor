@@ -72,27 +72,48 @@ function highlightNav() {
   // 侧边栏已在 renderNav 中处理高亮
 }
 
-// ===== 侧边栏导航渲染（替代旧版汉堡菜单）=====
+// ===== SVG 图标定义（1.6px 描边线性图标） =====
+const SVG_ICONS = {
+  sentiment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18M8 17V9M13 17V5M18 17v-6"/></svg>',
+  reports: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2h6v4H9zM9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/></svg>',
+  history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>',
+  insights: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+  publish: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>',
+  assistant: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  terminology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+  admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  database: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 5v14c0 1.7-4 3-9 3s-9-1.3-9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
+};
+
+// ===== 侧边栏导航渲染（黑白未来感 · 图标停靠栏 + 悬停展开） =====
 function renderNav() {
   const path = window.location.pathname;
   const role = getUserRole();
   const roleLevel = ROLE_LEVEL[role] || 0;
+  const user = getUser();
+  const userName = user && user.name ? user.name.toUpperCase() : 'USER';
+  const userInitial = userName.charAt(0);
+  const roleLabel = ROLE_LABEL_MAP[role] || role;
+  // 去掉 roleLabel 前面的 emoji
+  const roleText = roleLabel.replace(/^[^\u4e00-\u9fa5a-zA-Z]+/, '');
   
   const groups = [
     { label: '舆情监控', items: [
-      { path: '/sentiment', label: '📊 舆情日报', icon: '📊', match: p => p.startsWith('/sentiment') && !p.includes('history'), minRole: 'viewer' },
-      { path: '/reports', label: '📋 周报管理', icon: '📋', match: p => p.startsWith('/reports'), minRole: 'operator' },
-      { path: '/sentiment-history', label: '📚 历史数据', icon: '📚', match: p => p.includes('sentiment-history'), minRole: 'operator' },
-      { path: '/insights', label: '🔍 玩家洞察', icon: '🔍', match: p => p === '/insights', minRole: 'super_admin', superOnly: true },
+      { path: '/sentiment', label: '舆情日报', icon: SVG_ICONS.sentiment, match: p => p.startsWith('/sentiment') && !p.includes('history'), minRole: 'viewer' },
+      { path: '/reports', label: '周报管理', icon: SVG_ICONS.reports, match: p => p.startsWith('/reports'), minRole: 'operator' },
+      { path: '/sentiment-history', label: '历史数据', icon: SVG_ICONS.history, match: p => p.includes('sentiment-history'), minRole: 'operator' },
+      { path: '/insights', label: '玩家洞察', icon: SVG_ICONS.insights, match: p => p === '/insights', minRole: 'super_admin', superOnly: true },
     ]},
     { label: '内容管理', items: [
-      { path: '/', label: '🚀 DC发布', icon: '🚀', match: p => p === '/', minRole: 'operator' },
-      { path: '/post-assistant', label: '✍️ 贴文助手', icon: '✍️', match: p => p.startsWith('/post-assistant'), minRole: 'operator', permKey: 'postAssistant' },
-      { path: '/terminology', label: '📖 术语校对', icon: '📖', match: p => p.startsWith('/terminology'), minRole: 'viewer' },
+      { path: '/', label: 'DC发布', icon: SVG_ICONS.publish, match: p => p === '/', minRole: 'operator' },
+      { path: '/post-assistant', label: '贴文助手', icon: SVG_ICONS.assistant, match: p => p.startsWith('/post-assistant'), minRole: 'operator', permKey: 'postAssistant' },
+      { path: '/terminology', label: '术语校对', icon: SVG_ICONS.terminology, match: p => p.startsWith('/terminology'), minRole: 'viewer' },
     ]},
     { label: '权限管理', items: [
-      { path: '/admin', label: '🔐 权限管理', icon: '🔐', match: p => p === '/admin' && !location.hash.includes('database'), minRole: 'admin' },
-      { path: '/admin#database', label: '🗄️ 数据库管理', icon: '🗄️', match: p => p === '/admin' && location.hash.includes('database'), minRole: 'admin' },
+      { path: '/admin', label: '权限管理', icon: SVG_ICONS.admin, match: p => p === '/admin' && !location.hash.includes('database'), minRole: 'admin' },
+      { path: '/admin#database', label: '数据库管理', icon: SVG_ICONS.database, match: p => p === '/admin' && location.hash.includes('database'), minRole: 'admin' },
     ]},
   ];
   
@@ -103,39 +124,42 @@ function renderNav() {
       return true;
     });
     if (!visibleItems.length) return;
-    if (gi > 0) navHtml += '<div class="sidebar-group-divider"></div>';
-    navHtml += `<div class="sidebar-group-label">${group.label}</div>`;
+    navHtml += `<div class="side-sec">${group.label}</div>`;
     for (const p of visibleItems) {
       const minLevel = ROLE_LEVEL[p.minRole] || 0;
       const hasRoleAccess = roleLevel >= minLevel;
       const hasPerm = hasRoleAccess && _hasUserPerm(p.permKey);
       const isActive = p.match(path);
-      const icon = p.icon || p.label.split(' ')[0];
-      const labelText = p.label.replace(/^[^\s]+\s/, '');
       if (hasRoleAccess && hasPerm) {
-        navHtml += `<a href="${p.path}" class="sidebar-link${isActive ? ' active' : ''}" title="${labelText}"><span class="sidebar-link-icon">${icon}</span><span class="sidebar-link-label">${labelText}</span></a>`;
+        navHtml += `<a href="${p.path}" class="side-item${isActive ? ' on' : ''}">${p.icon}<span class="st">${p.label}</span></a>`;
       } else if (hasRoleAccess && !hasPerm) {
-        navHtml += `<span class="sidebar-link sidebar-disabled" title="管理员已关闭此功能的权限" onclick="Toast.warning('管理员已关闭你的贴文助手权限，请联系管理员开通')"><span class="sidebar-link-icon">${icon}</span><span class="sidebar-link-label">${labelText}</span></span>`;
+        navHtml += `<span class="side-item sidebar-disabled" title="管理员已关闭此功能的权限" onclick="Toast.warning('管理员已关闭你的贴文助手权限，请联系管理员开通')">${p.icon}<span class="st">${p.label}</span></span>`;
       } else {
-        navHtml += `<span class="sidebar-link sidebar-disabled" title="权限不足"><span class="sidebar-link-icon">${icon}</span><span class="sidebar-link-label">${labelText}</span></span>`;
+        navHtml += `<span class="side-item sidebar-disabled" title="权限不足">${p.icon}<span class="st">${p.label}</span></span>`;
       }
     }
   });
   
   // 底部操作区
-  const darkBtnText = DarkMode.isDark() ? '☀️ 白昼模式' : '🌙 暗黑模式';
+  const darkBtnText = '暗黑模式';
+  const isDark = DarkMode.isDark();
   const footerHtml = `
-    <button class="sidebar-footer-btn" onclick="DarkMode.toggle()"><span class="sidebar-footer-icon">${DarkMode.isDark() ? '☀️' : '🌙'}</span><span class="sidebar-footer-label">${darkBtnText}</span></button>
-    <button class="sidebar-footer-btn logout" onclick="window.location.href='/api/auth/logout'"><span class="sidebar-footer-icon">🚪</span><span class="sidebar-footer-label">退出登录</span></button>
+    <a class="side-item${isDark ? ' on-dark' : ''}" id="sideDarkToggle" onclick="DarkMode.toggle(); renderNav();">${SVG_ICONS.moon}<span class="st">${darkBtnText}</span><span class="side-switch"><i></i></span></a>
+    <a class="side-item danger" href="/api/auth/logout">${SVG_ICONS.logout}<span class="st">退出登录</span></a>
   `;
   
   const sidebarHtml = `
-    <div class="sidebar-brand">
-      <span class="sidebar-brand-icon">📡</span>
-      <span class="sidebar-brand-text">M2G 运营后台</span>
+    <div class="side-head">
+      <div class="logo-mark">M2</div>
+      <div class="st ht"><div class="t1">M2G 运营后台</div><div class="t2">OVERSEAS COMMUNITY</div></div>
     </div>
-    <div class="sidebar-nav">${navHtml}</div>
-    <div class="sidebar-footer">${footerHtml}</div>
+    <div class="side-user">
+      <div class="u-ava">${userInitial}</div>
+      <div class="st"><div class="u-name">${escapeHtml(userName)}</div><span class="u-role">${roleText}</span></div>
+    </div>
+    <div class="side-scroll">${navHtml}</div>
+    <div class="side-pulse"></div>
+    <div class="side-foot">${footerHtml}</div>
   `;
   
   // 注入侧边栏到 body
@@ -143,10 +167,17 @@ function renderNav() {
   if (!sidebar) {
     sidebar = document.createElement('aside');
     sidebar.id = 'sidebarNav';
-    sidebar.className = 'app-sidebar';
+    sidebar.className = 'sidebar';
     document.body.prepend(sidebar);
   }
   sidebar.innerHTML = sidebarHtml;
+  
+  // 首次进入自动展开 1.8s（只演一次）
+  if (!sessionStorage.getItem('sidebar_peeked')) {
+    sessionStorage.setItem('sidebar_peeked', '1');
+    sidebar.classList.add('peek');
+    setTimeout(() => sidebar.classList.remove('peek'), 1800);
+  }
   
   // 隐藏旧的 header-nav（如果存在）
   const oldNav = document.getElementById('mainNav');

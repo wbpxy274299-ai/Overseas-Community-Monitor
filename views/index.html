@@ -1,209 +1,221 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>🚀 DC 发布管理系统</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
-<link rel="stylesheet" href="/static/css/base.css">
-<link rel="stylesheet" href="/static/css/components.css">
-<link rel="stylesheet" href="/static/css/pages/home.css">
-<link rel="stylesheet" href="/static/style.css">
+<title>DC 发布 - M2G 运营后台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<link rel="stylesheet" href="/static/css/m2g-theme.css">
+<style>
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+#loginScreen{display:flex;align-items:center;justify-content:center;min-height:100vh}
+#loginScreen .login-card{text-align:center;padding:48px 40px}
+#loginScreen .spinner{border:3px solid var(--hair);border-top:3px solid var(--ink);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;display:none;align-items:center;justify-content:center}
+.modal-overlay.active{display:flex}
+.modal-content{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:24px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-header h3{font-size:17px;font-weight:700}
+.modal-close{background:none;border:none;font-size:24px;cursor:pointer;color:var(--mut)}
+.modal-backdrop-dark{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:none;align-items:center;justify-content:center}
+.modal-backdrop-dark.active{display:flex}
+.dc-preview-container{background:#36393F;border-radius:16px;width:90%;max-width:500px;color:#fff;position:relative}
+.dc-preview-header{padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;gap:8px;align-items:center;font-weight:600}
+.dc-preview-hash{color:#8A8D94;font-weight:700}
+.dc-preview-badge{font-size:10px;color:#8A8D94;margin-left:auto}
+.dc-preview-body{padding:18px;min-height:100px}
+.dc-loading{color:#8A8D94;font-size:13px}
+.modal-close-light{position:absolute;top:10px;right:14px;background:none;border:none;color:#8A8D94;font-size:24px;cursor:pointer}
+.image-viewer{max-width:90vw;max-height:90vh;position:relative}
+.image-viewer img{max-width:100%;max-height:85vh;border-radius:12px}
+.sel,.sea{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--ink);outline:none;font-family:inherit;transition:.35s}
+.sel:focus,.sea:focus{border-color:var(--ink)}
+.txta{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;font-size:13px;color:var(--ink);outline:none;font-family:inherit;width:100%;min-height:140px;resize:vertical;transition:.35s}
+.txta:focus{border-color:var(--ink)}
+.flabel{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut);font-weight:600;display:block;margin-bottom:8px}
+.readonly-field{background:var(--panel-2)!important;color:var(--mut)!important}
+.tabs{display:flex;gap:4px;margin-bottom:20px}
+.tab-btn{border:none;background:transparent;color:var(--mut);font-size:13px;font-weight:600;padding:10px 20px;border-radius:10px;cursor:pointer;font-family:inherit;transition:.2s}
+.tab-btn:hover{color:var(--ink)}
+.tab-btn.active{background:var(--ink);color:var(--bg)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+.upload-dropzone{border:2px dashed var(--line);border-radius:18px;padding:36px 20px;text-align:center;transition:.25s;cursor:pointer;background:var(--panel)}
+.upload-dropzone:hover{border-color:var(--ink)}
+.upload-input{display:none}
+.upload-icon{font-size:30px;margin-bottom:10px}
+.upload-text{font-size:13px;font-weight:600;color:var(--ink)}
+.upload-link{color:var(--ink);text-decoration:underline;cursor:pointer}
+.upload-hint{font-size:11px;color:var(--mut);margin-top:4px}
+.image-preview{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.mode-switch{display:flex;gap:8px}
+.mode-option{display:flex;align-items:center;gap:8px;padding:10px 16px;border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:.2s;font-size:13px}
+.mode-option:hover{border-color:var(--ink)}
+.mode-option.selected{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.mode-option input{display:none}
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:16px 0}
+#sendMsg{margin-top:12px;font-size:13px}
+#sendMsg:empty{display:none}
+.task-count{font-size:12px;color:var(--mut)}
+</style>
 </head>
 <body>
 
 <!-- ===== 登录检测中 ===== -->
 <div id="loginScreen">
-  <div class="login-card" style="text-align:center;">
-    <h1>DC 发布管理系统</h1>
-    <p style="margin: 20px 0; color: #666;">正在检测登录状态...</p>
-    <div class="spinner" style="border:3px solid #f3f3f3;border-top:3px solid #667eea;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto;"></div>
-    <p style="margin-top: 15px;"><a href="/login">点击这里登录</a></p>
+  <div class="login-card card" style="max-width:400px">
+    <div class="card-pad" style="text-align:center">
+      <div class="micro" style="margin-bottom:8px">Sign In</div>
+      <h1 style="font-size:20px;font-weight:700;margin-bottom:16px">M2G 运营后台</h1>
+      <p style="color:var(--mut);font-size:13px;margin-bottom:20px">正在检测登录状态...</p>
+      <div class="spinner"></div>
+      <p style="margin-top:15px;font-size:13px"><a href="/login" style="color:var(--ink);text-decoration:underline">点击这里登录</a></p>
+    </div>
   </div>
 </div>
-<style>@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>
 
 <!-- ===== 主界面 ===== -->
 <div id="mainApp" style="display:none;">
-  <header class="app-header">
-  <div class="app-header-inner">
-    <div class="header-left">
-      <h1>🚀 DC 发布管理系统</h1>
-      <p>Discord 多服务器消息发布与任务管理</p>
-    </div>
-    <nav class="header-nav" id="mainNav"></nav>
+  <!-- 紧凑页头 -->
+  <div class="wrap page-head" style="padding:36px 0 20px">
+    <div class="micro">Publish · DC 发布 — Discord 多服务器消息发布与任务管理</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Publish Console</div>
   </div>
-  </header>
-
-  <div class="container">
-  <div class="identity-bar">
-    <div class="identity-info">
-      <span class="identity-label">操作人:</span>
-      <span class="identity-name" id="currentOperator">—</span>
-      <button class="btn btn-small btn-logout" id="logoutBtn">退出登录</button>
+  <div class="wrap">
+  <!-- 发送情况（黑切角面板） -->
+  <div class="panel-cut mb32" style="padding:30px 30px 28px">
+    <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+      <h2 style="font-size:20px">Status<br>发送情况</h2>
+      <p class="desc">操作人 <span id="currentOperator">—</span> · 数据每 60 秒自动刷新</p>
     </div>
-  </div>
-
-  <!-- 统计概览 -->
-  <div class="stats-bar" id="statsBar">
-    <div class="stat-mini stat-today">
-      <div class="stat-mini-icon">📤</div>
-      <div class="stat-mini-body">
-        <div class="stat-mini-value" id="statTodaySent">0</div>
-        <div class="stat-mini-label">今日已发</div>
-      </div>
-    </div>
-    <div class="stat-mini stat-pending">
-      <div class="stat-mini-icon">⏳</div>
-      <div class="stat-mini-body">
-        <div class="stat-mini-value" id="statTodayPending">0</div>
-        <div class="stat-mini-label">待发送</div>
-      </div>
-    </div>
-    <div class="stat-mini stat-failed">
-      <div class="stat-mini-icon">❌</div>
-      <div class="stat-mini-body">
-        <div class="stat-mini-value" id="statTodayFailed">0</div>
-        <div class="stat-mini-label">失败</div>
-      </div>
-    </div>
-    <div class="stat-mini stat-total">
-      <div class="stat-mini-icon">📊</div>
-      <div class="stat-mini-body">
-        <div class="stat-mini-value" id="statTotal">0</div>
-        <div class="stat-mini-label">总任务数</div>
-      </div>
+    <div id="statsBar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+      <div class="lstat" style="border-left:3px solid var(--ok)"><div class="n" id="statTodaySent">0</div><div class="t">今日已发</div></div>
+      <div class="lstat"><div class="n" id="statTodayPending">0</div><div class="t">待发送</div></div>
+      <div class="lstat" style="border-left:3px solid var(--err)"><div class="n" id="statTodayFailed">0</div><div class="t">失败</div></div>
+      <div class="lstat"><div class="n" id="statTotal">0</div><div class="t">总任务数</div></div>
     </div>
   </div>
 
+  <!-- Tab 切换 -->
   <div class="tabs">
-    <button class="tab-btn active" data-tab="submit">📝 提交发送</button>
-    <button class="tab-btn" data-tab="list">📋 任务列表</button>
+    <button class="tab-btn active" data-tab="submit">提交发送</button>
+    <button class="tab-btn" data-tab="list">任务列表</button>
   </div>
 
   <!-- Tab1: 提交发送 -->
   <div id="tab-submit" class="tab-panel active">
     <form id="sendForm">
-      <div class="form-section">
-        <div class="form-section-title">📍 发送设置</div>
-        <div class="form-row-2col">
-          <div class="form-group">
-            <label>发送模式</label>
-            <div class="mode-switch">
-              <label class="mode-option selected" data-mode="now">
-                <input type="radio" name="sendMode" value="now" checked>
-                <span class="mode-icon">⚡</span>
-                <span class="mode-text">立即发送</span>
-              </label>
-              <label class="mode-option" data-mode="schedule">
-                <input type="radio" name="sendMode" value="schedule">
-                <span class="mode-icon">📅</span>
-                <span class="mode-text">定时发送</span>
-              </label>
-            </div>
-          </div>
-          <div class="form-group" id="sendTimeGroup" style="display:none;">
-            <label>定时时间</label>
-            <input type="datetime-local" id="sendTime">
-          </div>
-          <div class="form-group">
-            <label>发送地区 *</label>
-            <select id="serverRegion" required>
-              <option value="">-- 请选择地区 --</option>
-              <option value="JP">🇯🇵 日服</option>
-              <option value="TC">🇹🇼 繁中服</option>
-              <option value="SEA">🌏 东南亚服</option>
-              <option value="KR">🇰🇷 韩服</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>频道 *</label>
-            <select id="channel" required disabled>
-              <option value="">-- 请先选择地区 --</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>发送人（根据频道自动填充）</label>
-          <input type="text" id="sender" readonly placeholder="选择频道后自动填充" class="readonly-field">
-        </div>
+    <div class="card card-pad mb32">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <div><div class="micro" style="margin-bottom:6px">Send Console</div><div class="card-title" style="font-size:17px">发送配置</div></div>
+        <span class="micro" style="letter-spacing:.15em">左栏写内容传图片 · 右栏选频道定时间</span>
       </div>
-
-      <div class="form-section">
-        <div class="form-section-title">✍️ 消息内容</div>
-        <div class="form-group">
-          <textarea id="content" placeholder="输入要发送的文字内容... 支持 Discord Markdown 格式（**粗体** *斜体* > 引用）"></textarea>
-          <div class="textarea-footer">
-            <span class="char-count" id="charCount">0 字</span>
-            <span class="format-hint">支持 **粗体** *斜体* ~~删除线~~ `代码`</span>
+      <div class="send-grid">
+        <!-- 左栏：消息内容 -->
+        <div>
+          <label class="flabel">消息内容 · 支持 Markdown 与 @提及</label>
+          <textarea id="content" class="txta" style="min-height:224px;margin-top:8px" placeholder="输入要发送的文字内容... 支持 Discord Markdown 格式（**粗体** *斜体* > 引用）"></textarea>
+          <div style="display:flex;justify-content:space-between;margin-top:6px">
+            <span class="micro" id="charCount">0 字</span>
+            <span class="micro">支持 **粗体** *斜体* ~~删除线~~ `代码`</span>
           </div>
-        </div>
-      </div>
-
-      <div class="form-section">
-        <div class="form-section-title">🖼️ 附件图片</div>
-        <div class="form-group">
-          <div class="upload-dropzone" id="uploadDropzone">
-            <div class="upload-dropzone-inner">
-              <div class="upload-icon">📁</div>
-              <div class="upload-text">拖拽图片到这里，或 <span class="upload-link">点击选择文件</span></div>
-              <div class="upload-hint">支持 JPG / PNG / GIF，可多选</div>
-            </div>
+          <label class="flabel" style="margin-top:14px">图片 · 支持多张</label>
+          <div class="upload-dropzone" id="uploadDropzone" style="margin-top:8px">
+            <div class="upload-icon">⬆</div>
+            <div class="upload-text">点击或拖拽图片到此处</div>
+            <div class="upload-hint">JPG / PNG / GIF，可多选</div>
             <input type="file" id="imageFiles" multiple accept="image/*" class="upload-input">
           </div>
           <div id="imagePreview" class="image-preview"></div>
         </div>
+        <!-- 右栏：发送设置 -->
+        <div class="send-sec-light">
+          <div class="sec-t">Target · 发送目标</div>
+          <div class="frow">
+            <label class="flabel">地区</label>
+            <select id="serverRegion" class="sel" style="width:100%;margin-top:6px" required>
+              <option value="">-- 请选择地区 --</option>
+              <option value="JP">日服</option>
+              <option value="TC">繁中服</option>
+              <option value="SEA">东南亚服</option>
+              <option value="KR">韩服</option>
+            </select>
+          </div>
+          <div class="frow">
+            <label class="flabel">频道</label>
+            <select id="channel" class="sel" style="width:100%;margin-top:6px" required disabled>
+              <option value="">-- 请先选择地区 --</option>
+            </select>
+          </div>
+          <div class="frow">
+            <label class="flabel">发送人</label>
+            <input id="sender" class="sel" style="width:100%;margin-top:6px" readonly placeholder="选择频道后自动填充">
+            <div style="font-size:10px;color:var(--mut);margin-top:5px">选择频道后自动带出</div>
+          </div>
+          <div class="send-div-light"></div>
+          <div class="sec-t">Timing · 发送时机</div>
+          <div class="frow">
+            <label class="flabel">发送模式</label>
+            <div class="mode-switch" style="margin-top:6px">
+              <label class="mode-option selected" data-mode="now">
+                <input type="radio" name="sendMode" value="now" checked>
+                <span>⚡ 立即发送</span>
+              </label>
+              <label class="mode-option" data-mode="schedule">
+                <input type="radio" name="sendMode" value="schedule">
+                <span>📅 定时发送</span>
+              </label>
+            </div>
+          </div>
+          <div class="frow" id="sendTimeGroup" style="display:none;">
+            <label class="flabel">定时时间</label>
+            <input type="datetime-local" id="sendTime" class="sel" style="width:100%;margin-top:6px">
+          </div>
+          <div style="display:flex;gap:10px;margin-top:16px">
+            <button type="submit" class="btn btn-solid" id="submitBtn" style="flex:1;justify-content:center">
+              <span id="submitBtnText">立即发送</span> <span class="ar">→</span>
+            </button>
+            <button type="button" class="btn btn-warn-ghost" onclick="document.getElementById('sendForm').reset()">清空</button>
+          </div>
+        </div>
       </div>
-
-      <div class="form-submit-row">
-        <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
-          <span class="btn-icon">⚡</span>
-          <span id="submitBtnText">立即发送</span>
-        </button>
-      </div>
+    </div>
     </form>
     <div id="sendMsg"></div>
   </div>
 
   <!-- Tab2: 任务列表 -->
   <div id="tab-list" class="tab-panel">
-    <div class="filter-bar">
-      <select id="filterStatus">
-        <option value="">全部状态</option>
-        <option value="received">📝已接收</option>
-        <option value="scheduled">📅已定时</option>
-        <option value="sent">✅已发送</option>
-        <option value="failed">❌失败</option>
-        <option value="cancelled">🚫已取消</option>
-        <option value="recalled">🗑️已撤回</option>
-      </select>
-      <select id="filterChannel">
-        <option value="">全部频道</option>
-      </select>
-      <input type="text" id="searchInput" placeholder="🔍 搜索内容/频道/操作人..." style="min-width:180px;">
-      <button class="btn btn-small btn-primary" id="refreshBtn">刷新</button>
-      <button class="btn btn-small btn-success" id="exportBtn">导出报告</button>
-      <span id="taskCount" class="task-count"></span>
-      <span id="batchActions" style="display:none;margin-left:auto;">
-        <button class="btn btn-small btn-danger" id="batchCancelBtn">批量取消</button>
-        <button class="btn btn-small btn-warning" id="batchRecallBtn">批量撤回</button>
-        <button class="btn btn-small btn-success" id="batchRetryBtn">批量重试</button>
-      </span>
+    <div class="card mb32">
+      <div class="card-pad" style="padding-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+        <div><div class="micro" style="margin-bottom:6px">Task List</div><div class="card-title" style="font-size:17px">全部任务 · <span id="taskCount"></span></div></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <select id="filterStatus" class="sel"><option value="">全部状态</option><option value="received">已接收</option><option value="scheduled">已定时</option><option value="sent">已发送</option><option value="failed">失败</option><option value="cancelled">已取消</option><option value="recalled">已撤回</option></select>
+          <select id="filterChannel" class="sel"><option value="">全部频道</option></select>
+          <input type="text" id="searchInput" class="sea" placeholder="搜索内容/频道/操作人..." style="min-width:200px">
+          <button class="btn btn-ghost btn-sm" id="refreshBtn">刷新</button>
+          <button class="btn btn-ghost btn-sm" id="exportBtn">导出报告</button>
+          <span id="batchActions" style="display:none">
+            <button class="btn btn-sm" style="color:var(--err);border-color:rgba(192,82,72,.5)" id="batchCancelBtn">批量取消</button>
+            <button class="btn btn-sm" style="color:var(--err);border-color:rgba(192,82,72,.5)" id="batchRecallBtn">批量撤回</button>
+            <button class="btn btn-sm" style="color:var(--ok);border-color:rgba(76,158,110,.5)" id="batchRetryBtn">批量重试</button>
+          </span>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px"><input type="checkbox" id="selectAll" title="全选"></th>
+            <th>ID</th><th>频道</th><th>内容</th><th>类型</th><th>状态</th>
+            <th>定时时间</th><th>实际发送时间</th><th>发送人</th><th>操作人</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="taskListBody"></tbody>
+      </table>
     </div>
-    <table class="task-table">
-      <thead>
-        <tr>
-          <th><input type="checkbox" id="selectAll" title="全选"></th>
-          <th>ID</th><th>频道</th><th>内容</th><th>类型</th><th>状态</th>
-          <th>定时时间</th><th>实际发送时间</th><th>发送人</th><th>操作人</th><th>操作</th>
-        </tr>
-      </thead>
-      <tbody id="taskListBody"></tbody>
-    </table>
   </div>
-  </div><!-- /.container -->
+  </div><!-- /.wrap -->
 </div>
 
 <!-- 任务详情弹窗 -->
@@ -242,8 +254,8 @@
     <div id="confirmBody" style="padding: 20px; text-align: center;">
       <p id="confirmMessage"></p>
       <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
-        <button class="btn btn-danger" id="confirmYesBtn">确认</button>
-        <button class="btn" id="confirmNoBtn">取消</button>
+        <button class="btn btn-solid" id="confirmYesBtn" style="background:var(--err);color:#fff">确认</button>
+        <button class="btn btn-ghost" id="confirmNoBtn">取消</button>
       </div>
     </div>
   </div>
@@ -260,4 +272,4 @@
 <script src="/static/js/common.js"></script>
 <script src="/static/js/home.js"></script>
 </body>
-</html>
+</html>

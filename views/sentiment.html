@@ -1,13 +1,111 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
-  <title>📊 M2G 舆情监控面板</title>
+  <title>舆情监控 - M2G 运营后台</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
-  <link rel="stylesheet" href="/static/css/base.css">
-  <link rel="stylesheet" href="/static/css/components.css">
-  <link rel="stylesheet" href="/static/css/pages/sentiment.css">
   <script src="/static/js/common.js"></script>
+  <link rel="stylesheet" href="/static/css/m2g-theme.css">
+  <style>
+  /* sentiment page scoped styles */
+  .loading-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+  .loading-overlay.active{display:flex}
+  .loading-spinner{width:36px;height:36px;border:3px solid var(--hair);border-top-color:var(--ink);border-radius:50%;animation:spin .8s linear infinite}
+  .loading-text{font-size:13px;color:var(--mut)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .chips{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--ink);background:var(--panel)}
+  .chip .dot{width:7px;height:7px;border-radius:50%}
+  .brief5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  .dcard-sm{background:var(--dcard);border-radius:14px;padding:16px 16px 14px;transition:.25s;color:#F2F2F0}
+  .dcard-sm:hover{background:var(--dcard-h)}
+  .dcard-sm .big{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+  .dcard-sm h4{font-size:12px;font-weight:600;margin-top:2px}
+  .dcard-sm p{font-size:10px;color:var(--cut-mut);margin-top:2px}
+  .sumbox-dark{background:rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;font-size:12px;color:#C9CBD1;line-height:1.6}
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .tcol-h{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;border-radius:8px;padding:6px 12px;margin-bottom:12px}
+  .plat-tw{background:rgba(74,158,218,.14);color:#3A7FB5}
+  .plat-dc{background:rgba(123,104,238,.14);color:#6A5ACD}
+  .plat-kr{background:rgba(232,163,61,.18);color:#B57A1E}
+  :root[data-theme="dark"] .plat-tw{color:#7FBCE8}
+  :root[data-theme="dark"] .plat-dc{color:#B0A4F0}
+  :root[data-theme="dark"] .plat-kr{color:#E8C088}
+  /* voice box */
+  .voice-box{border-radius:20px;overflow:hidden}
+  .voice-bar{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:14px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .voice-bar .vt{font-weight:700;font-size:13px;letter-spacing:.05em}
+  .voice-bar .cnt{margin-left:auto;font-size:12px;color:var(--mut)}
+  .voice-list{background:var(--panel);border:1px solid var(--line);border-top:none;border-radius:0 0 14px 14px;padding:14px;display:flex;flex-direction:column;gap:12px;max-height:440px;overflow-y:auto}
+  .voice-tabs{display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:-14px;background:var(--panel);padding:4px 0 10px;margin-top:-4px;border-bottom:1px solid var(--hair);z-index:2}
+  .voice-tabs .pill{background:var(--panel-2);color:var(--mut);border:1px solid var(--line);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:.2s}
+  .voice-tabs .pill:hover{color:var(--ink)}
+  .voice-tabs .pill.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .vpost{border:1px solid var(--hair);border-left:3px solid var(--ok);border-radius:12px;padding:14px 16px;background:var(--panel)}
+  .vpost .vh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .vpost .name{font-weight:700;color:var(--ink)}
+  .vpost .handle{color:var(--mut);font-size:12px}
+  .vpost .time{margin-left:auto;font-size:11px;color:var(--mut)}
+  .vpost .body{font-size:13px;color:var(--ink);margin-top:8px;line-height:1.65;word-break:break-all}
+  .vpost .orig{font-size:12px;color:var(--mut);font-style:italic;margin-top:8px;border-top:1px dashed var(--hair);padding-top:8px;line-height:1.6}
+  .voice-more{text-align:center;font-size:11px;color:var(--mut);letter-spacing:.15em;padding:4px 0 2px}
+  /* weekly trend inside panel-cut */
+  .panel-cut .lstat{background:var(--dcard);border-color:transparent}
+  .panel-cut .lstat .n{color:#F2F2F0}
+  .panel-cut .lstat .t{color:var(--cut-mut)}
+  .duo{display:flex;align-items:flex-end;gap:22px;height:190px;padding:10px 6px 0}
+  .duo .g{flex:1;display:flex;align-items:flex-end;gap:5px;justify-content:center;height:100%}
+  .duo .col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px}
+  .duo .v{font-size:10px;color:var(--mut);line-height:1}
+  .duo .b1,.duo .b2,.duo .b3{width:16px;border-radius:5px 5px 0 0;min-height:3px}
+  .duo .b1{background:#4A9EDA}
+  .duo .b2{background:#6A5ACD}
+  .duo .b3{background:#E8A33D}
+  .duo-x{display:flex;gap:22px;margin-top:8px}
+  .duo-x span{flex:1;text-align:center;font-size:10px;color:var(--mut);display:flex;flex-direction:column;gap:2px}
+  .duo-x b{font-weight:600;color:var(--mut);font-size:10px}
+  .duo-x i{font-style:normal;font-size:10px;color:var(--mut);opacity:.7}
+  .legend{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--mut);flex-wrap:wrap}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
+  .mood-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:12px}
+  .mood-cell{background:var(--panel-2);border:1px solid var(--hair);border-radius:10px;padding:10px 10px 8px}
+  .mood-cell .md{font-size:10px;color:var(--mut);font-weight:700;margin-bottom:8px;text-align:center;white-space:nowrap}
+  .mb{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .mb:last-child{margin-bottom:0}
+  .mb .mtrack{flex:1;height:9px;background:var(--hair);border-radius:5px;overflow:hidden;min-width:0}
+  .mb .mtrack i{display:block;height:100%;border-radius:5px}
+  .mb .mv{font-size:10px;color:var(--mut);white-space:nowrap;font-variant-numeric:tabular-nums}
+  /* topic grid */
+  .topic-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
+  .tcard{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:var(--panel)}
+  .tcard .top{display:flex;align-items:center;gap:8px}
+  .tcard .name{font-weight:700;font-size:13px;color:var(--ink)}
+  .tcard .heat{margin-left:auto;font-size:12px;font-weight:700}
+  .tcard .meta{font-size:11px;color:var(--mut);margin:6px 0 8px}
+  .tcard .sum{background:var(--panel-2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--mut);line-height:1.6}
+  .tcard.tw{border-left:3px solid #4A9EDA}
+  .tcard.dc{border-left:3px solid #6A5ACD}
+  .tcard.kr{border-left:3px solid #E8A33D}
+  .sbar{height:5px;background:var(--hair);border-radius:3px;overflow:hidden;margin:8px 0 10px}
+  .sbar i{display:block;height:100%;border-radius:3px}
+  .quote{border:1px solid var(--hair);border-radius:10px;padding:10px 12px;margin-top:8px}
+  .quote .q{font-size:12px;color:var(--ink);line-height:1.55}
+  .quote .a{font-size:11px;color:var(--mut);margin-top:6px;display:flex;gap:8px;align-items:center}
+  .sumbox{background:var(--panel-2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--mut);line-height:1.6}
+  /* archive */
+  .arch{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+  .arch-card{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel);cursor:pointer;transition:.2s}
+  .arch-card:hover{border-color:var(--ink);transform:translateY(-2px)}
+  .arch-card .d{font-weight:700;font-size:13px;color:var(--ink)}
+  .arch-card .n{font-size:11px;color:var(--mut);margin:6px 0}
+  .arch-card .s{font-size:10px;font-weight:600}
+  .jargon{position:relative;cursor:help;border-bottom:1px dotted currentColor}
+  .jargon .jt{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#2A2D34;color:#F2F2F0;font-size:10px;font-weight:500;line-height:1.5;padding:8px 12px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transition:.2s;z-index:30;box-shadow:0 8px 20px rgba(0,0,0,.25)}
+  .jargon:hover .jt{opacity:1}
+  @media(max-width:1000px){.brief5{grid-template-columns:repeat(3,1fr)}.arch{grid-template-columns:repeat(3,1fr)}.topic-grid{grid-template-columns:1fr}}
+  @media(max-width:900px){.cols3{grid-template-columns:1fr}.mood-grid{grid-template-columns:repeat(4,1fr)}}
+  @media(max-width:560px){.brief5{grid-template-columns:1fr}.arch{grid-template-columns:repeat(2,1fr)}.mood-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
 </head>
 <body>
   <!-- Loading 遮罩 -->
@@ -16,225 +114,134 @@
     <div class="loading-text">正在加载数据...</div>
   </div>
 
-  <div class="page-wrapper">
-  <header class="app-header">
-  <div class="app-header-inner">
-    <div class="header-left">
-      <h1>📊 舆情监控面板</h1>
-      <p>实时追踪日服 Twitter + 繁中 Discord + 韩服 Naver 玩家反馈</p>
-    </div>
-    <nav class="header-nav" id="mainNav"></nav>
-  </div>
-  </header>
-
-  <!-- 系统运行状态栏 -->
-  <div id="systemStatusBar" class="system-status-bar">
-    <div class="status-item">
-      <span class="status-dot" id="statusDot"></span>
-      <span id="statusText">加载中...</span>
-      <span class="status-detail" id="statusUptime"></span>
-    </div>
-    <div class="status-item">
-      <span>📡 今日采集:</span>
-      <span id="statusTwitterCount">-</span> 日服 /
-      <span id="statusDiscordCount">-</span> 繁中 /
-      <span id="statusLoungeCount">-</span> 🇰🇷 韩服
-    </div>
-    <div class="status-item">
-      <span>🔥 话题:</span>
-      <span id="statusTopicInfo">-</span>
-    </div>
-    <div class="status-item" id="statusErrorItem" style="display:none;">
-      <span style="color:#ef4444;">⚠️ 错误: <span id="statusErrorCount">0</span></span>
-    </div>
-    <div class="status-actions">
-      <button class="btn-refresh-analysis operator-only" id="btnRefreshAnalysis" onclick="refreshAnalysis()" title="检测数据变更后重新AI分析">🔄 刷新分析</button>
+  <!-- 页头：标题 + 状态 chips -->
+  <div class="wrap page-head" style="padding:36px 0 20px">
+    <div class="micro">Sentiment · 舆情监控面板 — 实时追踪 Twitter + Discord + Naver 玩家反馈</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Sentiment Monitor</div>
+    <div class="chips">
+      <span class="chip"><span class="dot" id="statusDot"></span><span id="statusText">加载中...</span> · <span id="statusUptime"></span></span>
+      <span class="chip">今日采集 · TW <span id="statusTwitterCount">-</span> / DC <span id="statusDiscordCount">-</span> / KR <span id="statusLoungeCount">-</span></span>
+      <span class="chip">话题 · <span id="statusTopicInfo">-</span></span>
+      <span class="chip" id="statusErrorItem" style="display:none;color:var(--err)">⚠️ 错误: <span id="statusErrorCount">0</span></span>
+      <button class="btn btn-solid btn-sm" id="btnRefreshAnalysis" onclick="refreshAnalysis()" style="margin-left:auto">刷新分析 <span class="ar">→</span></button>
     </div>
   </div>
 
-  <!-- 今日快报摘要 -->
-  <div class="daily-brief-banner">
-    <div class="brief-inner">
-      <div class="brief-title">📌 今日快报</div>
-      <div class="brief-cards">
-        <div class="brief-card brief-twitter">
-          <div class="brief-icon">🐦</div>
-          <div class="brief-info">
-            <div class="brief-value" id="briefTwCount">-</div>
-            <div class="brief-label">日服 Twitter</div>
-          </div>
-        </div>
-        <div class="brief-card brief-discord">
-          <div class="brief-icon">💬</div>
-          <div class="brief-info">
-            <div class="brief-value" id="briefDcCount">-</div>
-            <div class="brief-label">繁中 Discord</div>
-          </div>
-        </div>
-        <div class="brief-card brief-lounge">
-          <div class="brief-icon">🇰🇷</div>
-          <div class="brief-info">
-            <div class="brief-value" id="briefLoungeCount">-</div>
-            <div class="brief-label">韩服 Naver</div>
-          </div>
-        </div>
-        <div class="brief-card brief-risk">
-          <div class="brief-icon">⚠️</div>
-          <div class="brief-info">
-            <div class="brief-value" id="briefRisk">-</div>
-            <div class="brief-label">风险等级</div>
-          </div>
-        </div>
-        <div class="brief-card brief-mood">
-          <div class="brief-icon">🌤️</div>
-          <div class="brief-info">
-            <div class="brief-value" id="briefMood">-</div>
-            <div class="brief-label">整体情绪</div>
-          </div>
-        </div>
+  <div class="wrap">
+    <!-- 今日快报 + 发言概况（黑切角面板） -->
+    <div class="panel-cut mb32" style="padding:34px 34px 30px">
+      <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+        <h2 style="font-size:20px">Today Brief<br>今日快报 · 发言概况</h2>
+        <p class="desc" id="briefMonitorTime">监控时间 加载中...</p>
       </div>
-
-      <!-- 监控时间 -->
-      <div class="brief-monitor-time" id="briefMonitorTime">监控时间：加载中...</div>
-
-      <!-- 两阵地发言概况 -->
-      <div class="brief-topics-section">
-        <div class="brief-section-title">💬 发言概况
-          <button onclick="toggleHeatHelp()" class="brief-help-btn" title="热度评分说明">?</button>
-        </div>
-        <div id="heatHelpBrief" style="display:none;" class="brief-heat-help">
-          <strong>🔥 热度评分规则（满分10分）</strong>
-          📊 基础分 = 讨论条数 · 😡 负面话题 +2 · 🐛 Bug话题 +1
-        </div>
-        <div class="brief-topics-grid">
-          <div class="brief-topics-col">
-            <div class="brief-platform-tag brief-platform-tw">🐦 日服 Twitter</div>
-            <div id="briefTwitterTopics"><div class="loading">加载中...</div></div>
-          </div>
-          <div class="brief-topics-col">
-            <div class="brief-platform-tag brief-platform-dc">💬 繁中 Discord</div>
-            <div id="briefDiscordTopics"><div class="loading">加载中...</div></div>
-          </div>
-          <div class="brief-topics-col">
-            <div class="brief-platform-tag brief-platform-kr">🇰🇷 韩国 Naver</div>
-            <div id="briefLoungePosts"><div class="loading">加载中...</div></div>
-          </div>
-        </div>
+      <div class="brief5" style="margin-bottom:16px">
+        <div class="dcard-sm" style="border-left:3px solid #4A9EDA"><div class="big" id="briefTwCount">-</div><h4>Twitter</h4><p>日服今日发言</p></div>
+        <div class="dcard-sm" style="border-left:3px solid #6A5ACD"><div class="big" id="briefDcCount">-</div><h4>Discord</h4><p>繁中今日发言</p></div>
+        <div class="dcard-sm" style="border-left:3px solid #E8A33D"><div class="big" id="briefLoungeCount">-</div><h4>韩服 Naver</h4><p>今日暂无发言</p></div>
+        <div class="dcard-sm" style="border-left:3px solid var(--ok)"><div class="big" id="briefRisk">-</div><h4>风险等级</h4><p>整体可控</p></div>
+        <div class="dcard-sm" style="border-left:3px solid var(--ok)"><div class="big" id="briefMood">-</div><h4>整体情绪</h4><p>正面为主</p></div>
       </div>
-
-      <!-- 玩家发言原声（折叠） -->
-      <div class="brief-messages-section">
-        <div class="brief-messages-header" onclick="toggleBriefMessages()">
-          <span class="brief-messages-arrow" id="briefMsgArrow">▶</span>
-          <span class="brief-messages-title">📝 玩家发言原声</span>
-          <div class="brief-msg-tabs" id="briefMsgTabs" onclick="event.stopPropagation()">
-            <button id="msgTabTwitter" class="brief-msg-tab active" onclick="switchMsgTab('twitter')">🐦 日服</button>
-            <button id="msgTabDiscord" class="brief-msg-tab" onclick="switchMsgTab('discord')">💬 繁中</button>
-            <button id="msgTabKorean" class="brief-msg-tab" onclick="switchMsgTab('korean')">🇰🇷 韩服</button>
-          </div>
-          <span class="brief-msg-count" id="msgCountInfo">加载中...</span>
-        </div>
-        <div id="briefMessagesContent" class="brief-messages-content" style="display:none;">
-          <div id="playerMessages" class="brief-messages-scroll">
-            <div class="loading">加载中...</div>
-          </div>
-        </div>
+      <div class="cols3">
+        <div><span class="tcol-h plat-tw">日服 Twitter</span><div id="briefTwitterTopics" class="sumbox-dark" style="margin-top:8px">加载中...</div></div>
+        <div><span class="tcol-h plat-dc">繁中 Discord</span><div id="briefDiscordTopics" class="sumbox-dark" style="margin-top:8px">加载中...</div></div>
+        <div><span class="tcol-h plat-kr">韩服 Naver</span><div id="briefLoungePosts" class="sumbox-dark" style="margin-top:8px">加载中...</div></div>
       </div>
     </div>
-  </div>
 
-  <div class="container">
-    <!-- 七日舆情趋势 -->
-    <div class="feedback-section weekly-section">
-      <div class="section-header">
-        <h2>📈 七日舆情趋势</h2>
-        <span style="color: var(--color-text-muted, #999); font-size: 13px;">近7天数据总览，发现趋势和异常</span>
+    <!-- 玩家发言原声（常开滚动列表） -->
+    <div class="voice-box mb32" id="voiceBox">
+      <div class="voice-bar">
+        <span class="vt">玩家发言原声</span>
+        <span class="cnt" id="msgCountInfo">加载中...</span>
       </div>
-      <!-- 七日统计卡片 -->
-      <div class="weekly-stats-row" id="weeklyStatsRow">
-        <div class="weekly-stat-card">
-          <div class="ws-label">📊 7日总量</div>
-          <div class="ws-value" id="weeklyTotal">-</div>
-          <div class="ws-sub" id="weeklyTotalSub">Twitter + Discord</div>
+      <div class="voice-list" id="voiceList">
+        <div class="voice-tabs" id="voiceTabs">
+          <span class="pill on" id="msgTabTwitter" onclick="switchMsgTab('twitter')">日服 Twitter</span>
+          <span class="pill" id="msgTabDiscord" onclick="switchMsgTab('discord')">繁中 Discord</span>
+          <span class="pill" id="msgTabKorean" onclick="switchMsgTab('korean')">韩服 Naver</span>
         </div>
-        <div class="weekly-stat-card">
-          <div class="ws-label">📅 日均发言</div>
-          <div class="ws-value" id="weeklyDailyAvg">-</div>
-          <div class="ws-sub" id="weeklyDailyAvgSub">条/天</div>
-        </div>
-        <div class="weekly-stat-card">
-          <div class="ws-label">📈 趋势变化</div>
-          <div class="ws-value" id="weeklyTrendChange">-</div>
-          <div class="ws-sub" id="weeklyTrendSub">较前一日</div>
-        </div>
-        <div class="weekly-stat-card">
-          <div class="ws-label">🔥 最热话题</div>
-          <div class="ws-value ws-hot" id="weeklyHotTopic">-</div>
-          <div class="ws-sub" id="weeklyHotSub">本周热度最高</div>
-        </div>
-      </div>
-      <!-- 七日逐日柱状图 -->
-      <div class="weekly-chart-card">
-        <h3>📊 逐日发言量</h3>
-        <div class="weekly-bar-chart" id="weeklyBarChart">
-          <div class="loading">加载中...</div>
-        </div>
-      </div>
-      <!-- 七日情绪变化 -->
-      <div class="weekly-chart-card">
-        <h3>😊 情绪变化趋势</h3>
-        <div class="weekly-sentiment-track" id="weeklySentimentTrack">
-          <div class="loading">加载中...</div>
-        </div>
-      </div>
-
-      <!-- 七日热门话题 -->
-      <div class="weekly-topics-section">
-        <div class="section-header" style="margin-bottom:16px;">
-          <h2 style="font-size:16px;">🔥 七日热门话题</h2>
-          <span style="color:var(--color-text-muted,#999);font-size:12px;">7日数据聚合，发现持续热点</span>
-        </div>
-        <div class="weekly-topics-grid" style="grid-template-columns: 1fr 1fr 1fr;">
-          <div class="weekly-topics-col">
-            <div class="wtp-header wtp-tw">🐦 日服 Twitter</div>
-            <div id="weeklyTwitterTopics"><div class="loading">加载中...</div></div>
-          </div>
-          <div class="weekly-topics-col">
-            <div class="wtp-header wtp-dc">💬 繁中 Discord</div>
-            <div id="weeklyDiscordTopics"><div class="loading">加载中...</div></div>
-          </div>
-          <div class="weekly-topics-col">
-            <div class="wtp-header wtp-kr">🇰🇷 韩服 Naver</div>
-            <div id="weeklyLoungeTopics"><div class="loading">加载中...</div></div>
-          </div>
+        <div id="playerMessages">
+          <div class="loading-text">加载中...</div>
         </div>
       </div>
     </div>
 
-    <!-- 每日舆情存档 -->
-    <div class="feedback-section" id="snapshotSection">
-      <div class="section-header">
-        <h2>📚 每日舆情存档</h2>
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <span style="color: var(--color-text-muted, #999); font-size: 13px;">每天自动存档，不调用AI，只读取已有分析</span>
-          <button class="btn btn-secondary admin-only" onclick="saveTodaySnapshot()" title="手动保存今天的快照">💾 保存今日存档</button>
+    <!-- 七日舆情趋势（黑面板） -->
+    <div class="panel-cut mb32" style="padding:34px 34px 30px">
+      <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+        <h2 style="font-size:20px">Weekly Trend<br>七日舆情趋势</h2>
+        <p class="desc">近7天数据总览，发现趋势和异常</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px" id="weeklyStatsRow">
+        <div class="lstat"><div class="n" id="weeklyTotal">-</div><div class="t" id="weeklyTotalSub">7日总量</div></div>
+        <div class="lstat"><div class="n" id="weeklyDailyAvg">-</div><div class="t" id="weeklyDailyAvgSub">日均发言</div></div>
+        <div class="lstat"><div class="n" id="weeklyTrendChange">-</div><div class="t" id="weeklyTrendSub">趋势变化</div></div>
+        <div class="lstat"><div class="n" id="weeklyHotTopic" style="font-size:22px">-</div><div class="t" id="weeklyHotSub">最热话题</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+        <div style="font-size:12px;color:var(--cut-mut)">逐日发言量 · Twitter / Discord / Naver</div>
+        <div class="legend"><span><i style="background:#4A9EDA"></i>Twitter</span><span><i style="background:#6A5ACD"></i>Discord</span><span><i style="background:#E8A33D"></i>Naver</span></div>
+      </div>
+      <div class="duo" id="weeklyBarChart">
+        <div style="color:var(--cut-mut);font-size:12px;padding:20px">加载中...</div>
+      </div>
+      <div class="duo-x" id="weeklyBarChartLabels"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:26px 0 4px">
+        <div style="font-size:12px;color:var(--cut-mut)">情绪变化趋势 · 正面 / 负面 占比</div>
+        <div class="legend"><span><i style="background:var(--ok)"></i>正面 😊</span><span><i style="background:var(--err)"></i>负面 😡</span></div>
+      </div>
+      <div class="mood-grid" id="weeklySentimentTrack">
+        <div style="color:var(--cut-mut);font-size:12px;padding:20px;grid-column:1/-1">加载中...</div>
+      </div>
+    </div>
+
+    <!-- 七日热门话题（白卡） -->
+    <div class="card card-pad mb32">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+        <div class="card-title" style="font-size:17px">七日热门话题</div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <span class="micro" style="letter-spacing:.15em">7日数据聚合，发现持续热点</span>
+          <span class="legend">卡片下细条 = 情绪倾向：<i style="background:var(--ok)"></i>正面 <i style="background:var(--err)"></i>负面 <i style="background:#6E7076"></i>中性</span>
         </div>
       </div>
-      <div id="dailySnapshotList" style="padding: 16px;">
-        <div class="loading">加载中...</div>
+      <div class="topic-grid">
+        <div>
+          <span class="tcol-h plat-tw">日服 Twitter</span>
+          <div id="weeklyTwitterTopics"><div class="loading-text">加载中...</div></div>
+        </div>
+        <div>
+          <span class="tcol-h plat-dc">繁中 Discord</span>
+          <div id="weeklyDiscordTopics"><div class="loading-text">加载中...</div></div>
+        </div>
+        <div>
+          <span class="tcol-h plat-kr">韩服 Naver</span>
+          <div id="weeklyLoungeTopics"><div class="loading-text">加载中...</div></div>
+        </div>
       </div>
-      <div id="dailySnapshotDetail" style="display: none; padding: 16px;">
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-          <button class="btn btn-secondary" onclick="backToSnapshotList()">← 返回列表</button>
-          <h3 id="snapshotDetailTitle" style="margin: 0;"></h3>
+    </div>
+
+    <!-- 每日舆情存档（白卡） -->
+    <div class="card card-pad mb20" id="snapshotSection">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+        <div class="card-title" style="font-size:17px">每日舆情存档</div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <span class="micro" style="letter-spacing:.15em">每天自动存档，不调用 AI，只读取已有分析</span>
+          <button class="btn btn-ghost btn-sm admin-only" onclick="saveTodaySnapshot()" id="btnSaveSnapshot">💾 保存今日存档</button>
+        </div>
+      </div>
+      <div id="dailySnapshotList">
+        <div class="loading-text">加载中...</div>
+      </div>
+      <div id="dailySnapshotDetail" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <button class="btn btn-ghost btn-sm" onclick="backToSnapshotList()">← 返回列表</button>
+          <h3 id="snapshotDetailTitle" style="margin:0;font-size:16px;font-weight:700"></h3>
         </div>
         <div id="snapshotDetailContent"></div>
       </div>
     </div>
   </div>
 
-  </div><!-- /.page-wrapper -->
-
   <script src="/static/js/sentiment.js"></script>
 </body>
-</html>
+</html>
