@@ -72,7 +72,7 @@ function findChromePath() {
 // ===== 解析代理配置 =====
 function getProxyArgs() {
   const proxyUrl = process.env.HTTP_PROXY || '';
-  if (!proxyUrl) return { args: [], auth: null };
+  if (!proxyUrl) return { args: [], auth: null, proxyHeader: null };
   try {
     const url = new URL(proxyUrl);
     const server = `${url.protocol}//${url.hostname}:${url.port}`;
@@ -80,18 +80,28 @@ function getProxyArgs() {
       username: decodeURIComponent(url.username),
       password: decodeURIComponent(url.password),
     } : null;
-    return { args: [`--proxy-server=${server}`], auth };
+    // ★ 生成 Proxy-Authorization 头（Base64 编码）
+    let proxyHeader = null;
+    if (auth) {
+      const credentials = Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
+      proxyHeader = `Proxy ${credentials}`;
+    }
+    return { args: [`--proxy-server=${server}`], auth, proxyHeader };
   } catch (_) {
-    return { args: [], auth: null };
+    return { args: [], auth: null, proxyHeader: null };
   }
 }
 
 // ===== 创建带代理认证的页面 =====
 async function createPage(browser) {
   const page = await browser.newPage();
-  const { auth } = getProxyArgs();
-  if (auth) {
-    await page.authenticate(auth);
+  const { proxyHeader } = getProxyArgs();
+  if (proxyHeader) {
+    // ★ 用 CDP 设置 Proxy-Authorization 头（比 page.authenticate() 更可靠）
+    const client = await page.createCDPSession();
+    await client.send('Network.setExtraHTTPHeaders', {
+      headers: { 'Proxy-Authorization': proxyHeader },
+    });
   }
   return page;
 }

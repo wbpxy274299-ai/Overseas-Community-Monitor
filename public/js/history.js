@@ -44,6 +44,9 @@ async function loadData(page = 1) {
     totalRecords = result.total;
     renderTable(result.data);
     renderPagination(result.total, pageSize, currentPage);
+    // 更新 Tab 计数角标
+    const twDcCnt = document.getElementById('tabCntTwDc');
+    if (twDcCnt) twDcCnt.textContent = `${result.total} 条`;
   } catch (error) {
     console.error('加载数据失败:', error);
     alert('加载数据失败: ' + error.message);
@@ -61,17 +64,19 @@ function renderTable(data) {
   }
   document.getElementById('dataTable').style.display = 'table';
   tbody.innerHTML = data.map(item => {
-    const platformClass = item.platform === 'twitter' ? 'platform-twitter' : 'platform-discord';
+    const platformStyle = item.platform === 'twitter'
+      ? 'padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)'
+      : 'padding:2px 8px;font-size:10px;color:#6A5ACD;border-color:rgba(123,104,238,.45)';
     const platformText = item.platform === 'twitter' ? 'Twitter' : 'Discord';
     const mediaBadge = item.has_media ? '<span class="media-badge">📷 有媒体</span>' : '';
-    const urlLink = item.url ? `<a href="${item.url}" target="_blank" class="url-link">查看原帖 →</a>` : '-';
+    const urlLink = item.url ? `<a class="oplink" href="${item.url}" target="_blank">查看原帖 →</a>` : '<span style="color:var(--mut)">-</span>';
     const timeDisplay = formatTimestamp(item.created_at);
     return `
       <tr>
-        <td><span class="platform-badge ${platformClass}">${platformText}</span></td>
-        <td>${escapeHtml(item.author || '匿名')}</td>
-        <td>${timeDisplay}</td>
-        <td class="content-cell">${escapeHtml(item.translated_content || item.content || '')}${mediaBadge}</td>
+        <td><span class="chip" style="${platformStyle}">${platformText}</span></td>
+        <td class="strong">${escapeHtml(item.author || '匿名')}</td>
+        <td class="mono">${timeDisplay}</td>
+        <td style="max-width:520px">${escapeHtml(item.translated_content || item.content || '')}${mediaBadge}</td>
         <td>${urlLink}</td>
       </tr>`;
   }).join('');
@@ -84,8 +89,8 @@ function renderPagination(total, pageSize, current) {
     document.getElementById('pagination').style.display = 'none';
     return;
   }
-  document.getElementById('pagination').style.display = 'flex';
-  document.getElementById('pageInfo').textContent = `第 ${current} 页 / 共 ${totalPages} 页（共 ${total} 条）`;
+  document.getElementById('pagination').style.display = 'block';
+  document.getElementById('pageInfo').textContent = `共 ${total} 条 · 第 ${current} 页 / 共 ${totalPages} 页`;
   document.getElementById('prevBtn').disabled = current === 1;
   document.getElementById('nextBtn').disabled = current === totalPages;
 }
@@ -423,14 +428,16 @@ async function loadLoungeCrawlStatus() {
     const result = await res.json();
     if (!result.success) return;
     const data = result.data;
-    const statusEl = document.getElementById('loungeCrawlStatus');
+    const infoEl = document.getElementById('loungeCrawlInfo');
     const btn = document.getElementById('btnLoungeCrawl');
-    if (statusEl) {
+    if (infoEl) {
       const stats = data.stats || {};
       const parts = [];
-      if (stats.total_posts) parts.push(`📝 ${stats.total_posts} 条帖子`);
-      if (stats.translated) parts.push(`🌐 ${stats.translated} 条已翻译`);
-      statusEl.textContent = parts.join(' · ') || '--';
+      if (stats.total_posts) parts.push(`${stats.total_posts} 条帖子`);
+      if (stats.translated) parts.push(`${stats.translated} 条已翻译`);
+      if (data.lastDuration) parts.push(`上次抓取用时 ${data.lastDuration} 秒`);
+      parts.push('增量模式（仅抓新帖）');
+      infoEl.textContent = parts.join(' · ') || '--';
     }
     if (btn) {
       if (data.isCrawling) {
@@ -484,14 +491,43 @@ async function loadLoungePosts(page = 1) {
     const result = await res.json();
     if (!result.success) throw new Error(result.error);
     loungeTotal = result.total;
-    document.getElementById('loungeTotal').textContent = `共 ${loungeTotal} 条`;
+    // 更新 Tab 计数角标
+    const krCnt = document.getElementById('tabCntKr');
+    if (krCnt) krCnt.textContent = `${result.total} 条`;
     renderLoungePosts(result.data);
     renderLoungePagination(result.total, loungePageSize, loungePage);
+    // 加载统计概览
+    loadLoungeStats();
   } catch (e) {
     console.error('加载韩国帖子失败:', e);
     document.getElementById('loungeLoading').style.display = 'none';
     document.getElementById('loungeEmpty').style.display = 'block';
   }
+}
+
+// 加载韩国社区统计概览
+async function loadLoungeStats() {
+  try {
+    const res = await fetch('/api/sentiment/lounge-stats');
+    const result = await res.json();
+    if (!result.success) return;
+    const total = result.totalPosts || 0;
+    const translated = result.translated || 0;
+    const pct = total > 0 ? Math.round(translated / total * 100) : 0;
+    const lastCrawl = result.lastCrawl || '--';
+    // 更新统计卡片
+    const el = id => document.getElementById(id);
+    if (el('statTotalPosts')) el('statTotalPosts').textContent = total;
+    if (el('statTranslated')) el('statTranslated').textContent = translated;
+    if (el('statTranslatePct')) el('statTranslatePct').textContent = pct + '%';
+    if (el('statLastCrawl')) {
+      el('statLastCrawl').textContent = lastCrawl !== '--' ? lastCrawl.substring(5, 16) : '--';
+    }
+    if (el('statProgressFill')) el('statProgressFill').style.width = pct + '%';
+    // 更新 Tab 计数角标
+    const krCnt = el('tabCntKr');
+    if (krCnt) krCnt.textContent = `${total} 条`;
+  } catch (_) { /* 静默失败 */ }
 }
 
 function renderLoungePosts(posts) {
@@ -500,30 +536,28 @@ function renderLoungePosts(posts) {
     document.getElementById('loungeEmpty').style.display = 'block';
     return;
   }
-  const sentIcon = s => s === 'negative' ? '😠' : s === 'positive' ? '😊' : '😐';
-  const sentColor = s => s === 'negative' ? '#ef4444' : s === 'positive' ? '#22c55e' : '#6b7280';
-  const sentLabel = s => s === 'negative' ? '负面' : s === 'positive' ? '正面' : '中性';
-  const catLabel = c => ({ bug:'🐛 Bug', suggestion:'💡 建议', complaint:'😤 投诉', praise:'👍 好评', question:'❓ 提问', other:'其他' }[c] || c || '');
+  const sentTag = s => {
+    if (s === 'negative') return { cls: 'err', label: '负面' };
+    if (s === 'positive') return { cls: 'ok', label: '正面' };
+    return { cls: 'warn', label: '中性' };
+  };
+  const catLabel = c => ({ bug:'🐛 Bug', suggestion:'💡 建议', complaint:'😤 投诉', praise:'👍 好评', question:'❓ 提问', event:'event', other:'其他' }[c] || c || '');
 
   let html = '';
   for (const p of posts) {
     const title = p.title_zh || p.title || '';
-    const sIcon = sentIcon(p.sentiment);
-    const sColor = sentColor(p.sentiment);
-    const sLabel = sentLabel(p.sentiment);
+    const st = sentTag(p.sentiment);
     const cat = catLabel(p.ai_category);
     const cmtCount = p._comment_count || p.comment_count || 0;
-    const time = (p.post_time || p.crawled_at || '').substring(5, 16);
-    html += `<div class="lounge-card" onclick="openLoungePost('${p.post_id}','${escapeHtml(p.game_code)}')">
-      <div class="lounge-card-top">
-        <span class="lounge-sent-badge" style="background:${sColor}15;color:${sColor};">${sIcon} ${sLabel}</span>
-        ${cat ? `<span class="lounge-cat-badge">${cat}</span>` : ''}
-        <span class="lounge-time">${time}</span>
+    html += `<div class="fb-card" style="border-left-color:var(--${st.cls})" onclick="openLoungePost('${p.post_id}','${escapeHtml(p.game_code)}')">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span class="tag ${st.cls}">${st.label}</span>
+        ${cat ? `<span class="chip" style="padding:2px 8px;font-size:10px">${escapeHtml(cat)}</span>` : ''}
       </div>
-      <div class="lounge-card-title">${escapeHtml(title)}</div>
-      <div class="lounge-card-meta">
-        👤 ${escapeHtml(p.author || '匿名')} · 👁 ${p.view_count||0} · 💬 ${cmtCount}条评论
-        ${p.url ? ` · <a href="${p.url}" target="_blank" onclick="event.stopPropagation()">原帖↗</a>` : ''}
+      <div class="strong" style="font-size:14px">${escapeHtml(title)}</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">
+         ${escapeHtml(p.author || '匿名')} ·  ${p.view_count||0} · 💬 ${cmtCount}条评论
+        ${p.url ? ` · <a class="oplink" href="${p.url}" target="_blank" onclick="event.stopPropagation()">原帖 ↗</a>` : ''}
       </div>
     </div>`;
   }
@@ -536,8 +570,8 @@ function renderLoungePagination(total, pageSize, current) {
     document.getElementById('loungePagination').style.display = 'none';
     return;
   }
-  document.getElementById('loungePagination').style.display = 'flex';
-  document.getElementById('loungePageInfo').textContent = `第 ${current} 页 / 共 ${totalPages} 页（共 ${total} 条）`;
+  document.getElementById('loungePagination').style.display = 'block';
+  document.getElementById('loungePageInfo').textContent = `共 ${total} 条 · 第 ${current} 页 / 共 ${totalPages} 页`;
   document.getElementById('loungePrevBtn').disabled = current === 1;
   document.getElementById('loungeNextBtn').disabled = current === totalPages;
 }

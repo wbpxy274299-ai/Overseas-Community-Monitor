@@ -198,6 +198,23 @@ router.get('/api/sentiment/lounge-posts', (req, res) => {
   }
 });
 
+// ===== 韩国社区统计概览 =====
+router.get('/api/sentiment/lounge-stats', (req, res) => {
+  try {
+    const total = db.queryOne('SELECT COUNT(*) as cnt FROM lounge_posts');
+    const translated = db.queryOne("SELECT COUNT(*) as cnt FROM lounge_posts WHERE content_zh IS NOT NULL AND content_zh != ''");
+    const lastCrawl = db.queryOne('SELECT MAX(crawled_at) as ts FROM lounge_posts');
+    res.json({
+      success: true,
+      totalPosts: total?.cnt || 0,
+      translated: translated?.cnt || 0,
+      lastCrawl: lastCrawl?.ts || null,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ===== 韩国帖子详情（帖子内容 + 评论） =====
 router.get('/api/sentiment/lounge-comments/:postId', (req, res) => {
   try {
