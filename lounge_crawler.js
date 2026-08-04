@@ -55,13 +55,17 @@ function parseKoreanTime(timeStr, crawlTime) {
 }
 
 // ===== 自动查找 Chrome 路径 =====
+// 注意：Linux 服务器上的系统 Chromium 版本通常和 Puppeteer 不匹配，会导致崩溃
+// 所以 Linux 上不查找系统路径，直接用 Puppeteer 自带的 Chrome
 function findChromePath() {
   const fs = require('fs');
+  const os = require('os');
+  // Linux 服务器：不查找系统 Chrome，用 Puppeteer 自带的
+  if (os.platform() === 'linux') return undefined;
+  // Windows/macOS 本地开发：查找系统安装的 Chrome
   const paths = [
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium-browser',
   ];
   for (const p of paths) {
     try { if (fs.existsSync(p)) return p; } catch (_) {}
@@ -84,7 +88,7 @@ function getProxyArgs() {
     let proxyHeader = null;
     if (auth) {
       const credentials = Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
-      proxyHeader = `Proxy ${credentials}`;
+      proxyHeader = `Basic ${credentials}`;
     }
     return { args: [`--proxy-server=${server}`], auth, proxyHeader };
   } catch (_) {
@@ -95,13 +99,10 @@ function getProxyArgs() {
 // ===== 创建带代理认证的页面 =====
 async function createPage(browser) {
   const page = await browser.newPage();
-  const { proxyHeader } = getProxyArgs();
-  if (proxyHeader) {
-    // ★ 用 CDP 设置 Proxy-Authorization 头（比 page.authenticate() 更可靠）
-    const client = await page.createCDPSession();
-    await client.send('Network.setExtraHTTPHeaders', {
-      headers: { 'Proxy-Authorization': proxyHeader },
-    });
+  const { auth } = getProxyArgs();
+  if (auth) {
+    // ★ 使用 Puppeteer 原生 authenticate（比 CDP header 更可靠）
+    await page.authenticate(auth);
   }
   return page;
 }
