@@ -74,7 +74,10 @@ function findChromePath() {
 }
 
 // ===== 解析代理配置 =====
+// 线上服务器（Linux）永远不用代理，直接访问
+// 代理只在本地 Windows 开发环境生效
 function getProxyArgs() {
+  if (require('os').platform() === 'linux') return { args: [], auth: null, proxyHeader: null };
   const proxyUrl = process.env.HTTP_PROXY || '';
   if (!proxyUrl) return { args: [], auth: null, proxyHeader: null };
   try {
