@@ -222,8 +222,8 @@ function switchHistoryTab(tab) {
   document.querySelectorAll('.tab-card').forEach(btn => {
     btn.classList.toggle('on', btn.getAttribute('onclick') && btn.getAttribute('onclick').includes("'" + tab + "'"));
   });
-  document.getElementById('tabTwDc').style.display = tab === 'tw-dc' ? '' : 'none';
-  document.getElementById('tabKorean').style.display = tab === 'korean' ? '' : 'none';
+  document.getElementById('tabTwDc').classList.toggle('on', tab === 'tw-dc');
+  document.getElementById('tabKorean').classList.toggle('on', tab === 'korean');
   // 切到韩国tab时自动加载数据
   if (tab === 'korean' && document.getElementById('loungeList').innerHTML === '') {
     initLoungeDates();
