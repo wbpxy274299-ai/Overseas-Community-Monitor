@@ -7,6 +7,148 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
+  <style>
+    .term-tabs { display: flex; border-bottom: 1px solid var(--hair); }
+    .term-tab { padding: 10px 20px; border: 1px solid var(--line); background: var(--panel-2); color: var(--mut); cursor: pointer; font-size: 14px; transition: all .2s; border-bottom: none; margin-right: -1px; border-radius: 0; }
+    .term-tab:first-child { border-radius: 8px 0 0 0; }
+    .term-tab:last-child { border-radius: 0 8px 0 0; }
+    .term-tab.active, .term-tab:hover { background: var(--panel); color: var(--ink); border-bottom-color: var(--panel); position: relative; z-index: 1; }
+    .term-panel { display: none; padding: 24px 0 0; }
+    .term-panel.active { display: block; }
+    .update-mode-bar { display: flex; gap: 0; margin-bottom: 18px; }
+    .update-mode-bar .lang-btn { border-radius: 0; }
+    .update-mode-bar .lang-btn:first-child { border-radius: 8px 0 0 8px; }
+    .update-mode-bar .lang-btn:last-child { border-radius: 0 8px 8px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap page-head" style="padding:36px 0 20px">
+    <div class="micro">Terminology · 术语校对 — 多语言聚合版 · 支持 7 种语言 · 离线可用</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Term Checker</div>
+    <div class="chips">
+      <span class="chip" id="statsBar">术语库 · 加载中...</span>
+      <span class="chip">7 种语言 · 中/日/英/韩/繁中/越/印尼/泰</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- 主体工具卡 -->
+    <div class="card mb32">
+      <div class="card-pad" style="padding-bottom:0">
+        <div class="term-tabs">
+          <button class="term-tab active" onclick="switchTermTab('search')">🔍 搜索</button>
+          <button class="term-tab" onclick="switchTermTab('check')">📝 校对</button>
+          <button class="term-tab" onclick="switchTermTab('batch')">📦 批量校对</button>
+        </div>
+      </div>
+
+      <!-- Tab 1: 搜索术语 -->
+      <div class="term-panel active card-pad" id="panel-search" style="border-top:1px solid var(--hair)">
+        <div style="display:flex;gap:12px;margin-bottom:16px">
+          <input type="text" id="termSearchInput" class="sel" style="flex:1" placeholder="输入中文、日语、英语等任意语言关键词..." autofocus>
+          <button class="btn btn-solid btn-sm" onclick="doTermSearch()">搜索 <span class="ar">→</span></button>
+        </div>
+        <div class="search-hint card-sub mb20">支持中文、日语、英语、韩语、繁中、越南语、印尼语、泰语 · 回车搜索</div>
+        <div id="searchCount" class="card-sub mb20"></div>
+        <div id="searchResults"></div>
+      </div>
+
+      <!-- Tab 2: 文案校对 -->
+      <div class="term-panel card-pad" id="panel-check" style="border-top:1px solid var(--hair)">
+        <textarea id="checkInput" class="txta" style="min-height:110px" placeholder="粘贴任意语言的文案，例如：&#10;ツリネバの新イベントが始まりました！&#10;The player can use Mount to explore the dungeon..."></textarea>
+        <div style="display:flex;gap:12px;align-items:center;margin:14px 0;flex-wrap:wrap">
+          <button class="btn btn-solid btn-sm" onclick="doTermCheck()">开始校对 <span class="ar">→</span></button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('checkInput').value=''">清空</button>
+          <span style="margin-left:auto;font-size:12px;color:var(--mut)">自动识别 7 种语言</span>
+        </div>
+        <div id="checkResult"></div>
+      </div>
+
+      <!-- Tab 3: 批量校对 -->
+      <div class="term-panel card-pad" id="panel-batch" style="border-top:1px solid var(--hair)">
+        <div class="check-lang-bar" style="margin-bottom:16px">
+          <span class="check-label" style="font-size:13px;color:var(--mut);margin-right:8px">校对语言：</span>
+          <button class="lang-btn active" data-lang="jp" onclick="setBatchLang(this)">🇯🇵 日语</button>
+          <button class="lang-btn" data-lang="en" onclick="setBatchLang(this)">🇬🇧 英语</button>
+          <button class="lang-btn" data-lang="kr" onclick="setBatchLang(this)">🇰🇷 韩语</button>
+          <button class="lang-btn" data-lang="tw" onclick="setBatchLang(this)">🇭🇰 繁中</button>
+          <button class="lang-btn" data-lang="vn" onclick="setBatchLang(this)">🇻🇳 越南语</button>
+          <button class="lang-btn" data-lang="id" onclick="setBatchLang(this)">🇮🇩 印尼语</button>
+          <button class="lang-btn" data-lang="th" onclick="setBatchLang(this)">🇹🇭 泰语</button>
+        </div>
+        <div class="batch-upload-zone drop" id="batchDropZone" onclick="document.getElementById('batchFileInput').click()">
+          <div class="ico">⬆</div>
+          <div class="t1">点击或拖拽上传文件</div>
+          <div class="t2">支持 .txt / .json / .csv（每行一条文案）</div>
+        </div>
+        <input type="file" id="batchFileInput" accept=".txt,.json,.csv" style="display:none" onchange="handleBatchFile(this.files[0])">
+        <div id="batchStatus" class="card-sub" style="margin-top:12px"></div>
+        <div id="batchResult" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- 更新术语表（黑切角面板） -->
+    <div class="panel-cut mb32" style="padding:28px 28px 26px">
+      <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+        <h2 style="font-size:20px">Update Glossary<br>更新术语表</h2>
+        <p class="desc">支持单语言更新或 7 种语言批量合并导入</p>
+      </div>
+      <div class="update-mode-bar">
+        <button class="lang-btn active" id="updateModeBatch" onclick="setUpdateMode('batch')" style="background:rgba(255,255,255,.14);color:#F2F2F0;border-color:transparent;box-shadow:none">📦 批量导入（多语言 Excel）</button>
+        <button class="lang-btn" id="updateModeSingle" onclick="setUpdateMode('single')" style="background:transparent;color:#C9CBD1;border-color:transparent">📝 单语言更新</button>
+      </div>
+
+      <!-- 批量模式 -->
+      <div id="updateBatchPanel">
+        <div class="drop drop-dark" onclick="document.getElementById('updateBatchInput').click()">
+          <div class="ico">📁</div>
+          <div class="t1">拖拽多个 Excel 文件到这里，或点击选择</div>
+          <div class="t2">同时拖入日/英/韩/繁中/越南/印尼/泰语 Excel，自动识别并合并</div>
+        </div>
+        <input type="file" id="updateBatchInput" accept=".xlsx,.xls" multiple style="display:none" onchange="handleUpdateBatch(this.files)">
+        <div id="updateBatchList" style="margin-top:12px"></div>
+      </div>
+
+      <!-- 单语言模式 -->
+      <div id="updateSinglePanel" style="display:none">
+        <div class="check-lang-bar" style="margin-bottom:16px">
+          <span class="gl" style="color:var(--cut-mut);margin-right:8px;font-size:13px">语言</span>
+          <button class="lang-btn active" data-lang="jp" onclick="setUpdateLang(this)">🇯🇵 日语</button>
+          <button class="lang-btn" data-lang="en" onclick="setUpdateLang(this)">🇬🇧 英语</button>
+          <button class="lang-btn" data-lang="kr" onclick="setUpdateLang(this)">🇰🇷 韩语</button>
+          <button class="lang-btn" data-lang="tw" onclick="setUpdateLang(this)">🇭🇰 繁中</button>
+          <button class="lang-btn" data-lang="vn" onclick="setUpdateLang(this)">🇻🇳 越南语</button>
+          <button class="lang-btn" data-lang="id" onclick="setUpdateLang(this)">🇮🇩 印尼语</button>
+          <button class="lang-btn" data-lang="th" onclick="setUpdateLang(this)">🇹🇭 泰语</button>
+        </div>
+        <div class="drop drop-dark" onclick="document.getElementById('updateSingleInput').click()">
+          <div class="ico">📁</div>
+          <div class="t1">拖拽 Excel 文件到这里，或点击选择</div>
+          <div class="t2">上传所选语言的术语 Excel 文件</div>
+        </div>
+        <input type="file" id="updateSingleInput" accept=".xlsx,.xls" style="display:none" onchange="handleUpdateSingle(this.files[0])">
+      </div>
+
+      <div id="updateStatus" class="card-sub" style="margin-top:12px;color:var(--cut-mut)"></div>
+      <div id="updateStats" style="margin-top:8px;color:var(--cut-mut)"></div>
+      <div style="display:flex;gap:12px;margin-top:18px">
+        <span style="margin-left:auto;font-size:12px;color:var(--cut-mut);align-self:center">当前版本：多语言聚合版 · 离线可用</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/terminology.js"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>📖 术语校对 - M2G 用户运营后台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="/static/js/common.js"></script>
+  <link rel="stylesheet" href="/static/css/m2g-theme.css">
 </head>
 <body>
   <div class="wrap page-head" style="padding:36px 0 20px">

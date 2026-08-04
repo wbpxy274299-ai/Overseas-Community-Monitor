@@ -6,6 +6,88 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✍️</text></svg>">
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
+  <style>
+    .pa-tab { padding: 10px 20px; border: 1px solid var(--line); background: var(--panel-2); color: var(--mut); cursor: pointer; font-size: 14px; transition: all .2s; margin-right: -1px; border-radius: 0; }
+    .pa-tab:first-child { border-radius: 8px 0 0 0; }
+    .pa-tab:last-child { border-radius: 0 8px 0 0; }
+    .pa-tab.active { background: var(--panel); color: var(--ink); position: relative; z-index: 1; }
+    .pa-tab-content { display: none; }
+    .pa-tab-content.active { display: block; }
+    .embed-ph { background: var(--panel-2); border: 1px dashed var(--line); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; }
+    .embed-ph .ico { font-size: 32px; margin-bottom: 10px; }
+    .embed-ph .t1 { font-size: 14px; font-weight: 600; color: var(--ink); }
+    .embed-ph .t2 { font-size: 12px; color: var(--mut); margin-top: 6px; max-width: 400px; }
+  </style>
+</head>
+<body>
+  <div class="wrap page-head" style="padding:36px 0 20px">
+    <div class="micro">Post Assistant · 贴文助手 — AI 帮你写多语言社区公告初稿</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Post Assistant</div>
+    <div class="chips">
+      <span class="chip">AI 生成 · 说清主题和语气即可</span>
+      <span class="chip">支持 7 语言翻译</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- 上板块：AI Studio 对话 -->
+    <div class="card card-pad mb32">
+      <div class="ok-banner mb20">这是阿里 <strong>AI Studio</strong>，公司账号，<strong>不花钱、随便用</strong>！在这里让 AI 帮你写贴文初稿。</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title" style="font-size:15px">💬 AI Studio 对话</div>
+        <span style="font-size:11px;color:var(--mut)">需内网环境</span>
+      </div>
+      <div class="embed-ph" style="min-height:560px">
+        <div class="ico">🔌</div>
+        <div class="t1">外部嵌入接口 · 此处留空</div>
+        <div class="t2">AI Studio 对话界面由外部站点提供，实际部署时以 iframe 嵌入</div>
+      </div>
+    </div>
+
+    <!-- 下板块：贴文编辑 + 翻译 + 校对 -->
+    <div class="card card-pad mb32">
+      <div class="warn-banner-o mb20">下方翻译 &amp; 校对使用的是<strong>阿饱自费的 AI</strong>，每人每天 <strong>15 次</strong>，请注意不要浪费！</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title" style="font-size:15px">📝 贴文编辑</div>
+        <span class="chip" id="pa-remaining-hint" style="padding:2px 8px;font-size:10px">加载中...</span>
+      </div>
+      <textarea class="txta" id="pa-editor" style="min-height:110px" placeholder="输入要翻译/校对的贴文内容..."></textarea>
+      <div style="display:flex;gap:12px;margin:14px 0;flex-wrap:wrap">
+        <button class="btn btn-solid btn-sm" id="pa-trans-btn" onclick="paTranslate()">🌐 翻译成 7 语言 <span class="ar">→</span></button>
+        <button class="btn btn-op ok" id="pa-proof-btn" onclick="paProofread()" style="padding:8px 16px">✅ 校对翻译</button>
+        <button class="btn btn-ghost btn-sm" onclick="paClear()">清空</button>
+      </div>
+      <div id="pa-status" class="card-sub" style="margin-bottom:18px"></div>
+
+      <!-- Tab 切换 -->
+      <div style="display:flex;border-bottom:1px solid var(--hair);margin-bottom:14px">
+        <button class="pa-tab active" data-tab="translate" onclick="paSwitchTab('translate')">🌐 翻译结果</button>
+        <button class="pa-tab" data-tab="proofread" onclick="paSwitchTab('proofread')">✅ 校对结果</button>
+      </div>
+      <div id="pa-tab-translate" class="pa-tab-content active">
+        <div id="pa-output">
+          <div class="pa-empty-hint" style="color:var(--mut);text-align:center;padding:20px">翻译结果会显示在这里 ✨</div>
+        </div>
+      </div>
+      <div id="pa-tab-proofread" class="pa-tab-content">
+        <div id="pa-proof-output">
+          <div class="pa-empty-hint" style="color:var(--mut);text-align:center;padding:20px">校对结果会显示在这里 📝</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/post-assistant.js"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>✍️ 贴文助手 - M2G 用户运营后台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✍️</text></svg>">
+  <script src="/static/js/common.js"></script>
+  <link rel="stylesheet" href="/static/css/m2g-theme.css">
 </head>
 <body>
   <div class="wrap page-head" style="padding:36px 0 20px">

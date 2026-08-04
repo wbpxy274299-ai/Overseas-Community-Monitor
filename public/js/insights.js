@@ -82,7 +82,9 @@ function processLine(line) {
 // 初始化
 function initPage() {
   const period = calcPeriod();
-  document.getElementById('periodLabel').textContent = '分析周期：' + period.label;
+  document.getElementById('periodLabel').textContent = '分析周期 · ' + period.label;
+  const emptyLabel = document.getElementById('emptyPeriodLabel');
+  if (emptyLabel) emptyLabel.textContent = 'Current Insight · 分析周期 ' + period.label;
   loadHistory();
 }
 
@@ -104,19 +106,20 @@ async function loadHistory() {
 
 function renderHistoryList(reports) {
   const container = document.getElementById('historyList');
+  // 更新历史报告计数
+  const countEl = document.getElementById('historyCount');
+  if (countEl) countEl.textContent = '历史报告 · ' + reports.length + ' 份';
+  const titleEl = document.getElementById('historyTitle');
+  if (titleEl) titleEl.textContent = '历史报告存档 · 共 ' + reports.length + ' 份';
+
   container.innerHTML = reports.map(r => `
-    <div class="history-item" onclick="viewReport(${r.id})">
-      <div class="history-item-left">
-        <span class="history-period">📅 ${escapeHtml(r.period)}</span>
-        <span class="history-meta">
-          📝 ${r.total_records} 条数据 &nbsp;|&nbsp;
-          🇯🇵 ${r.twitter_count} &nbsp; 🇹🇼 ${r.discord_count}
-        </span>
+    <div class="rep-card" style="margin-bottom:12px" onclick="viewReport(${r.id})">
+      <div class="rh">
+        <span class="rt">${escapeHtml(r.period)}</span>
+        <span class="chip" style="padding:2px 8px;font-size:10px">${r.total_records} 条数据 · JP ${r.twitter_count} · TW ${r.discord_count}</span>
       </div>
-      <div class="history-item-right">
-        <span class="history-date">${formatDate(r.created_at)}</span>
-        <button class="btn-history-del" onclick="event.stopPropagation(); deleteReport(${r.id})" title="删除">🗑️</button>
-      </div>
+      <div class="rm">📅 生成于 ${formatDate(r.created_at)}</div>
+      <div style="margin-top:12px"><a class="btn-op" onclick="event.stopPropagation(); viewReport(${r.id})">查看</a><a class="btn-op danger" onclick="event.stopPropagation(); deleteReport(${r.id})">删除</a></div>
     </div>
   `).join('');
 }
@@ -137,7 +140,9 @@ async function viewReport(id) {
       document.getElementById('statTwitter').textContent = r.twitter_count;
       document.getElementById('statDiscord').textContent = r.discord_count;
       document.getElementById('statPeriod').textContent = r.period;
-      document.getElementById('periodLabel').textContent = '分析周期：' + r.period;
+      document.getElementById('periodLabel').textContent = '分析周期 · ' + r.period;
+      const emptyLabel = document.getElementById('emptyPeriodLabel');
+      if (emptyLabel) emptyLabel.textContent = 'Current Insight · 分析周期 ' + r.period;
       reportArea.innerHTML = renderMarkdown(r.content);
     } else {
       reportArea.innerHTML = '<div class="error-state"><p>' + (data.error || '加载失败') + '</p></div>';
@@ -196,7 +201,9 @@ async function generateInsights() {
       document.getElementById('statTwitter').textContent = data.twitterCount;
       document.getElementById('statDiscord').textContent = data.discordCount;
       document.getElementById('statPeriod').textContent = data.period;
-      document.getElementById('periodLabel').textContent = '分析周期：' + data.period;
+      document.getElementById('periodLabel').textContent = '分析周期 · ' + data.period;
+      const emptyLabel = document.getElementById('emptyPeriodLabel');
+      if (emptyLabel) emptyLabel.textContent = 'Current Insight · 分析周期 ' + data.period;
 
       // 渲染报告
       reportArea.innerHTML = renderMarkdown(data.report);

@@ -6,29 +6,39 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
+  <style>
+    .rep-card { background: var(--panel-2); border: 1px solid var(--hair); border-radius: 8px; padding: 18px 20px; transition: border-color .2s; cursor: pointer; }
+    .rep-card:hover { border-color: var(--mut); }
+    .rep-card .rh { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .rep-card .rt { font-size: 15px; font-weight: 700; color: var(--ink); }
+    .rep-card .rm { font-size: 13px; color: var(--mut); margin-top: 4px; }
+    .rep-card .rv { font-size: 13px; color: var(--ink); margin-top: 8px; line-height: 1.6; }
+    .rep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 768px) { .rep-grid { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
   <div class="wrap page-head" style="padding:36px 0 20px">
-    <div class="micro">舆情周报管理</div>
-    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">舆情周报管理</div>
+    <div class="micro">Weekly Reports · 周报管理 — 查看和管理舆情周报，支持手动生成新报告</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Report Archive</div>
+    <div class="chips">
+      <span class="chip">共 <span id="reportCount">0</span> 份报告</span>
+      <button class="btn btn-ghost btn-sm" onclick="checkData()">检查数据状态</button>
+      <button class="btn btn-ghost btn-sm" onclick="loadReports()">刷新列表</button>
+      <button class="btn btn-solid btn-sm" id="generateReportBtn" onclick="generateReport()" style="margin-left:auto">生成新周报 <span class="ar">→</span></button>
+    </div>
   </div>
 
   <div class="wrap">
-    <!-- 操作栏 -->
-    <div class="action-bar">
-      <div>
-        <button class="btn btn-primary admin-write-only" id="generateReportBtn" onclick="generateReport()">🔄 生成新周报</button>
-        <button class="btn btn-secondary" onclick="checkData()">🔍 检查数据状态</button>
-        <button class="btn btn-secondary" onclick="loadReports()">🔃 刷新列表</button>
-      </div>
-      <div style="font-size: 14px; color: var(--mut);">
-        共 <span id="reportCount">0</span> 份报告
-      </div>
-    </div>
-
     <!-- 报告列表 -->
-    <div class="report-list" id="reportList">
-      <div class="loading">加载中...</div>
+    <div class="card card-pad mb32">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <div><div class="micro" style="margin-bottom:6px">Reports</div><div class="card-title" style="font-size:17px">全部报告</div></div>
+        <span class="micro" style="letter-spacing:.15em">按时间倒序</span>
+      </div>
+      <div id="reportList" class="rep-grid">
+        <div class="loading" style="grid-column:1/-1">加载中...</div>
+      </div>
     </div>
   </div>
 

@@ -26,7 +26,7 @@ function renderReportList(reports) {
   const container = document.getElementById('reportList');
   if (!reports || reports.length === 0) {
     container.innerHTML = `
-      <div class="empty-state">
+      <div class="empty-state" style="grid-column:1/-1">
         <div style="font-size: 48px; margin-bottom: 20px;">📄</div>
         <div>暂无报告</div>
         <div style="font-size: 13px; margin-top: 10px;">点击"生成新周报"按钮创建第一份报告</div>
@@ -35,29 +35,22 @@ function renderReportList(reports) {
   }
   let html = '';
   for (const report of reports) {
-    const riskClass = report.risk_level === 'high' ? 'badge-high' :
-                     report.risk_level === 'medium' ? 'badge-medium' : 'badge-low';
-    const riskLabel = report.risk_level === 'high' ? '🔴 高风险' :
-                     report.risk_level === 'medium' ? '🟡 中风险' : '🟢 低风险';
+    const riskClass = report.risk_level === 'high' ? 'err' :
+                     report.risk_level === 'medium' ? 'warn' : 'ok';
+    const riskLabel = report.risk_level === 'high' ? '高风险' :
+                     report.risk_level === 'medium' ? '中风险' : '低风险';
     const summaryText = report.summary || '无摘要';
     const previewText = summaryText.length > 80 ? summaryText.substring(0, 80) + '...' : summaryText;
     html += `
-      <div class="report-card" onclick="viewReport(${report.id})">
-        <div class="report-header">
-          <div class="report-title">${escapeHtml(report.title)}</div>
-          <span class="badge ${riskClass}">${riskLabel}</span>
+      <div class="rep-card" onclick="viewReport(${report.id})">
+        <div class="rh">
+          <span class="rt">${escapeHtml(report.title)}</span>
+          <span class="tag ${riskClass}">${riskLabel}</span>
         </div>
-        <div class="report-meta">
-          <span>📅 ${formatDate(report.created_at)}</span>
-          <span>📊 ${report.twitter_count || 0} Twitter / ${report.discord_count || 0} Discord</span>
-        </div>
-        <div class="report-summary">
-          <strong style="color: #667eea;">💡 核心观点：</strong><br>
-          ${escapeHtml(previewText)}
-        </div>
-        <div class="report-actions">
-          <button class="btn btn-secondary" onclick="event.stopPropagation(); downloadReport(${report.id})">📥 下载</button>
-        </div>
+        <div class="rm">📅 ${formatDate(report.created_at)} 生成</div>
+        <div class="rm">📊 ${report.twitter_count || 0} Twitter · ${report.discord_count || 0} Discord</div>
+        <div class="rv">💡 核心观点：${escapeHtml(previewText)}</div>
+        <div style="margin-top:12px"><a class="btn-op" onclick="event.stopPropagation(); viewReport(${report.id})">查看</a><a class="btn-op" onclick="event.stopPropagation(); downloadReport(${report.id})">下载</a></div>
       </div>`;
   }
   container.innerHTML = html;

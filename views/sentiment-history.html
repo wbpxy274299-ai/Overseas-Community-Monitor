@@ -7,167 +7,143 @@
   <script src="/static/js/common.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jschardet@3.1.4/dist/jschardet.min.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
+  <style>
+    .adm-pane { display: none; }
+    .adm-pane.on { display: block; }
+    .fb-card { background: var(--panel-2); border: 1px solid var(--hair); border-left: 3px solid var(--line); border-radius: 8px; padding: 18px 20px; margin-bottom: 12px; }
+    .lounge-list .fb-card { cursor: pointer; transition: border-color .2s; }
+    .lounge-list .fb-card:hover { border-color: var(--mut); }
+  </style>
 </head>
 <body>
   <div class="wrap page-head" style="padding:36px 0 20px">
-    <div class="micro">舆情历史数据</div>
-    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">舆情历史数据</div>
+    <div class="micro">History · 历史数据 — Twitter / Discord / 韩国社区 历史舆情存档</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Data Archive</div>
   </div>
 
   <div class="wrap">
-    <!-- Tab 切换栏 -->
-    <div class="history-tabs">
-      <button class="history-tab active" data-tab="tw-dc" onclick="switchHistoryTab('tw-dc')">🐦 Twitter + 💬 Discord</button>
-      <button class="history-tab" data-tab="korean" onclick="switchHistoryTab('korean')">🇰🇷 韩国社区</button>
+    <!-- 标签卡 -->
+    <div class="tab-cards" style="grid-template-columns:repeat(2,1fr);margin-bottom:24px">
+      <div class="tab-card on" onclick="switchHistoryTab('tw-dc')">
+        <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53A4.48 4.48 0 0 0 12 8v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></svg></div>
+        <div><div class="tn">Twitter + Discord</div><div class="td">日服推文 · 繁中聊天记录</div></div>
+      </div>
+      <div class="tab-card" onclick="switchHistoryTab('korean')">
+        <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+        <div><div class="tn">KR 韩国社区</div><div class="td">Naver Game Lounge · Tree of Savior</div></div>
+      </div>
     </div>
 
     <!-- ===== Tab 1: Twitter + Discord ===== -->
-    <div class="history-tab-content" id="tabTwDc">
-    <!-- 数据管理（采集 + 上传 + 筛选 整合为一个卡片） -->
-    <div class="data-management super-admin-only">
-      <!-- 顶部操作行：启动抓取 + 手动上传 -->
-      <div class="mgmt-toolbar">
-        <div class="mgmt-collect">
-          <span class="mgmt-label">📡 数据采集</span>
-          <button class="btn btn-primary btn-sm" id="btnCollect" onclick="startCollecting()">▶ 启动抓取</button>
-        </div>
-        <div class="mgmt-upload">
-          <span class="mgmt-label">📤 手动上传</span>
-          <button class="btn btn-secondary btn-sm" onclick="toggleUploadPanel()">展开 / 收起</button>
-        </div>
+    <div class="adm-pane on" id="tabTwDc">
+    <!-- 数据采集 + 手动上传（黑切角整合面板） -->
+    <div class="panel-cut mb20 super-admin-only" style="padding:28px 28px 26px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+        <span class="strong" style="font-size:14px;color:#F2F2F0">📡 数据采集</span>
+        <button class="btn btn-light btn-sm" style="margin-left:auto" id="btnCollect" onclick="startCollecting()">▶ 启动抓取</button>
+        <button class="btn btn-ghost-panel btn-sm" onclick="toggleUploadPanel()">展开 / 收起</button>
       </div>
       <!-- 抓取进度条 -->
-      <div id="collectProgressBar" class="collect-progress-bar" style="display:none;">
-        <div class="collect-progress-header">
-          <span class="collect-progress-icon" id="collectProgressIcon">⏳</span>
-          <span class="collect-progress-text" id="collectProgressText">准备中...</span>
-          <span class="collect-progress-elapsed" id="collectProgressElapsed"></span>
+      <div id="collectProgressBar" style="display:none;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span id="collectProgressIcon">⏳</span>
+          <span id="collectProgressText" style="color:#F2F2F0;font-size:13px">准备中...</span>
+          <span id="collectProgressElapsed" style="color:var(--cut-mut);font-size:12px;margin-left:auto"></span>
         </div>
-        <div class="collect-progress-track">
-          <div class="collect-progress-fill" id="collectProgressFill" style="width:0%"></div>
-        </div>
-        <div class="collect-progress-detail" id="collectProgressDetail"></div>
+        <div class="progress" style="background:rgba(255,255,255,.12)"><i id="collectProgressFill" style="width:0%;background:#F2F2F0"></i></div>
+        <div id="collectProgressDetail" style="font-size:11px;color:var(--cut-mut);margin-top:6px"></div>
       </div>
-      <!-- 抓取结果摘要 -->
-      <div id="collectResult" class="collect-result" style="display:none;"></div>
-      <!-- 手动上传面板（收起状态） -->
-      <div id="uploadPanel" class="upload-panel" style="display:none;">
-        <div style="display:flex; gap:8px; margin-bottom:10px;">
-          <button id="uploadTabTwitter" class="btn btn-primary btn-sm" onclick="switchUploadTab('twitter')">🐦 Twitter CSV</button>
-          <button id="uploadTabDiscord" class="btn btn-secondary btn-sm" onclick="switchUploadTab('discord')">💬 Discord 文本</button>
+      <div id="collectResult" style="display:none;margin-bottom:16px"></div>
+      <!-- 手动上传面板 -->
+      <div id="uploadPanel" style="display:none">
+        <div class="micro" style="margin-bottom:12px;color:var(--cut-mut)">Manual Upload · 手动补录历史数据</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+          <div>
+            <div class="card-title" style="font-size:14px;margin-bottom:4px;color:#F2F2F0" id="uploadTabTwitter">Twitter CSV 上传</div>
+            <div class="card-sub mb20" style="color:var(--cut-mut)">需包含 created_at / full_text / url 字段</div>
+            <input type="file" id="twitterCsvFile" accept=".csv" style="margin-bottom:8px">
+            <button class="btn btn-light btn-sm" onclick="uploadTwitterCSV()">上传并处理 <span class="ar">→</span></button>
+          </div>
+          <div>
+            <div class="card-title" style="font-size:14px;margin-bottom:4px;color:#F2F2F0">Discord 聊天记录粘贴</div>
+            <div class="card-sub mb20" style="color:var(--cut-mut)">格式：用户名 — 日期 时间，下一行为消息内容</div>
+            <textarea id="discordTextInput" class="txta txta-dark" rows="4" placeholder="Seraphm — 2026/7/23 22:06&#10;無盡大約有50人吧"></textarea>
+            <button class="btn btn-light btn-sm" style="margin-top:8px" onclick="uploadDiscordText()">上传并处理 <span class="ar">→</span></button>
+          </div>
         </div>
-        <div id="uploadTwitter">
-          <p style="font-size:12px; color:var(--mut); margin-bottom:8px;">选择 Twitter 搜索导出的 CSV 文件（需包含 created_at, full_text, url 等字段）</p>
-          <input type="file" id="twitterCsvFile" accept=".csv" style="margin-bottom:8px;">
-          <button class="btn btn-primary btn-sm" onclick="uploadTwitterCSV()">上传并处理</button>
-        </div>
-        <div id="uploadDiscord" style="display:none;">
-          <p style="font-size:12px; color:var(--mut); margin-bottom:8px;">粘贴 Discord 聊天记录（格式：用户名 — 日期 时间，下一行是消息内容）</p>
-          <textarea id="discordTextInput" rows="6" placeholder="Seraphm — 2026/7/23 22:06&#10;無盡大約有50人吧&#10;&#10;luguo1354 — 2026/7/24 16:07&#10;我們從1300升到1700多" style="width:100%; font-size:13px; padding:10px; border:1px solid #d1d5db; border-radius:6px; margin-bottom:8px; font-family:monospace;"></textarea>
-          <button class="btn btn-primary btn-sm" onclick="uploadDiscordText()">上传并处理</button>
-        </div>
-        <div id="uploadResult" style="margin-top:10px; font-size:13px;"></div>
-      </div>
-      <!-- 筛选行：一行展示 -->
-      <div class="mgmt-filters">
-        <select id="platformFilter">
-          <option value="">全部平台</option>
-          <option value="twitter">Twitter</option>
-          <option value="discord">Discord</option>
-        </select>
-        <input type="date" id="startDate">
-        <span class="filter-sep">~</span>
-        <input type="date" id="endDate">
-        <button class="btn btn-sm btn-query" onclick="loadData()">🔍 查询</button>
+        <div id="uploadResult" style="margin-top:12px;font-size:13px;color:var(--cut-mut)"></div>
       </div>
     </div>
 
-    <!-- 数据表格 -->
-    <div class="data-table-container">
+    <!-- 筛选 + 表格 -->
+    <div class="card card-pad mb20" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select id="platformFilter" class="sel"><option value="">全部平台</option><option value="twitter">Twitter</option><option value="discord">Discord</option></select>
+      <input type="date" id="startDate" class="sel"><span style="color:var(--mut)">~</span><input type="date" id="endDate" class="sel">
+      <button class="btn btn-ghost btn-sm" onclick="loadData()">🔍 查询</button>
+    </div>
+    <div class="card mb32" style="overflow-x:auto">
       <div id="loadingState" class="loading">加载中...</div>
-      <div id="emptyState" class="empty-state" style="display: none;">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
-        <p>暂无数据</p>
+      <div id="emptyState" class="empty-state" style="display:none;text-align:center;padding:40px">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+        <p style="margin-top:10px;color:var(--mut)">暂无数据</p>
       </div>
-      <table class="data-table" id="dataTable" style="display: none;">
-        <thead>
-          <tr>
-            <th style="width: 100px;">平台</th>
-            <th style="width: 150px;">作者</th>
-            <th style="width: 180px;">发布时间</th>
-            <th>内容</th>
-            <th style="width: 100px;">链接</th>
-          </tr>
-        </thead>
+      <table id="dataTable" style="width:100%;display:none">
+        <thead><tr><th style="width:100px">平台</th><th style="width:150px">作者</th><th style="width:180px">发布时间</th><th>内容</th><th style="width:100px">链接</th></tr></thead>
         <tbody id="tableBody"></tbody>
       </table>
-      <!-- 分页 -->
-      <div class="pagination" id="pagination" style="display: none;">
-        <button onclick="changePage(-1)" id="prevBtn">上一页</button>
-        <span class="pagination-info" id="pageInfo">第 1 页 / 共 1 页</span>
-        <button onclick="changePage(1)" id="nextBtn">下一页</button>
+      <div id="pagination" style="display:none;padding:14px 20px;border-top:1px solid var(--hair);display:flex;gap:10px;align-items:center;justify-content:center">
+        <button class="btn btn-ghost btn-sm" onclick="changePage(-1)" id="prevBtn">上一页</button>
+        <span class="micro" id="pageInfo">第 1 页 / 共 1 页</span>
+        <button class="btn btn-ghost btn-sm" onclick="changePage(1)" id="nextBtn">下一页</button>
       </div>
     </div>
     </div><!-- /#tabTwDc -->
 
     <!-- ===== Tab 2: 韩国社区 ===== -->
-    <div class="history-tab-content" id="tabKorean" style="display:none;">
-    <div class="lounge-section">
-      <div class="lounge-header">
-        <div class="lounge-header-info">
-          <h2>🇰🇷 韩国社区帖子</h2>
-          <span class="lounge-subtitle">Naver Game Lounge · Tree of Savior</span>
-          <span class="lounge-count" id="loungeTotal">-</span>
-        </div>
-        <div class="lounge-actions">
-          <span class="lounge-crawl-status" id="loungeCrawlStatus">--</span>
-          <button class="btn btn-primary btn-sm" id="btnLoungeCrawl" onclick="triggerLoungeCrawl()">🔄 立即抓取</button>
-          <button class="btn btn-secondary btn-sm" onclick="initLoungeDates();loadLoungePosts()">🔃 刷新</button>
-        </div>
+    <div class="adm-pane" id="tabKorean">
+    <!-- 抓取控制台（黑切角面板） -->
+    <div class="panel-cut mb20" style="padding:28px 28px 26px">
+      <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+        <h2 style="font-size:20px">Naver Lounge Crawler<br>韩国社区抓取控制台</h2>
+        <p class="desc">Naver Game Lounge · Tree of Savior<br>自动抓取帖子并翻译为中文</p>
       </div>
-      <!-- 韩国帖子筛选 -->
-      <div class="mgmt-filters" style="margin-top:0; padding-top:0; border-top:none;">
-        <select id="loungeSentimentFilter" onchange="loadLoungePosts()">
-          <option value="">全部情感</option>
-          <option value="negative">😠 负面</option>
-          <option value="neutral">😐 中性</option>
-          <option value="positive">😊 正面</option>
-        </select>
-        <select id="loungeCategoryFilter" onchange="loadLoungePosts()">
-          <option value="">全部分类</option>
-          <option value="bug">🐛 Bug</option>
-          <option value="complaint">😤 投诉</option>
-          <option value="question">❓ 提问</option>
-          <option value="suggestion">💡 建议</option>
-          <option value="praise">👍 好评</option>
-        </select>
-        <input type="date" id="loungeStartDate">
-        <span class="filter-sep">~</span>
-        <input type="date" id="loungeEndDate">
-        <button class="btn btn-sm btn-query" onclick="loadLoungePosts()">🔍 查询</button>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <span id="loungeCrawlStatus" style="font-size:13px;color:var(--cut-mut)">--</span>
+        <span id="loungeTotal" style="font-size:13px;color:var(--cut-mut)"></span>
+        <button class="btn btn-light" id="btnLoungeCrawl" onclick="triggerLoungeCrawl()" style="margin-left:auto">▶ 立即抓取 <span class="ar">→</span></button>
+        <button class="btn btn-ghost-panel btn-sm" onclick="initLoungeDates();loadLoungePosts()">🔄 刷新</button>
       </div>
-      <div id="loungeLoading" class="loading">加载中...</div>
-      <div id="loungeEmpty" class="empty-state" style="display:none;">
-        <p>暂无韩国社区数据</p>
-      </div>
-      <div id="loungeList" class="lounge-list"></div>
-      <!-- 韩国帖子分页 -->
-      <div class="pagination" id="loungePagination" style="display:none;">
-        <button onclick="changeLoungePage(-1)" id="loungePrevBtn">上一页</button>
-        <span class="pagination-info" id="loungePageInfo">第 1 页 / 共 1 页</span>
-        <button onclick="changeLoungePage(1)" id="loungeNextBtn">下一页</button>
-      </div>
+    </div>
+
+    <!-- 筛选 -->
+    <div class="card card-pad mb20" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select id="loungeSentimentFilter" class="sel" onchange="loadLoungePosts()"><option value="">全部情感</option><option value="negative">😠 负面</option><option value="neutral">😐 中性</option><option value="positive">😊 正面</option></select>
+      <select id="loungeCategoryFilter" class="sel" onchange="loadLoungePosts()"><option value="">全部分类</option><option value="bug">🐛 Bug</option><option value="complaint">😤 投诉</option><option value="question">❓ 提问</option><option value="suggestion">💡 建议</option><option value="praise">👍 好评</option></select>
+      <input type="date" id="loungeStartDate" class="sel"><span style="color:var(--mut)">~</span><input type="date" id="loungeEndDate" class="sel">
+      <button class="btn btn-ghost btn-sm" onclick="loadLoungePosts()">🔍 查询</button>
+    </div>
+
+    <!-- 帖子列表 -->
+    <div id="loungeLoading" class="loading">加载中...</div>
+    <div id="loungeEmpty" class="empty-state" style="display:none;text-align:center;padding:40px;color:var(--mut)">暂无韩国社区数据</div>
+    <div id="loungeList" class="lounge-list"></div>
+
+    <!-- 分页 -->
+    <div id="loungePagination" style="display:none;padding:14px 0;display:flex;gap:10px;align-items:center;justify-content:center">
+      <button class="btn btn-ghost btn-sm" onclick="changeLoungePage(-1)" id="loungePrevBtn">上一页</button>
+      <span class="micro" id="loungePageInfo">第 1 页 / 共 1 页</span>
+      <button class="btn btn-ghost btn-sm" onclick="changeLoungePage(1)" id="loungeNextBtn">下一页</button>
     </div>
     </div><!-- /#tabKorean -->
 
     <!-- 韩国评论弹窗 -->
-    <div id="loungeModal" class="lounge-modal" style="display:none;" onclick="if(event.target===this)closeLoungeModal()">
-      <div class="lounge-modal-content">
-        <div class="lounge-modal-header">
-          <h3 id="loungeModalTitle">帖子详情</h3>
-          <button onclick="closeLoungeModal()" class="lounge-modal-close">&times;</button>
+    <div id="loungeModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeLoungeModal()">
+      <div class="modal-content" style="max-width:700px">
+        <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line)">
+          <h3 id="loungeModalTitle" style="font-size:16px;font-weight:700">帖子详情</h3>
+          <button onclick="closeLoungeModal()" style="background:none;border:none;font-size:20px;cursor:pointer">&times;</button>
         </div>
-        <div id="loungeModalBody" class="lounge-modal-body"></div>
+        <div id="loungeModalBody" style="padding:20px;max-height:70vh;overflow-y:auto"></div>
       </div>
     </div>
   </div>

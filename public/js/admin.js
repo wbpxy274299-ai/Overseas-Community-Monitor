@@ -265,15 +265,17 @@ async function togglePerm(username, type, value) {
 
 // ===== Tab 切换 =====
 function switchTab(tab) {
-  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelectorAll('.tab-card').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.adm-pane').forEach(c => c.classList.remove('on'));
+  if (event && event.target) {
+    const card = event.target.closest('.tab-card');
+    if (card) card.classList.add('on');
+  }
+  document.getElementById('tab-' + tab).classList.add('on');
   // 切换时加载数据
-  if (tab === 'tokens') loadTokens();
-  if (tab === 'channels') loadChannels();
   if (tab === 'feedback') loadFeedback();
   if (tab === 'database') loadDbOverview();
+  if (tab === 'publish') { loadTokens(); }
 }
 
 // ===== Token 管理 =====

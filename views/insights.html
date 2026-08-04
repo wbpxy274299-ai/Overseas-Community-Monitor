@@ -6,6 +6,74 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
+  <style>
+    .insight-empty-icon { width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;margin:0 auto 18px; }
+    .rep-card { background: var(--panel-2); border: 1px solid var(--hair); border-radius: 8px; padding: 18px 20px; }
+    .rep-card .rh { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .rep-card .rt { font-size: 15px; font-weight: 700; color: var(--ink); }
+    .rep-card .rm { font-size: 13px; color: var(--mut); margin-top: 4px; }
+    .stats-bar { display: flex; gap: 20px; flex-wrap: wrap; }
+    .stats-bar .stat-item { text-align: center; }
+    .stats-bar .stat-number { font-size: 24px; font-weight: 700; color: var(--ink); display: block; }
+    .stats-bar .stat-label { font-size: 12px; color: var(--mut); }
+  </style>
+</head>
+<body>
+  <div class="wrap page-head" style="padding:36px 0 20px">
+    <div class="micro">Player Insights · 玩家洞察 — AI 驱动的玩家需求分析报告</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Player Insights</div>
+    <div class="chips">
+      <span class="chip" id="periodLabel">分析周期 · 加载中...</span>
+      <span class="chip" id="historyCount">历史报告 · 0 份</span>
+      <button class="btn btn-ghost btn-sm" id="btnGenerate" onclick="generateInsights()" style="margin-left:auto">生成洞察报告 <span class="ar">→</span></button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- 统计概览（有报告时显示） -->
+    <div class="stats-bar card card-pad mb32" id="statsBar" style="display:none;">
+      <div class="stat-item"><span class="stat-number" id="statTotal">0</span><span class="stat-label">总发言数</span></div>
+      <div class="stat-item"><span class="stat-number" id="statTwitter">0</span><span class="stat-label">🇯🇵 Twitter</span></div>
+      <div class="stat-item"><span class="stat-number" id="statDiscord">0</span><span class="stat-label">🇹🇼 Discord</span></div>
+      <div class="stat-item"><span class="stat-number" id="statPeriod">-</span><span class="stat-label">分析周期</span></div>
+    </div>
+
+    <!-- 报告区域 -->
+    <div id="reportArea" class="mb32">
+      <!-- 空状态（黑切角面板） -->
+      <div class="panel-cut mb32" style="padding:48px 44px 44px;text-align:center">
+        <div class="micro" style="color:var(--cut-mut);margin-bottom:20px" id="emptyPeriodLabel">Current Insight · 分析周期 加载中...</div>
+        <div class="insight-empty-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F2F2F0" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+        <div style="font-size:20px;font-weight:700;color:#F2F2F0;margin-bottom:10px">还没有洞察报告</div>
+        <p style="color:var(--cut-mut);font-size:13px;max-width:440px;margin:0 auto 24px;line-height:1.7">点击「生成洞察报告」，AI 将分析上周五到本周四的玩家发言，<br>为你输出专业的分析报告</p>
+        <button class="btn btn-light" onclick="generateInsights()">生成洞察报告 <span class="ar">→</span></button>
+      </div>
+    </div>
+
+    <!-- 历史报告存档 -->
+    <div class="card card-pad mb32">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <div><div class="micro" style="margin-bottom:6px">History</div><div class="card-title" style="font-size:17px" id="historyTitle">历史报告存档</div></div>
+      </div>
+      <div id="historyList">
+        <div class="loading">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/insights.js"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>🔍 M2G 玩家洞察</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+  <script src="/static/js/common.js"></script>
+  <link rel="stylesheet" href="/static/css/m2g-theme.css">
 </head>
 <body>
   <div class="wrap page-head" style="padding:36px 0 20px">

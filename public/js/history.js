@@ -214,8 +214,8 @@ let currentHistoryTab = 'tw-dc';
 
 function switchHistoryTab(tab) {
   currentHistoryTab = tab;
-  document.querySelectorAll('.history-tab').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tab);
+  document.querySelectorAll('.tab-card').forEach(btn => {
+    btn.classList.toggle('on', btn.getAttribute('onclick') && btn.getAttribute('onclick').includes("'" + tab + "'"));
   });
   document.getElementById('tabTwDc').style.display = tab === 'tw-dc' ? '' : 'none';
   document.getElementById('tabKorean').style.display = tab === 'korean' ? '' : 'none';

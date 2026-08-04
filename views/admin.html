@@ -6,6 +6,190 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
+  <style>
+    .adm-pane { display: none; }
+    .adm-pane.on { display: block; }
+    .adm-sub { display: none; }
+    .adm-sub.on { display: block; }
+    .seg-bar { display: flex; border-bottom: 1px solid var(--hair); margin-bottom: 18px; }
+    .seg-bar button { padding: 10px 20px; border: 1px solid var(--line); background: var(--panel-2); color: var(--mut); cursor: pointer; font-size: 14px; margin-right: -1px; border-radius: 0; transition: all .2s; }
+    .seg-bar button:first-child { border-radius: 8px 0 0 0; }
+    .seg-bar button:last-child { border-radius: 0 8px 0 0; }
+    .seg-bar button.on { background: var(--panel); color: var(--ink); position: relative; z-index: 1; }
+    .tok-card { background: var(--panel-2); border: 1px solid var(--hair); border-radius: 8px; padding: 16px; }
+    .ch-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--hair); }
+    .ch-row:last-child { border-bottom: none; }
+    .cid { font-family: 'Space Grotesk', monospace; font-size: 11px; color: var(--mut); flex: 1; }
+    .del { margin-left: auto; }
+    .fb-card { background: var(--panel-2); border: 1px solid var(--hair); border-left: 3px solid var(--line); border-radius: 8px; padding: 18px 20px; margin-bottom: 12px; }
+    .fb-body { font-size: 14px; color: var(--ink); line-height: 1.6; margin: 10px 0; }
+    .db-card { background: var(--panel-2); border: 1px solid var(--hair); border-radius: 8px; padding: 14px; display: flex; align-items: center; gap: 12px; }
+    .db-card .b { width: 36px; height: 36px; border-radius: 8px; background: var(--ink); color: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+    .db-card .n { font-size: 14px; font-weight: 600; color: var(--ink); }
+    .db-card .t { font-size: 11px; color: var(--mut); }
+    .db-card .r { margin-left: auto; text-align: right; }
+    .db-card .rn { font-size: 16px; font-weight: 700; color: var(--ink); }
+    .perm-grp { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; }
+    .perm-chip { padding: 3px 10px; border: 1px solid var(--line); border-radius: 20px; font-size: 11px; color: var(--mut); cursor: pointer; transition: all .15s; }
+    .perm-chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    .perm-chip.lock { cursor: default; opacity: .6; }
+    .gl { font-size: 10px; color: var(--mut); text-transform: uppercase; letter-spacing: .1em; margin-right: 4px; }
+  </style>
+</head>
+<body>
+  <div class="wrap page-head" style="padding:36px 0 20px">
+    <div class="micro">Admin · 权限管理 — 用户角色、Bot Token、发布频道、数据库与意见反馈的统一管理台</div>
+    <div class="huge" style="font-size:clamp(26px,3.2vw,40px);line-height:1.15;margin:8px 0 16px">Admin Control</div>
+  </div>
+
+  <div class="wrap">
+    <div class="warn-banner">⚠ <strong>注意：</strong>此页面仅对管理员开放。请谨慎分配管理员权限，确保只有信任的用户才能获得完整功能访问权。</div>
+
+    <!-- 一级标签卡 -->
+    <div class="tab-cards" id="admTabs" style="margin-bottom:24px">
+      <div class="tab-card on" onclick="switchTab('users')">
+        <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6"/></svg></div>
+        <div><div class="tn">角色权限</div><div class="td">用户角色与扩展权限</div></div>
+      </div>
+      <div class="tab-card" onclick="switchTab('publish')">
+        <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg></div>
+        <div><div class="tn">发布管理</div><div class="td">Bot Token · 发布频道</div></div>
+      </div>
+      <div class="tab-card" onclick="switchTab('database')">
+        <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 5v14c0 1.7-4 3-9 3s-9-1.3-9-3V5"/></svg></div>
+        <div><div class="tn">数据库</div><div class="td">数据表存储与历史数据</div></div>
+      </div>
+      <div class="tab-card" onclick="switchTab('feedback')">
+        <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <div><div class="tn">意见反馈</div><div class="td">反馈与建议</div></div>
+      </div>
+    </div>
+
+    <!-- Tab 1: 用户权限 -->
+    <div class="adm-pane on" id="tab-users">
+      <div class="card mb32">
+        <div class="card-pad" style="padding-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+          <div><div class="micro" style="margin-bottom:6px">Users</div><div class="card-title" style="font-size:17px">用户权限表</div></div>
+          <span class="micro" style="letter-spacing:.15em">角色变更实时生效</span>
+        </div>
+        <table>
+          <thead><tr><th>用户名</th><th>当前角色</th><th>权限说明</th><th>扩展权限</th><th>注册时间</th><th>操作</th></tr></thead>
+          <tbody id="userTableBody">
+            <tr><td colspan="6" class="loading">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 2: 发布管理（Token + 频道） -->
+    <div class="adm-pane" id="tab-publish">
+      <div class="seg-bar" id="publishSeg">
+        <button class="on" onclick="switchPublishSub('tokens')">Bot Token</button>
+        <button onclick="switchPublishSub('channels')">发布频道</button>
+      </div>
+      <!-- 子面板: Token -->
+      <div class="adm-sub on" id="sub-tokens">
+        <div class="card-sub mb20">查看、测试、更新各地区的 Bot Token</div>
+        <div id="tokenCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px" class="mb32">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+      <!-- 子面板: 频道 -->
+      <div class="adm-sub" id="sub-channels">
+        <div class="card-sub mb20">新增、删除发布目标频道</div>
+        <div class="card card-pad mb32">
+          <div class="card-title" style="font-size:14px;margin-bottom:14px">＋ 新增频道</div>
+          <div style="display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:10px">
+            <input type="text" id="newChName" class="sel" style="min-width:0" placeholder="频道名称（如：日服-活动频道）">
+            <select id="newChBot" class="sel"><option value="">选择 Bot</option><option value="TC">繁中服 TC</option><option value="JP">日服 JP</option><option value="SEA">东南亚服 SEA</option><option value="KR">韩服 KR</option></select>
+            <input type="text" id="newChId" class="sel" style="min-width:0" placeholder="频道 ID">
+            <button class="btn btn-solid btn-sm" onclick="addChannel()">＋ 添加</button>
+          </div>
+        </div>
+        <div id="channelList" class="card card-pad mb32">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: 数据库 -->
+    <div class="adm-pane" id="tab-database">
+      <div id="db-overview">
+        <div class="card-sub mb20">查看所有数据表的存储情况，管理历史数据</div>
+        <div class="card card-pad mb20" style="display:flex;gap:26px;flex-wrap:wrap;font-size:13px" id="dbStatsBar">
+          <span>⚙️ 加载中...</span>
+        </div>
+        <div id="dbTableGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px" class="mb32">
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+      <div id="db-detail" style="display:none;">
+        <div class="db-detail-header" style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+          <button class="btn btn-ghost btn-sm" onclick="showDbOverview()">← 返回概览</button>
+          <h3 id="dbDetailTitle" style="font-size:18px;font-weight:700">表名</h3>
+        </div>
+        <div class="db-toolbar" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+          <input type="text" id="dbSearchInput" class="sel" placeholder="搜索关键词..." onkeydown="if(event.key==='Enter')doDbSearch()">
+          <button class="btn btn-ghost btn-sm" onclick="doDbSearch()">🔍 搜索</button>
+          <button class="btn btn-ghost btn-sm" onclick="refreshDbTable()">↻ 刷新</button>
+          <button class="btn btn-op danger" id="btnBatchDel" onclick="batchDeleteSelected()" style="display:none;">🗑️ 批量删除 (<span id="batchCount">0</span>)</button>
+        </div>
+        <div class="card mb32" style="overflow-x:auto">
+          <table class="db-data-table" style="width:100%">
+            <thead id="dbTableHead"><tr></tr></thead>
+            <tbody id="dbTableBody"><tr><td class="loading">加载中...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="db-pagination" id="dbPagination" style="display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:20px"></div>
+      </div>
+      <!-- 编辑弹窗 -->
+      <div class="db-modal-overlay" id="dbEditModal" style="display:none;" onclick="if(event.target===this)closeDbEditModal()">
+        <div class="db-modal">
+          <div class="db-modal-header" style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line)">
+            <h4 id="dbEditTitle">编辑记录</h4>
+            <button class="btn-modal-close" onclick="closeDbEditModal()" style="background:none;border:none;font-size:20px;cursor:pointer">&times;</button>
+          </div>
+          <div class="db-modal-body" id="dbEditBody" style="padding:20px;max-height:60vh;overflow-y:auto"></div>
+          <div class="db-modal-footer" style="padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm" onclick="closeDbEditModal()">取消</button>
+            <button class="btn btn-solid btn-sm" onclick="saveDbEdit()">💾 保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 4: 意见反馈 -->
+    <div class="adm-pane" id="tab-feedback">
+      <div class="card-sub mb20">查看用户提交的反馈和建议</div>
+      <div id="feedbackList">
+        <div class="loading">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/admin.js"></script>
+  <script>
+    // 发布管理子标签切换
+    function switchPublishSub(sub) {
+      document.querySelectorAll('#publishSeg button').forEach((b,i) => {
+        b.classList.toggle('on', b.getAttribute('onclick').includes(sub));
+      });
+      document.getElementById('sub-tokens').classList.toggle('on', sub === 'tokens');
+      document.getElementById('sub-channels').classList.toggle('on', sub === 'channels');
+      if (sub === 'tokens') loadTokens();
+      if (sub === 'channels') loadChannels();
+    }
+  </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>🔐 M2G 权限管理</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
+  <script src="/static/js/common.js"></script>
+  <link rel="stylesheet" href="/static/css/m2g-theme.css">
 </head>
 <body>
   <div class="wrap page-head" style="padding:36px 0 20px">
