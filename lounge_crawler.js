@@ -337,25 +337,41 @@ async function crawlPostDetail(browser, post) {
       }
 
       // ===== 第1步：找帖子正文容器 =====
-      // 优先级：article标签 > feed_body类 > root直接子元素中最大的非噪音块
-      const articleEl = document.querySelector('article') || document.querySelector('[role="article"]');
-
-      // 尝试找到帖子正文区域（排除评论区和侧边栏）
+      // 优先级：正文专用容器 > article标签 > 标题父容器
       let bodyContainer = null;
-      if (articleEl) {
-        bodyContainer = articleEl;
-      } else {
-        // 兜底：找 #root 里包含帖子标题的那个容器
+
+      // ★ 优先找正文专用容器（这些容器确定不含评论区）
+      // 比喻：先找"黑板"，找不到再找"教室"
+      // 优先级：_content_12ncv(纯正文) > _wrap_content_10kn6(正文区) > nng-viewer
+      const contentArea = document.querySelector('[class*="_content_12ncv"]')
+        || document.querySelector('[class*="_wrap_content_10kn6"]')
+        || document.querySelector('nng-viewer.contents')
+        || document.querySelector('[class*="nng-viewer"]');
+      if (contentArea && contentArea.textContent.length > 20) {
+        bodyContainer = contentArea;
+      }
+
+      // 其次：article 标签
+      if (!bodyContainer) {
+        const articleEl = document.querySelector('article') || document.querySelector('[role="article"]');
+        if (articleEl) bodyContainer = articleEl;
+      }
+
+      // 兜底：从标题往上找，但必须排除含评论区的容器
+      if (!bodyContainer) {
         const titleEl = document.querySelector('strong[class*="feed_title"]') || document.querySelector('strong[class*="title"]');
         if (titleEl) {
-          // 从标题元素向上找，找到包含帖子内容的合理容器（不要太大）
           let parent = titleEl.parentElement;
           for (let i = 0; i < 5 && parent; i++) {
             const text = parent.textContent || '';
-            // 容器文本长度合理（不能是整个页面的量级）
+            // 容器文本长度合理
             if (text.length > 20 && text.length < 10000) {
-              bodyContainer = parent;
-              break;
+              // ★ 关键：检查这个容器内是否有评论元素，有就跳过
+              const hasReplyChild = parent.querySelector('[class*="_type_reply"], [class*="comment_item"], [class*="reply_item"]');
+              if (!hasReplyChild) {
+                bodyContainer = parent;
+                break;
+              }
             }
             parent = parent.parentElement;
           }
@@ -364,35 +380,38 @@ async function crawlPostDetail(browser, post) {
 
       // ===== 第2步：从容器中提取纯文本 =====
       if (bodyContainer) {
-        // 收集所有文本块（p、span、div 的叶子节点）
-        const blocks = bodyContainer.querySelectorAll('p, span, div');
         const textParts = [];
         const seen = new Set();
-        let hitCommentSection = false; // 标记是否已进入评论区
 
-        for (const el of blocks) {
+        // ★ 用 TreeWalker 扫描容器内所有文字节点（能穿透 nng-viewer 等自定义元素）
+        // 比喻：像用放大镜逐字扫描，不放过任何角落的文字
+        const walker = document.createTreeWalker(bodyContainer, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const node = walker.currentNode;
+          const parent = node.parentElement;
+          if (!parent) continue;
+
           // 跳过导航/页脚标签内的元素
-          if (isInsideNoiseTag(el)) continue;
+          if (isInsideNoiseTag(parent)) continue;
 
-          // ★ 检测是否进入评论区（遇到评论区容器则停止）
-          if (hitCommentSection) continue;
-          const className = (el.className || '').toLowerCase();
-          if (className.includes('comment') || className.includes('cmt') || className.includes('reply')) {
-            hitCommentSection = true;
-            continue;
+          // ★ 检测是否在评论区内（祖先元素含评论 class 则跳过）
+          let ancestor = parent;
+          let inCommentSection = false;
+          while (ancestor && ancestor !== bodyContainer) {
+            const cn = (ancestor.className || '').toLowerCase();
+            if (cn.includes('_type_reply') || cn.includes('comment') || cn.includes('cmt')) {
+              inCommentSection = true;
+              break;
+            }
+            ancestor = ancestor.parentElement;
           }
+          if (inCommentSection) continue;
 
-          // 只取叶子文本节点（没有子元素的文本块）
-          const directText = Array.from(el.childNodes)
-            .filter(n => n.nodeType === 3)
-            .map(n => n.textContent.trim())
-            .join('')
-            .trim();
-
-          if (!directText || isNoise(directText)) continue;
-          if (seen.has(directText)) continue;
-          seen.add(directText);
-          textParts.push(directText);
+          const t = node.textContent.trim();
+          if (!t || isNoise(t)) continue;
+          if (seen.has(t)) continue;
+          seen.add(t);
+          textParts.push(t);
         }
 
         result.content = textParts.join('\n');
