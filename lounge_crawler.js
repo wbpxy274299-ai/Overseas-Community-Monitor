@@ -461,7 +461,12 @@ async function crawlPostDetail(browser, post) {
 
         // 从每条评论里提取作者 + 文字
         const cAuthor = item.querySelector('[class*="_name_vjceo"], [class*="nick"], [class*="name"]');
-        const cText = item.querySelector('[class*="_text_vjceo"], [class*="_content_vjceo"], [class*="text"]:not([class*="_text_1iug5"])');
+        // ★ 先找评论容器(_content_vjceo)，再取里面的文字(_text_vjceo)
+        // 比喻：先找到评论的"信封"，再拆开来读里面的"信"
+        const contentBox = item.querySelector('[class*="_content_vjceo"]');
+        const cText = contentBox
+          ? contentBox.querySelector('[class*="_text_vjceo"]') || contentBox
+          : item.querySelector('[class*="_text_vjceo"]');
         const cTime = item.querySelector('[class*="_time_vjceo"], [class*="date"], [class*="time"], time');
         const cLikes = item.querySelector('[class*="like"], [class*="good"], [class*="thumb"]');
 
