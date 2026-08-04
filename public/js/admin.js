@@ -53,6 +53,9 @@ function renderUserTable(users) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">暂无用户</td></tr>';
     return;
   }
+  // 更新计数角标
+  const cntEl = document.getElementById('cntUsers');
+  if (cntEl) cntEl.textContent = users.length + ' 人';
 
   const currentUser = getCurrentUser();
 
@@ -292,31 +295,31 @@ function renderTokenCards(tokens) {
   const container = document.getElementById('tokenCards');
   const user = getCurrentUser();
   const isSuperAdmin = user && user.role === 'super_admin';
+  // 更新计数角标
+  const cntEl = document.getElementById('cntPublish');
+  if (cntEl) cntEl.textContent = tokens.length + ' Token';
   container.innerHTML = tokens.map(t => {
-    // 只有超管才能看到更新 Token 按钮
     const editBtnHtml = isSuperAdmin
       ? `<button class="btn-token-edit" onclick="showTokenEdit('${t.server}')">✏️ 更新 Token</button>`
       : `<button class="btn-token-edit" disabled title="仅超级管理员可更新 Token" style="opacity:0.4;cursor:not-allowed;">✏️ 更新 Token</button>`;
     return `
-    <div class="token-card" id="token-card-${t.server}">
-      <div class="token-card-header">
-        <span class="token-server-badge">${t.label}</span>
-        <span class="token-status ${t.has ? 'status-ok' : 'status-empty'}">${t.has ? '✅ 已配置' : '❌ 未配置'}</span>
+    <div class="tok-card" id="token-card-${t.server}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="strong">${t.label}</span>
+        <span class="tag ${t.has ? 'ok' : 'err'}">${t.has ? '已配置' : '未配置'}</span>
       </div>
-      <div class="token-card-body">
-        <div class="token-masked"><code>${t.masked}</code></div>
-        ${t.length ? `<small>Token 长度: ${t.length}</small>` : ''}
-        <div class="token-test-result" id="token-result-${t.server}"></div>
-      </div>
-      <div class="token-card-actions">
-        <button class="btn-token-test" onclick="testToken('${t.server}')">🔍 测试健康度</button>
+      <div class="tok-mask"><code>${t.masked}</code></div>
+      ${t.length ? `<div style="font-size:11px;color:var(--mut)">Token 长度: ${t.length}</div>` : ''}
+      <div id="token-result-${t.server}"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn-op" onclick="testToken('${t.server}')">🔍 测试健康度</button>
         ${editBtnHtml}
       </div>
       <div class="token-edit-form" id="token-edit-${t.server}" style="display:none;">
-        <input type="password" id="token-input-${t.server}" placeholder="粘贴新的 Token" class="token-input">
-        <div class="token-edit-btns">
-          <button class="btn-token-save" onclick="saveToken('${t.server}')">💾 保存</button>
-          <button class="btn-token-cancel" onclick="hideTokenEdit('${t.server}')">取消</button>
+        <input type="password" id="token-input-${t.server}" placeholder="粘贴新的 Token" class="sel" style="width:100%;margin-top:8px">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-solid btn-sm" onclick="saveToken('${t.server}')">💾 保存</button>
+          <button class="btn btn-ghost btn-sm" onclick="hideTokenEdit('${t.server}')">取消</button>
         </div>
       </div>
     </div>`;
@@ -405,19 +408,14 @@ function renderChannelList(channels) {
   const botLabels = { TC: '繁中服', JP: '日服', SEA: '东南亚服', KR: '韩服' };
   let html = '';
   for (const [bot, list] of Object.entries(groups)) {
-    html += `<div class="channel-group">
-      <h3 class="channel-group-title">${botLabels[bot] || bot} (${list.length})</h3>
-      <div class="channel-group-list">`;
+    html += `<div class="micro" style="margin:18px 0 12px;color:var(--info)">${botLabels[bot] || bot} (${list.length})</div>`;
     for (const ch of list) {
-      html += `<div class="channel-item">
-        <div class="channel-item-info">
-          <span class="channel-name">${escapeHtml(ch.name)}</span>
-          <code class="channel-id">${ch.channel_id}</code>
-        </div>
-        <button class="btn-channel-del" onclick="deleteChannel('${encodeURIComponent(ch.name)}')" title="删除">🗑️</button>
+      html += `<div class="ch-row">
+        <span class="strong" style="font-size:13px">${escapeHtml(ch.name)}</span>
+        <span class="cid">${ch.channel_id}</span>
+        <span class="del"><button class="btn-op danger" onclick="deleteChannel('${encodeURIComponent(ch.name)}')" title="删除">🗑️</button></span>
       </div>`;
     }
-    html += '</div></div>';
   }
   container.innerHTML = html;
 }
@@ -479,30 +477,30 @@ async function loadFeedback() {
 function renderFeedbackList(items) {
   const container = document.getElementById('feedbackList');
   if (!items || !items.length) {
-    container.innerHTML = '<div class="empty-state" style="padding:32px;text-align:center;color:#888;">暂无反馈 ✨</div>';
+    container.innerHTML = '<div class="empty-state" style="padding:32px;text-align:center;color:var(--mut);">暂无反馈 ✨</div>';
     return;
   }
-  const statusLabels = { unread: '🆕 未读', read: '📧 已读', resolved: '✅ 已处理' };
+  // 更新计数角标
+  const unreadCount = items.filter(i => i.status === 'unread').length;
+  const cntEl = document.getElementById('cntFeedback');
+  if (cntEl) cntEl.textContent = unreadCount + ' 未读';
+  const statusLabels = { unread: '未读', read: '已读', resolved: '已处理' };
   container.innerHTML = items.map(item => {
     const statusText = statusLabels[item.status] || item.status;
+    const statusTagClass = item.status === 'unread' ? 'warn' : item.status === 'resolved' ? 'ok' : 'info';
     const date = item.created_at ? formatTimestamp(item.created_at) : '—';
     return `
-    <div class="feedback-admin-item ${item.status === 'unread' ? 'unread' : ''}">
-      <div class="fai-header">
-        <div class="fai-title-row">
-          <span class="fai-title">${escapeHtml(item.title)}</span>
-          <span class="fai-status">${statusText}</span>
-        </div>
-        <div class="fai-meta">
-          <span>👤 ${escapeHtml(item.from_user || '匿名')}</span>
-          <span>📅 ${date}</span>
-        </div>
+    <div class="fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <span class="strong" style="font-size:14px">${escapeHtml(item.title)}</span>
+        <span class="tag ${statusTagClass}">${statusText}</span>
       </div>
-      <div class="fai-content">${escapeHtml(item.content)}</div>
-      <div class="fai-actions">
-        ${item.status === 'unread' ? `<button class="btn btn-sm" onclick="markFeedbackRead(${item.id})">标为已读</button>` : ''}
-        ${item.status !== 'resolved' ? `<button class="btn btn-sm btn-success" onclick="markFeedbackResolved(${item.id})">标为已处理</button>` : ''}
-        <button class="btn btn-sm" style="background:#ef4444;color:#fff;" onclick="deleteFeedback(${item.id})">🗑️ 删除</button>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">👤 ${escapeHtml(item.from_user || '匿名')} · 📅 ${date}</div>
+      <div class="fb-body">${escapeHtml(item.content)}</div>
+      <div style="display:flex;gap:8px">
+        ${item.status === 'unread' ? `<button class="btn-op" onclick="markFeedbackRead(${item.id})">标为已读</button>` : ''}
+        ${item.status !== 'resolved' ? `<button class="btn-op ok" onclick="markFeedbackResolved(${item.id})">标为已处理</button>` : ''}
+        <button class="btn-op danger" onclick="deleteFeedback(${item.id})">🗑️ 删除</button>
       </div>
     </div>`;
   }).join('');
@@ -578,25 +576,27 @@ function renderDbTableGrid(tables) {
   if (!tables.length) { grid.innerHTML = '<div class="empty-state">无可管理的表</div>'; return; }
   
   const ICONS = {
-    sentiment_records: '🐦', lounge_posts: '🇰🇷', lounge_comments: '💬',
-    lounge_daily_reports: '📊', topic_history: '🔥', daily_snapshots: '📸',
-    feedbacks: '💌', insights_reports: '🔍', weekly_reports: '📋',
+    sentiment_records: '舆', lounge_posts: 'KR', lounge_comments: '评',
+    lounge_daily_reports: '日', topic_history: '话', daily_snapshots: '快',
+    feedbacks: '反', insights_reports: '洞', weekly_reports: '周',
   };
   
+  // 更新计数角标
+  const cntEl = document.getElementById('cntDb');
+  if (cntEl) cntEl.textContent = tables.length + ' 表';
+  
   grid.innerHTML = tables.map(t => {
-    const icon = ICONS[t.name] || '📄';
-    const statusClass = t.rows === 0 ? 'db-card-empty' : t.rows > 1000 ? 'db-card-full' : 'db-card-normal';
+    const icon = ICONS[t.name] || t.name.charAt(0).toUpperCase();
     const timeStr = t.latestAt ? formatTimestamp(t.latestAt) : '—';
     return `
-    <div class="db-table-card ${statusClass}" onclick="openDbTable('${t.name}', '${escapeHtml(t.label)}')">
-      <div class="db-card-icon">${icon}</div>
-      <div class="db-card-info">
-        <div class="db-card-label">${escapeHtml(t.label)}</div>
-        <div class="db-card-name">${t.name}</div>
+    <div class="db-card" onclick="openDbTable('${t.name}', '${escapeHtml(t.label)}')">
+      <div class="b">${icon}</div>
+      <div>
+        <div class="n">${escapeHtml(t.label)}</div>
+        <div class="t">${t.name} · ${timeStr}</div>
       </div>
-      <div class="db-card-stats">
-        <span class="db-card-rows">${t.rows.toLocaleString()} 行</span>
-        <span class="db-card-time">${timeStr}</span>
+      <div class="r">
+        <div class="rn" style="color:${t.rows === 0 ? 'var(--err)' : t.rows > 1000 ? 'var(--ok)' : 'var(--ink)'}">${t.rows.toLocaleString()} 行</div>
       </div>
     </div>`;
   }).join('');

@@ -7,19 +7,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
-  <style>
-    .term-tabs { display: flex; border-bottom: 1px solid var(--hair); }
-    .term-tab { padding: 10px 20px; border: 1px solid var(--line); background: var(--panel-2); color: var(--mut); cursor: pointer; font-size: 14px; transition: all .2s; border-bottom: none; margin-right: -1px; border-radius: 0; }
-    .term-tab:first-child { border-radius: 8px 0 0 0; }
-    .term-tab:last-child { border-radius: 0 8px 0 0; }
-    .term-tab.active, .term-tab:hover { background: var(--panel); color: var(--ink); border-bottom-color: var(--panel); position: relative; z-index: 1; }
-    .term-panel { display: none; padding: 24px 0 0; }
-    .term-panel.active { display: block; }
-    .update-mode-bar { display: flex; gap: 0; margin-bottom: 18px; }
-    .update-mode-bar .lang-btn { border-radius: 0; }
-    .update-mode-bar .lang-btn:first-child { border-radius: 8px 0 0 8px; }
-    .update-mode-bar .lang-btn:last-child { border-radius: 0 8px 8px 0; }
-  </style>
 </head>
 <body>
   <div class="wrap page-head" style="padding:36px 0 20px">
@@ -35,15 +22,15 @@
     <!-- 主体工具卡 -->
     <div class="card mb32">
       <div class="card-pad" style="padding-bottom:0">
-        <div class="term-tabs">
-          <button class="term-tab active" onclick="switchTermTab('search')">🔍 搜索</button>
-          <button class="term-tab" onclick="switchTermTab('check')">📝 校对</button>
-          <button class="term-tab" onclick="switchTermTab('batch')">📦 批量校对</button>
+      <div class="seg-bar" id="termSeg">
+          <button class="on" onclick="switchTermTab('search')">🔍 搜索</button>
+          <button onclick="switchTermTab('check')">📝 校对</button>
+          <button onclick="switchTermTab('batch')">📦 批量校对</button>
         </div>
       </div>
 
       <!-- Tab 1: 搜索术语 -->
-      <div class="term-panel active card-pad" id="panel-search" style="border-top:1px solid var(--hair)">
+      <div class="adm-sub on card-pad" id="panel-search" style="border-top:1px solid var(--hair)">
         <div style="display:flex;gap:12px;margin-bottom:16px">
           <input type="text" id="termSearchInput" class="sel" style="flex:1" placeholder="输入中文、日语、英语等任意语言关键词..." autofocus>
           <button class="btn btn-solid btn-sm" onclick="doTermSearch()">搜索 <span class="ar">→</span></button>
@@ -54,7 +41,7 @@
       </div>
 
       <!-- Tab 2: 文案校对 -->
-      <div class="term-panel card-pad" id="panel-check" style="border-top:1px solid var(--hair)">
+      <div class="adm-sub card-pad" id="panel-check" style="border-top:1px solid var(--hair)">
         <textarea id="checkInput" class="txta" style="min-height:110px" placeholder="粘贴任意语言的文案，例如：&#10;ツリネバの新イベントが始まりました！&#10;The player can use Mount to explore the dungeon..."></textarea>
         <div style="display:flex;gap:12px;align-items:center;margin:14px 0;flex-wrap:wrap">
           <button class="btn btn-solid btn-sm" onclick="doTermCheck()">开始校对 <span class="ar">→</span></button>
@@ -65,16 +52,16 @@
       </div>
 
       <!-- Tab 3: 批量校对 -->
-      <div class="term-panel card-pad" id="panel-batch" style="border-top:1px solid var(--hair)">
-        <div class="check-lang-bar" style="margin-bottom:16px">
-          <span class="check-label" style="font-size:13px;color:var(--mut);margin-right:8px">校对语言：</span>
-          <button class="lang-btn active" data-lang="jp" onclick="setBatchLang(this)">🇯🇵 日语</button>
-          <button class="lang-btn" data-lang="en" onclick="setBatchLang(this)">🇬🇧 英语</button>
-          <button class="lang-btn" data-lang="kr" onclick="setBatchLang(this)">🇰🇷 韩语</button>
-          <button class="lang-btn" data-lang="tw" onclick="setBatchLang(this)">🇭🇰 繁中</button>
-          <button class="lang-btn" data-lang="vn" onclick="setBatchLang(this)">🇻🇳 越南语</button>
-          <button class="lang-btn" data-lang="id" onclick="setBatchLang(this)">🇮🇩 印尼语</button>
-          <button class="lang-btn" data-lang="th" onclick="setBatchLang(this)">🇹🇭 泰语</button>
+      <div class="adm-sub card-pad" id="panel-batch" style="border-top:1px solid var(--hair)">
+        <div class="perm-grp" style="margin-bottom:16px">
+          <span class="gl" style="font-size:13px;color:var(--mut);margin-right:8px">校对语言：</span>
+          <span class="perm-chip on" data-lang="jp" onclick="setBatchLang(this)">🇯🇵 日语</span>
+          <span class="perm-chip" data-lang="en" onclick="setBatchLang(this)">🇬🇧 英语</span>
+          <span class="perm-chip" data-lang="kr" onclick="setBatchLang(this)">🇰🇷 韩语</span>
+          <span class="perm-chip" data-lang="tw" onclick="setBatchLang(this)">🇭🇰 繁中</span>
+          <span class="perm-chip" data-lang="vn" onclick="setBatchLang(this)">🇻🇳 越南语</span>
+          <span class="perm-chip" data-lang="id" onclick="setBatchLang(this)">🇮🇩 印尼语</span>
+          <span class="perm-chip" data-lang="th" onclick="setBatchLang(this)">🇹🇭 泰语</span>
         </div>
         <div class="batch-upload-zone drop" id="batchDropZone" onclick="document.getElementById('batchFileInput').click()">
           <div class="ico">⬆</div>
@@ -93,9 +80,9 @@
         <h2 style="font-size:20px">Update Glossary<br>更新术语表</h2>
         <p class="desc">支持单语言更新或 7 种语言批量合并导入</p>
       </div>
-      <div class="update-mode-bar">
-        <button class="lang-btn active" id="updateModeBatch" onclick="setUpdateMode('batch')" style="background:rgba(255,255,255,.14);color:#F2F2F0;border-color:transparent;box-shadow:none">📦 批量导入（多语言 Excel）</button>
-        <button class="lang-btn" id="updateModeSingle" onclick="setUpdateMode('single')" style="background:transparent;color:#C9CBD1;border-color:transparent">📝 单语言更新</button>
+      <div class="seg-bar" id="updSeg" style="margin-bottom:18px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.1)">
+        <button class="on" id="updateModeBatch" onclick="setUpdateMode('batch')" style="background:rgba(255,255,255,.14);color:#F2F2F0;border-color:transparent;box-shadow:none">📦 批量导入（多语言 Excel）</button>
+        <button id="updateModeSingle" onclick="setUpdateMode('single')" style="background:transparent;color:#C9CBD1;border-color:transparent">📝 单语言更新</button>
       </div>
 
       <!-- 批量模式 -->
@@ -111,15 +98,15 @@
 
       <!-- 单语言模式 -->
       <div id="updateSinglePanel" style="display:none">
-        <div class="check-lang-bar" style="margin-bottom:16px">
+        <div class="perm-grp" style="margin-bottom:16px">
           <span class="gl" style="color:var(--cut-mut);margin-right:8px;font-size:13px">语言</span>
-          <button class="lang-btn active" data-lang="jp" onclick="setUpdateLang(this)">🇯🇵 日语</button>
-          <button class="lang-btn" data-lang="en" onclick="setUpdateLang(this)">🇬🇧 英语</button>
-          <button class="lang-btn" data-lang="kr" onclick="setUpdateLang(this)">🇰🇷 韩语</button>
-          <button class="lang-btn" data-lang="tw" onclick="setUpdateLang(this)">🇭🇰 繁中</button>
-          <button class="lang-btn" data-lang="vn" onclick="setUpdateLang(this)">🇻🇳 越南语</button>
-          <button class="lang-btn" data-lang="id" onclick="setUpdateLang(this)">🇮🇩 印尼语</button>
-          <button class="lang-btn" data-lang="th" onclick="setUpdateLang(this)">🇹🇭 泰语</button>
+          <span class="perm-chip on" data-lang="jp" onclick="setUpdateLang(this)">🇯🇵 日语</span>
+          <span class="perm-chip" data-lang="en" onclick="setUpdateLang(this)">🇬🇧 英语</span>
+          <span class="perm-chip" data-lang="kr" onclick="setUpdateLang(this)">🇰🇷 韩语</span>
+          <span class="perm-chip" data-lang="tw" onclick="setUpdateLang(this)">🇭🇰 繁中</span>
+          <span class="perm-chip" data-lang="vn" onclick="setUpdateLang(this)">🇻🇳 越南语</span>
+          <span class="perm-chip" data-lang="id" onclick="setUpdateLang(this)">🇮🇩 印尼语</span>
+          <span class="perm-chip" data-lang="th" onclick="setUpdateLang(this)">🇹🇭 泰语</span>
         </div>
         <div class="drop drop-dark" onclick="document.getElementById('updateSingleInput').click()">
           <div class="ico">📁</div>

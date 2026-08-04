@@ -4,6 +4,8 @@
 const API_BASE = '/api/weekly-report';
 const SENTIMENT_API = '/api/sentiment';
 
+let currentReportId = null;
+
 // 加载报告列表
 async function loadReports() {
   try {
@@ -29,32 +31,96 @@ function renderReportList(reports) {
       <div class="empty-state" style="grid-column:1/-1">
         <div style="font-size: 48px; margin-bottom: 20px;">📄</div>
         <div>暂无报告</div>
-        <div style="font-size: 13px; margin-top: 10px;">点击"生成新周报"按钮创建第一份报告</div>
+        <div style="font-size: 13px; margin-top: 10px;">点击“生成新周报”按钮创建第一份报告</div>
       </div>`;
+    document.getElementById('currentReportPanel').style.display = 'none';
     return;
   }
+
+  // 最新报告填充当前周报面板
+  const latest = reports[0];
+  currentReportId = latest.id;
+  const panel = document.getElementById('currentReportPanel');
+  panel.style.display = '';
+  
+  const riskClass = latest.risk_level === 'high' ? '#E88B81' :
+                   latest.risk_level === 'medium' ? 'var(--warn)' : '#7CC79A';
+  const riskLabel = latest.risk_level === 'high' ? '高' :
+                   latest.risk_level === 'medium' ? '中' : '低';
+  
+  // 标题
+  const titleDate = latest.title ? latest.title.match(/\d{4}-\d{2}-\d{2}/)?.[0] : '';
+  document.getElementById('currentReportTitle').innerHTML = `Current Report<br>当前周报${titleDate ? ' · ' + titleDate : ''}`;
+  
+  // 元数据
+  document.getElementById('currentReportMeta').innerHTML = `生成于 ${formatDate(latest.created_at)}<br>数据来源：Twitter（Yahoo实时搜索）+ Discord（繁中服）`;
+  
+  // 统计卡片
+  const tw = latest.twitter_count || 0;
+  const dc = latest.discord_count || 0;
+  const total = tw + dc;
+  document.getElementById('currentReportStats').innerHTML = `
+    <div class="lstat"><div class="n">${total}</div><div class="t">本周共收集 · 条</div></div>
+    <div class="lstat" style="border-left:3px solid #4A9EDA"><div class="n">${tw}</div><div class="t">Twitter</div></div>
+    <div class="lstat" style="border-left:3px solid #6A5ACD"><div class="n">${dc}</div><div class="t">Discord</div></div>
+    <div class="lstat" style="border-left:3px solid ${riskClass}"><div class="n" style="color:${riskClass}">${riskLabel}</div><div class="t">风险等级</div></div>
+  `;
+  
+  // 加载最新报告内容，按章节拆分，只展示总览+发言概况+AI分析
+  const contentEl = document.getElementById('currentReportContent');
+  contentEl.innerHTML = '<div style="color:var(--cut-mut);font-size:13px"> 加载报告内容...</div>';
+  fetch(`${SENTIMENT_API}/report/${latest.id}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok && data.data.content) {
+        const fullMd = data.data.content;
+        // 找到"二、"的位置，截取之前的内容
+        const cutIndex = fullMd.indexOf('二、');
+        let md;
+        if (cutIndex > 0) {
+          // 往前找到上一个换行，确保不截断标题
+          const lastNewline = fullMd.lastIndexOf('\n', cutIndex);
+          md = fullMd.substring(0, lastNewline > 0 ? lastNewline : cutIndex);
+        } else {
+          md = fullMd;
+        }
+        contentEl.innerHTML = renderMarkdown(md);
+      } else {
+        const previewText = (latest.summary || '').length > 300 ? (latest.summary || '').substring(0, 300) + '...' : (latest.summary || '暂无内容');
+        contentEl.innerHTML = `<div class="sumbox-dark">${escapeHtml(previewText)}</div>`;
+      }
+    })
+    .catch(() => {
+      const previewText = (latest.summary || '').length > 300 ? (latest.summary || '').substring(0, 300) + '...' : (latest.summary || '暂无内容');
+      contentEl.innerHTML = `<div class="sumbox-dark">${escapeHtml(previewText)}</div>`;
+    });
+
+  // 历史报告列表（全部包含最新）
   let html = '';
   for (const report of reports) {
-    const riskClass = report.risk_level === 'high' ? 'err' :
-                     report.risk_level === 'medium' ? 'warn' : 'ok';
-    const riskLabel = report.risk_level === 'high' ? '高风险' :
-                     report.risk_level === 'medium' ? '中风险' : '低风险';
-    const summaryText = report.summary || '无摘要';
-    const previewText = summaryText.length > 80 ? summaryText.substring(0, 80) + '...' : summaryText;
+    const rc = report.risk_level === 'high' ? 'err' :
+               report.risk_level === 'medium' ? 'warn' : 'ok';
+    const rl = report.risk_level === 'high' ? '高风险' :
+               report.risk_level === 'medium' ? '中风险' : '低风险';
+    const st = report.summary || '无摘要';
+    const pt = st.length > 80 ? st.substring(0, 80) + '...' : st;
     html += `
       <div class="rep-card" onclick="viewReport(${report.id})">
         <div class="rh">
           <span class="rt">${escapeHtml(report.title)}</span>
-          <span class="tag ${riskClass}">${riskLabel}</span>
+          <span class="tag ${rc}">${rl}</span>
         </div>
         <div class="rm">📅 ${formatDate(report.created_at)} 生成</div>
         <div class="rm">📊 ${report.twitter_count || 0} Twitter · ${report.discord_count || 0} Discord</div>
-        <div class="rv">💡 核心观点：${escapeHtml(previewText)}</div>
+        <div class="rv">💡 核心观点：${escapeHtml(pt)}</div>
         <div style="margin-top:12px"><a class="btn-op" onclick="event.stopPropagation(); viewReport(${report.id})">查看</a><a class="btn-op" onclick="event.stopPropagation(); downloadReport(${report.id})">下载</a></div>
       </div>`;
   }
   container.innerHTML = html;
 }
+
+function viewCurrentReport() { if (currentReportId) viewReport(currentReportId); }
+function downloadCurrentReport() { if (currentReportId) downloadReport(currentReportId); }
 
 // 生成新报告
 async function generateReport() {

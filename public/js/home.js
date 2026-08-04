@@ -22,6 +22,7 @@ const $ = (id) => document.getElementById(id);
 async function api(url, options = {}) {
   const resp = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
+    credentials: 'same-origin',
     ...options,
   });
   const data = await resp.json();
@@ -83,21 +84,39 @@ async function checkLoginStatus() {
       if (data.valid && data.user) {
         state.currentOperator = data.user.username;
         state.currentUserRole = data.user.role || 'operator';
-        // 同步到 common.js 的 localStorage（导航栏权限用）
         localStorage.setItem('user', JSON.stringify({
           name: data.user.username,
           role: data.user.role,
           email: data.user.email,
           picture: data.user.picture,
+          perms: data.permissions || {},
         }));
         showMainApp();
         return;
       }
     }
-    // 未登录，跳转到 Google 登录页
+    // API 返回无效，但检查 localStorage 是否有缓存用户（兜底，避免无限跳登录）
+    const cachedUser = JSON.parse(localStorage.getItem('user') || 'null');
+    if (cachedUser && cachedUser.name) {
+      console.warn('⚠️ API验证失败，使用缓存用户:', cachedUser.name);
+      state.currentOperator = cachedUser.name;
+      state.currentUserRole = cachedUser.role || 'operator';
+      showMainApp();
+      return;
+    }
+    // 确实未登录，跳转
     window.location.href = '/login';
   } catch (e) {
     console.error('登录检测失败:', e);
+    // 网络错误时也检查缓存
+    const cachedUser = JSON.parse(localStorage.getItem('user') || 'null');
+    if (cachedUser && cachedUser.name) {
+      console.warn('⚠️ 网络错误，使用缓存用户:', cachedUser.name);
+      state.currentOperator = cachedUser.name;
+      state.currentUserRole = cachedUser.role || 'operator';
+      showMainApp();
+      return;
+    }
     window.location.href = '/login';
   }
 }
@@ -398,7 +417,7 @@ async function submitSend(e) {
       formData.append('files', compressed);
     }
     try {
-      const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+      const resp = await fetch('/api/upload', { method: 'POST', body: formData, credentials: 'same-origin' });
       const data = await resp.json();
       if (resp.ok) {
         state.uploadedFilenames = data.filenames;

@@ -68,9 +68,9 @@ function _paLoadLatestCache() {
 
 // ===== Tab 切换 =====
 function paSwitchTab(tab) {
-  document.querySelectorAll('.pa-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  document.querySelectorAll('.pa-tab-content').forEach(c => c.classList.remove('active'));
-  document.getElementById('pa-tab-' + tab).classList.add('active');
+  document.querySelectorAll('.seg-bar button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelectorAll('.adm-sub').forEach(c => c.classList.remove('on'));
+  document.getElementById('pa-tab-' + tab).classList.add('on');
 }
 
 // ===== 清空 =====

@@ -7,14 +7,20 @@
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
   <style>
-    .rep-card { background: var(--panel-2); border: 1px solid var(--hair); border-radius: 8px; padding: 18px 20px; transition: border-color .2s; cursor: pointer; }
-    .rep-card:hover { border-color: var(--mut); }
-    .rep-card .rh { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .rep-card .rt { font-size: 15px; font-weight: 700; color: var(--ink); }
-    .rep-card .rm { font-size: 13px; color: var(--mut); margin-top: 4px; }
-    .rep-card .rv { font-size: 13px; color: var(--ink); margin-top: 8px; line-height: 1.6; }
     .rep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 768px) { .rep-grid { grid-template-columns: 1fr; } }
+    /* 黑面板内 markdown 内容样式 */
+    #currentReportContent h1,#currentReportContent h2,#currentReportContent h3{color:#F2F2F0;margin:18px 0 10px;font-weight:700}
+    #currentReportContent h1{font-size:18px}#currentReportContent h2{font-size:16px}#currentReportContent h3{font-size:14px}
+    #currentReportContent p{color:#C9CBD1;font-size:13px;line-height:1.7;margin:8px 0}
+    #currentReportContent table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+    #currentReportContent th{color:#8F9196;font-size:10px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;text-align:left;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.12)}
+    #currentReportContent td{color:#C9CBD1;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
+    #currentReportContent blockquote{border-left:3px solid rgba(255,255,255,.2);padding:8px 14px;margin:10px 0;background:rgba(255,255,255,.04);border-radius:0 8px 8px 0;color:#C9CBD1;font-size:13px}
+    #currentReportContent ul{color:#C9CBD1;font-size:13px;padding-left:20px;margin:8px 0}
+    #currentReportContent li{margin:4px 0}
+    #currentReportContent hr{border:none;border-top:1px solid rgba(255,255,255,.1);margin:16px 0}
+    #currentReportContent strong{color:#F2F2F0}
   </style>
 </head>
 <body>
@@ -30,10 +36,24 @@
   </div>
 
   <div class="wrap">
-    <!-- 报告列表 -->
+    <!-- 当前周报（黑切角大面板） -->
+    <div class="panel-cut mb32" id="currentReportPanel" style="padding:34px 34px 30px;display:none">
+      <div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:22px">
+        <h2 style="font-size:20px" id="currentReportTitle">Current Report<br>当前周报</h2>
+        <p class="desc" id="currentReportMeta"></p>
+      </div>
+      <div id="currentReportStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px"></div>
+      <div id="currentReportContent"></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:18px">
+        <button class="btn btn-light" onclick="viewCurrentReport()">查看完整报告 <span class="ar">→</span></button>
+        <button class="btn btn-ghost-panel" onclick="downloadCurrentReport()">下载报告</button>
+      </div>
+    </div>
+
+    <!-- 历史报告（白卡） -->
     <div class="card card-pad mb32">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-        <div><div class="micro" style="margin-bottom:6px">Reports</div><div class="card-title" style="font-size:17px">全部报告</div></div>
+        <div><div class="micro" style="margin-bottom:6px">History</div><div class="card-title" style="font-size:17px">历史报告</div></div>
         <span class="micro" style="letter-spacing:.15em">按时间倒序</span>
       </div>
       <div id="reportList" class="rep-grid">

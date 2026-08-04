@@ -7,33 +7,14 @@
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
   <style>
-    .adm-pane { display: none; }
-    .adm-pane.on { display: block; }
-    .adm-sub { display: none; }
-    .adm-sub.on { display: block; }
+    /* 管理页 seg-bar 使用方形标签页样式（非圆角段控） */
     .seg-bar { display: flex; border-bottom: 1px solid var(--hair); margin-bottom: 18px; }
     .seg-bar button { padding: 10px 20px; border: 1px solid var(--line); background: var(--panel-2); color: var(--mut); cursor: pointer; font-size: 14px; margin-right: -1px; border-radius: 0; transition: all .2s; }
     .seg-bar button:first-child { border-radius: 8px 0 0 0; }
     .seg-bar button:last-child { border-radius: 0 8px 0 0; }
     .seg-bar button.on { background: var(--panel); color: var(--ink); position: relative; z-index: 1; }
-    .tok-card { background: var(--panel-2); border: 1px solid var(--hair); border-radius: 8px; padding: 16px; }
-    .ch-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--hair); }
-    .ch-row:last-child { border-bottom: none; }
     .cid { font-family: 'Space Grotesk', monospace; font-size: 11px; color: var(--mut); flex: 1; }
     .del { margin-left: auto; }
-    .fb-card { background: var(--panel-2); border: 1px solid var(--hair); border-left: 3px solid var(--line); border-radius: 8px; padding: 18px 20px; margin-bottom: 12px; }
-    .fb-body { font-size: 14px; color: var(--ink); line-height: 1.6; margin: 10px 0; }
-    .db-card { background: var(--panel-2); border: 1px solid var(--hair); border-radius: 8px; padding: 14px; display: flex; align-items: center; gap: 12px; }
-    .db-card .b { width: 36px; height: 36px; border-radius: 8px; background: var(--ink); color: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
-    .db-card .n { font-size: 14px; font-weight: 600; color: var(--ink); }
-    .db-card .t { font-size: 11px; color: var(--mut); }
-    .db-card .r { margin-left: auto; text-align: right; }
-    .db-card .rn { font-size: 16px; font-weight: 700; color: var(--ink); }
-    .perm-grp { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; }
-    .perm-chip { padding: 3px 10px; border: 1px solid var(--line); border-radius: 20px; font-size: 11px; color: var(--mut); cursor: pointer; transition: all .15s; }
-    .perm-chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-    .perm-chip.lock { cursor: default; opacity: .6; }
-    .gl { font-size: 10px; color: var(--mut); text-transform: uppercase; letter-spacing: .1em; margin-right: 4px; }
   </style>
 </head>
 <body>
@@ -50,18 +31,22 @@
       <div class="tab-card on" onclick="switchTab('users')">
         <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6"/></svg></div>
         <div><div class="tn">角色权限</div><div class="td">用户角色与扩展权限</div></div>
+        <span class="cnt" id="cntUsers">-</span>
       </div>
       <div class="tab-card" onclick="switchTab('publish')">
         <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg></div>
         <div><div class="tn">发布管理</div><div class="td">Bot Token · 发布频道</div></div>
+        <span class="cnt" id="cntPublish">-</span>
       </div>
       <div class="tab-card" onclick="switchTab('database')">
         <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 5v14c0 1.7-4 3-9 3s-9-1.3-9-3V5"/></svg></div>
         <div><div class="tn">数据库</div><div class="td">数据表存储与历史数据</div></div>
+        <span class="cnt" id="cntDb">-</span>
       </div>
-      <div class="tab-card" onclick="switchTab('feedback')">
+      <div class="tab-card hot" onclick="switchTab('feedback')">
         <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
         <div><div class="tn">意见反馈</div><div class="td">反馈与建议</div></div>
+        <span class="cnt" id="cntFeedback">-</span>
       </div>
     </div>
 

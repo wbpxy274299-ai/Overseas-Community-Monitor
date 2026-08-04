@@ -410,73 +410,78 @@ function formatTimestamp(timestamp) {
   return `${y}年${m}月${d}日 ${h}:${mi}:${s}`;
 }
 
-// ===== 求助 / 反馈浮动按钮 =====
+// ===== 浮动反馈组件（V43） =====
 const FeedbackBtn = {
   init() {
-    // 不在登录页显示
     if (!getUser()) return;
-    if (document.getElementById('feedback-fab')) return;
+    if (document.getElementById('fbFab')) return;
 
-    // 浮动按钮
+    // FAB 按钮
     const fab = document.createElement('button');
-    fab.id = 'feedback-fab';
-    fab.className = 'feedback-fab';
-    fab.title = '求助 / 反馈';
-    fab.textContent = '💬';
-    fab.onclick = () => this.openModal();
+    fab.id = 'fbFab';
+    fab.className = 'fb-fab';
+    fab.title = '反馈';
+    fab.setAttribute('aria-label', '反馈');
+    fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>';
+    fab.onclick = () => this.toggle();
     document.body.appendChild(fab);
 
-    // 弹窗蒙层
-    const overlay = document.createElement('div');
-    overlay.id = 'feedback-overlay';
-    overlay.className = 'feedback-overlay';
-    overlay.innerHTML = `
-      <div class="feedback-modal">
-        <div class="feedback-modal-header">
-          <h3>💬 求助 / 反馈</h3>
-          <button class="feedback-close" onclick="FeedbackBtn.closeModal()">&times;</button>
+    // 浮动面板
+    const win = document.createElement('div');
+    win.className = 'fb-win';
+    win.id = 'fbWin';
+    win.innerHTML = `
+      <div class="fh">
+        <span class="t">💬 反馈</span>
+        <span class="fb-sub">Feedback</span>
+        <button class="x" onclick="FeedbackBtn.toggle()">&times;</button>
+      </div>
+      <div class="fb-body">
+        <textarea id="fbText" placeholder="详细描述你遇到的问题或建议…"></textarea>
+        <input id="fbName" placeholder="你的称呼（必填）">
+        <div class="fb-foot">
+          <span class="fb-hint">直接发送给管理员</span>
+          <button class="fb-submit" onclick="FeedbackBtn.submit()">提交给管理员 →</button>
         </div>
-        <div class="feedback-modal-body">
-          <input id="feedbackTitle" class="feedback-input" placeholder="问题标题（必填）" maxlength="100">
-          <textarea id="feedbackContent" class="feedback-textarea" placeholder="详细描述你遇到的问题或建议…" maxlength="2000"></textarea>
-          <button class="btn btn-primary feedback-submit" onclick="FeedbackBtn.submit()">提交给管理员</button>
-        </div>
+        <div id="fbOk" style="display:none;margin-top:12px;color:#4C9E6E;font-size:12px;font-weight:600">已收到，感谢反馈！</div>
       </div>
     `;
-    overlay.onclick = (e) => { if (e.target === overlay) this.closeModal(); };
-    document.body.appendChild(overlay);
+    document.body.appendChild(win);
   },
 
-  openModal() {
-    document.getElementById('feedback-overlay').classList.add('active');
-  },
-  closeModal() {
-    document.getElementById('feedback-overlay').classList.remove('active');
+  toggle() {
+    document.getElementById('fbWin').classList.toggle('open');
   },
 
   async submit() {
-    const title = document.getElementById('feedbackTitle').value.trim();
-    const content = document.getElementById('feedbackContent').value.trim();
-    if (!title) { Toast.warning('请填写标题'); return; }
-    if (!content) { Toast.warning('请填写内容'); return; }
+    const content = document.getElementById('fbText').value.trim();
+    const name = document.getElementById('fbName').value.trim();
+    if (!content) { Toast.warning('请先填写反馈内容'); return; }
+    if (!name) { Toast.warning('请填写你的称呼（必填）'); return; }
+
+    const okEl = document.getElementById('fbOk');
+    const btn = document.querySelector('.fb-submit');
+    btn.disabled = true;
     try {
       const res = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content }),
         credentials: 'same-origin',
+        body: JSON.stringify({ title: '玩家反馈 · ' + name, content: content })
       });
       const data = await res.json();
       if (data.ok) {
-        Toast.success('反馈已发送给管理员！');
-        document.getElementById('feedbackTitle').value = '';
-        document.getElementById('feedbackContent').value = '';
-        this.closeModal();
+        okEl.style.display = 'block';
+        document.getElementById('fbText').value = '';
+        document.getElementById('fbName').value = '';
+        setTimeout(() => { okEl.style.display = 'none'; this.toggle(); }, 1400);
       } else {
-        Toast.error(data.error || '提交失败');
+        Toast.error(data.error || '提交失败，请稍后重试');
       }
     } catch (e) {
-      Toast.error('提交失败: ' + e.message);
+      Toast.error('提交失败：' + e.message);
+    } finally {
+      btn.disabled = false;
     }
   },
 };

@@ -96,6 +96,11 @@ function changePage(delta) {
 }
 
 // ===== 手动上传功能 =====
+function onCsvFileSelected(input) {
+  const nameEl = document.getElementById('csvFileName');
+  if (nameEl) nameEl.textContent = input.files.length ? input.files[0].name : '未选择任何文件';
+}
+
 function toggleUploadPanel() {
   const panel = document.getElementById('uploadPanel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';

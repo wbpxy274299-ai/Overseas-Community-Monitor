@@ -7,12 +7,6 @@
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
   <style>
-    .pa-tab { padding: 10px 20px; border: 1px solid var(--line); background: var(--panel-2); color: var(--mut); cursor: pointer; font-size: 14px; transition: all .2s; margin-right: -1px; border-radius: 0; }
-    .pa-tab:first-child { border-radius: 8px 0 0 0; }
-    .pa-tab:last-child { border-radius: 0 8px 0 0; }
-    .pa-tab.active { background: var(--panel); color: var(--ink); position: relative; z-index: 1; }
-    .pa-tab-content { display: none; }
-    .pa-tab-content.active { display: block; }
     .embed-ph { background: var(--panel-2); border: 1px dashed var(--line); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; }
     .embed-ph .ico { font-size: 32px; margin-bottom: 10px; }
     .embed-ph .t1 { font-size: 14px; font-weight: 600; color: var(--ink); }
@@ -60,16 +54,16 @@
       <div id="pa-status" class="card-sub" style="margin-bottom:18px"></div>
 
       <!-- Tab 切换 -->
-      <div style="display:flex;border-bottom:1px solid var(--hair);margin-bottom:14px">
-        <button class="pa-tab active" data-tab="translate" onclick="paSwitchTab('translate')">🌐 翻译结果</button>
-        <button class="pa-tab" data-tab="proofread" onclick="paSwitchTab('proofread')">✅ 校对结果</button>
+      <div class="seg-bar" style="margin-bottom:14px">
+        <button class="on" data-tab="translate" onclick="paSwitchTab('translate')">🌐 翻译结果</button>
+        <button data-tab="proofread" onclick="paSwitchTab('proofread')">✅ 校对结果</button>
       </div>
-      <div id="pa-tab-translate" class="pa-tab-content active">
+      <div id="pa-tab-translate" class="adm-sub on">
         <div id="pa-output">
           <div class="pa-empty-hint" style="color:var(--mut);text-align:center;padding:20px">翻译结果会显示在这里 ✨</div>
         </div>
       </div>
-      <div id="pa-tab-proofread" class="pa-tab-content">
+      <div id="pa-tab-proofread" class="adm-sub">
         <div id="pa-proof-output">
           <div class="pa-empty-hint" style="color:var(--mut);text-align:center;padding:20px">校对结果会显示在这里 📝</div>
         </div>

@@ -37,10 +37,11 @@ async function loadStats() {
 
 // ===== Tab 切换 =====
 function switchTermTab(tab) {
-  document.querySelectorAll('.term-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.term-panel').forEach(p => p.classList.remove('active'));
-  document.querySelector(`.term-tab[onclick*="${tab}"]`).classList.add('active');
-  document.getElementById(`panel-${tab}`).classList.add('active');
+  const segBar = document.getElementById('termSeg');
+  if (segBar) segBar.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('#termSeg button[onclick*="' + tab + '"]').forEach(b => b.classList.add('on'));
+  document.querySelectorAll('.adm-sub[id^="panel-"]').forEach(p => p.classList.remove('on'));
+  document.getElementById(`panel-${tab}`).classList.add('on');
 }
 
 // ===== 工具函数 =====
@@ -135,8 +136,8 @@ function renderCheckResult(matches, text, container) {
 //  TAB 3: 批量校对
 // ======================================================================
 function setBatchLang(btn) {
-  btn.closest('.check-lang-bar').querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  btn.closest('.perm-grp').querySelectorAll('.perm-chip').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
   currentBatchLang = btn.dataset.lang;
 }
 
@@ -213,13 +214,13 @@ function setUpdateMode(mode) {
   currentUpdateMode = mode;
   document.getElementById('updateBatchPanel').style.display = mode === 'batch' ? '' : 'none';
   document.getElementById('updateSinglePanel').style.display = mode === 'single' ? '' : 'none';
-  document.getElementById('updateModeBatch').classList.toggle('active', mode === 'batch');
-  document.getElementById('updateModeSingle').classList.toggle('active', mode === 'single');
+  document.getElementById('updateModeBatch').classList.toggle('on', mode === 'batch');
+  document.getElementById('updateModeSingle').classList.toggle('on', mode === 'single');
 }
 
 function setUpdateLang(btn) {
-  btn.closest('.check-lang-bar').querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  btn.closest('.perm-grp').querySelectorAll('.perm-chip').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
   currentUpdateLang = btn.dataset.lang;
 }
 
