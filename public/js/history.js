@@ -563,35 +563,36 @@ async function openLoungePost(postId, gameCode) {
     let html = '';
     if (post) {
       const catLabel = c => ({ bug:'🐛 Bug', suggestion:'💡 建议', complaint:'😤 投诉', praise:'👍 好评', question:'❓ 提问', other:'其他' }[c] || '');
-      const sentLabel = s => s === 'negative' ? '😠 负面' : s === 'positive' ? '😊 正面' : '😐 中性';
+      const sentLabel = s => s === 'negative' ? '😠 负面' : s === 'positive' ? '😊 正面' : ' 中性';
       title.textContent = post.title_zh || post.title || '帖子详情';
       html += `<div class="lounge-post-detail">`;
       html += `<div class="lounge-post-meta">
         <span class="lounge-sent-badge">${sentLabel(post.sentiment)}</span>
         ${post.ai_category ? `<span class="lounge-cat-badge">${catLabel(post.ai_category)}</span>` : ''}
-        <span>👤 ${escapeHtml(post.author||'匿名')} · 👁 ${post.view_count||0} · 💬 ${post.comment_count||0}</span>
+        <span class="lounge-post-author"> ${escapeHtml(post.author||'匿名')} ·  ${post.view_count||0} · 💬 ${post.comment_count||0}</span>
       </div>`;
       if (post.title_zh && post.title && post.title_zh !== post.title) {
-        html += `<div class="lounge-post-korean-title" style="font-size:12px;color:#888;margin:8px 0;">原标题: ${escapeHtml(post.title)}</div>`;
+        html += `<div class="lounge-post-korean-title">原标题: ${escapeHtml(post.title)}</div>`;
       }
       if (post.content_zh) {
-        html += `<div class="lounge-post-content" style="font-size:13px;line-height:1.8;color:#333;margin:12px 0;padding:12px;background:#f9fafb;border-radius:8px;">${escapeHtml(post.content_zh)}</div>`;
+        html += `<div class="lounge-post-content">${escapeHtml(post.content_zh)}</div>`;
       }
       if (post.content && post.content !== post.content_zh) {
-        html += `<div class="lounge-post-original" style="font-size:12px;color:#999;margin:8px 0;font-style:italic;">原文: ${escapeHtml(post.content.substring(0,200))}${post.content.length>200?'...':''}</div>`;
+        const origText = post.content.length > 300 ? post.content.substring(0, 300) + '...' : post.content;
+        html += `<div class="lounge-post-original">原文: ${escapeHtml(origText)}</div>`;
       }
       if (post.url) {
-        html += `<div style="margin:8px 0;"><a href="${post.url}" target="_blank" style="color:#667eea;font-size:12px;">查看原帖↗</a></div>`;
+        html += `<div class="lounge-post-url"><a href="${post.url}" target="_blank">查看原帖↗</a></div>`;
       }
       html += `</div>`;
     } else {
       title.textContent = '帖子详情';
     }
     // 评论区
-    html += `<div style="border-top:1px solid #e5e7eb;margin-top:16px;padding-top:12px;">`;
-    html += `<div style="font-size:14px;font-weight:600;margin-bottom:10px;">💬 评论 (${comments.length} 条)</div>`;
+    html += `<div class="lounge-comments-section">`;
+    html += `<div class="lounge-comments-title">💬 评论 (${comments.length} 条)</div>`;
     if (comments.length === 0) {
-      html += '<div style="text-align:center;color:#999;padding:12px;">暂无评论</div>';
+      html += '<div class="lounge-no-comments">暂无评论</div>';
     } else {
       const sentIcon = s => s === 'negative' ? '😟' : s === 'positive' ? '😊' : '😐';
       for (const c of comments) {
@@ -604,7 +605,7 @@ async function openLoungePost(postId, gameCode) {
             ${c.likes > 0 ? `<span class="lounge-cmt-likes">👍 ${c.likes}</span>` : ''}
           </div>
           <div class="lounge-cmt-text">${escapeHtml(text)}</div>
-          ${c.content_zh && c.content && c.content_zh !== c.content ? `<div style="font-size:11px;color:#999;font-style:italic;margin-top:2px;">原文: ${escapeHtml(c.content.substring(0,100))}</div>` : ''}
+          ${c.content_zh && c.content && c.content_zh !== c.content ? `<div class="lounge-cmt-original">原文: ${escapeHtml(c.content.substring(0, 150))}${c.content.length > 150 ? '...' : ''}</div>` : ''}
         </div>`;
       }
     }

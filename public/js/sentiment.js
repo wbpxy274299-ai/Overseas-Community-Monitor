@@ -284,8 +284,10 @@ function renderWeeklyTopicColumn(containerId, topics, platform) {
     let voicesHtml = '';
     if (t.voices && t.voices.length > 0) {
       for (const v of t.voices.slice(0, 2)) {
-        const linkHtml = v.url ? `<a href="${v.url}" target="_blank" style="color:#4A9EDA;text-decoration:none;font-size:11px">原帖↗</a>` : '';
-        voicesHtml += `<div class="quote"><div class="q">${escapeHtml(v.text)}</div><div class="a">👤 ${escapeHtml(v.author)} ${linkHtml}</div></div>`;
+        const linkHtml = v.url ? `<a href="${v.url}" target="_blank" style="color:#4A9EDA;text-decoration:none;font-size:11px">原帖</a>` : '';
+        const timeHtml = v.time ? `<span style="color:var(--mut);font-size:10px;margin-left:6px">${v.time}</span>` : '';
+        const typeIcon = v.type === 'comment' ? '💬' : '';
+        voicesHtml += `<div class="quote"><div class="q">${escapeHtml(v.text)}</div><div class="a">${typeIcon} ${escapeHtml(v.author)} ${timeHtml} ${linkHtml}</div></div>`;
       }
     }
     html += `<div class="tcard ${pf}">

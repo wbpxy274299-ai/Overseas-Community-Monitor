@@ -413,18 +413,17 @@ async function aiSummarizeHotTopics(records) {
   console.log(`🤖 AI 分析 ${records.length} 条高质量记录...`);
   
   const content = groupRecordsByTag(records.slice(0, 15), '', false);
-  const platform = records[0]?.source === 'twitter' ? 'Twitter（日服）' : 'Discord（繁中服）';
+  const src = records[0]?.source || '';
+  const platform = src === 'twitter' ? 'Twitter（日服）' : src === 'lounge' ? 'Naver Lounge（韓国服）' : 'Discord（繁中服）';
+  const gameContext = src === 'lounge'
+    ? '게임 배경:\n- 트리본드: 핵심 소셜 페어링 시스템\n- 기사단/기사단전: 길드 및 길드전\n- 매드세이돈: 한정 챌린지 이벤트\n- 가챠: 가챠 시스템\n- 월드보스: 월드보스 레이드'
+    : `ゲーム背景：\n- ツリーボンド：コアソーシャルペアリングシステム（プレイヤーペアリングプレイ）\n- 騎士団/騎士団戦：ギルドとギルド戦プレイ\n- マッドセイドン：リミテッドチャレンジイベント\n- ガチャ：ガチャシステム\n- IPライセンス：リュシイムタエンと韓国原産とのコラボレーション関係`;
   
   const prompt = `你是《森の国度》(ツリネバ/TOS Neverland) 游戏の资深運営アナリスト。
 
 以下是${platform}プレイヤーのリアルな発言、既にトピック別に分類されています。
 
-ゲーム背景：
-- ツリーボンド：コアソーシャルペアリングシステム（プレイヤーペアリングプレイ）
-- 騎士団/騎士団戦：ギルドとギルド戦プレイ
-- マッドセイドン：リミテッドチャレンジイベント
-- ガチャ：ガチャシステム
-- IPライセンス：リュシイムタエンと韓国原産とのコラボレーション関係
+${gameContext}
 
 ❗❗❗ コア要件（遵守しなければならない）：
 

@@ -10,6 +10,50 @@ const puppeteer = require('puppeteer');
 const log = require('./logger');
 const db = require('./db');
 
+// ===== 韩国时间解析（把韩文时间转成标准 ISO 格式）=====
+// 比喻：把韩国秘书写的"3小时前"翻译成"2026-07-29 15:30:00"
+function parseKoreanTime(timeStr, crawlTime) {
+  if (!timeStr) return crawlTime || new Date().toISOString();
+  
+  // 1. 如果已经是 ISO 格式（datetime 属性），直接用
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(timeStr)) {
+    return timeStr.replace('T', ' ');
+  }
+  
+  // 2. 韩文日期格式：2026.07.29 15:30 或 2026.07.29.
+  const dateMatch = timeStr.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})\.?\s*(\d{1,2}):(\d{2})/);
+  if (dateMatch) {
+    const [, y, m, d, h, min] = dateMatch;
+    return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')} ${h.padStart(2,'0')}:${min}:00`;
+  }
+  
+  // 3. 相对时间：3시간 전 (3小时前), 5분 전 (5分钟前), 1일 전 (1天前)
+  const baseTime = crawlTime ? new Date(crawlTime) : new Date();
+  const relativeMatch = timeStr.match(/(\d+)\s*(시간|분|일|초|주|개월|년)/);
+  if (relativeMatch) {
+    const [, num, unit] = relativeMatch;
+    const n = parseInt(num);
+    switch (unit) {
+      case '초': baseTime.setSeconds(baseTime.getSeconds() - n); break;
+      case '분': baseTime.setMinutes(baseTime.getMinutes() - n); break;
+      case '시간': baseTime.setHours(baseTime.getHours() - n); break;
+      case '일': baseTime.setDate(baseTime.getDate() - n); break;
+      case '주': baseTime.setDate(baseTime.getDate() - n * 7); break;
+      case '개월': baseTime.setMonth(baseTime.getMonth() - n); break;
+      case '년': baseTime.setFullYear(baseTime.getFullYear() - n); break;
+    }
+    const y = baseTime.getFullYear();
+    const m = String(baseTime.getMonth() + 1).padStart(2, '0');
+    const d = String(baseTime.getDate()).padStart(2, '0');
+    const h = String(baseTime.getHours()).padStart(2, '0');
+    const min = String(baseTime.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d} ${h}:${min}:00`;
+  }
+  
+  // 4. 兜底：用抓取时间
+  return crawlTime || new Date().toISOString();
+}
+
 // ===== 自动查找 Chrome 路径 =====
 function findChromePath() {
   const fs = require('fs');
@@ -846,4 +890,5 @@ module.exports = {
   getCrawlStatus,
   recrawlPost,
   LOUNGE_CONFIG,
+  parseKoreanTime,
 };

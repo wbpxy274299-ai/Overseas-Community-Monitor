@@ -2774,9 +2774,9 @@ async function getWeeklyHotTopics() {
     const lwStart = wStart.replace(' ', 'T');
     const lwEnd = wEnd.replace(' ', 'T');
     try {
-      // ★ 查询原始帖子（不按 ai_category 分组），让 AI 识别具体话题
+      // ★ 查询原始帖子
       const posts = db.queryAll(
-        `SELECT content_zh, title_zh, content, title, author, url, sentiment, crawled_at, post_id
+        `SELECT content_zh, title_zh, content, title, author, url, sentiment, crawled_at, post_time, post_id, comment_count, view_count
          FROM lounge_posts
          WHERE crawled_at >= ? AND crawled_at <= ?
          ORDER BY (comment_count + view_count) DESC LIMIT 30`,
@@ -2784,7 +2784,7 @@ async function getWeeklyHotTopics() {
       );
       if (!posts || posts.length === 0) return [];
 
-      // 构建帖子记录格式
+      // 构建帖子记录格式（标记 type='post'）
       const records = posts.map(p => {
         const raw = p.content_zh || p.title_zh || p.content || p.title || '';
         return {
@@ -2794,14 +2794,16 @@ async function getWeeklyHotTopics() {
           author: p.author || '',
           sentiment: p.sentiment || 'neutral',
           topic_tag: 'general',
-          created_at: p.crawled_at || '',
+          created_at: p.post_time || p.crawled_at || '',
+          type: 'post',
+          source: 'lounge',
         };
       });
 
-      // ★ 同时查询评论数据，评论也是玩家声音的重要组成部分
+      // ★ 查询评论数据（标记 type='comment'）
       try {
         const comments = db.queryAll(
-          `SELECT c.content_zh, c.content, c.author, c.sentiment, c.crawled_at, c.likes,
+          `SELECT c.content_zh, c.content, c.author, c.sentiment, c.crawled_at, c.comment_time, c.likes,
                   p.url as post_url
            FROM lounge_comments c
            LEFT JOIN lounge_posts p ON c.post_id = p.post_id
@@ -2820,7 +2822,9 @@ async function getWeeklyHotTopics() {
               author: c.author || '匿名',
               sentiment: c.sentiment || 'neutral',
               topic_tag: 'general',
-              created_at: c.crawled_at || '',
+              created_at: c.comment_time || c.crawled_at || '',
+              type: 'comment',
+              source: 'lounge',
             });
           }
           log.info(`韩国七日话题：合并 ${comments.length} 条评论数据`);
@@ -2843,34 +2847,44 @@ async function getWeeklyHotTopics() {
         return buildLoungeTopicsFallback(lwStart, lwEnd);
       }
 
-      // 转换为七日话题展示格式（与 buildPlatformTopics 输出一致）
+      // 转换为七日话题展示格式
       const topics = [];
       for (const t of aiTopics) {
-        // 从原帖中查找匹配该 tag 的帖子作为原声
-        const tagRecords = records.filter((r, i) => {
-          // representative_quotes 中的原文匹配
-          if (t.representative_quotes && t.representative_quotes.length > 0) {
-            for (const q of t.representative_quotes) {
-              if (q.text && r.content.includes(q.text.substring(0, 20))) return true;
-            }
-          }
-          return false;
-        });
-
-        // 原声：优先用 AI 引用的原帖，不够则从帖子列表补充
+        // 原声：优先用 AI 引用的内容，补充帖子/评论
         const voiceTexts = [];
+
+        // 1. 先用 AI 返回的代表性引用
         if (t.representative_quotes) {
           for (const q of t.representative_quotes) {
-            if (q.text) voiceTexts.push({ text: q.text, sentiment: t.sentiment || 'neutral' });
+            if (q.text) {
+              // 尝试从 records 中匹配作者和时间
+              const matched = records.find(r => r.content.includes(q.text.substring(0, 20)));
+              voiceTexts.push({
+                text: q.text,
+                url: matched?.url || '',
+                author: matched?.author || '匿名',
+                time: matched?.created_at || '',
+                type: matched?.type || 'post',
+                sentiment: t.sentiment || 'neutral',
+              });
+            }
           }
         }
-        // 补充原声：从帖子中找相关内容
+
+        // 2. 不够则从帖子中补充
         if (voiceTexts.length < 3) {
           for (const p of posts) {
             if (voiceTexts.length >= 3) break;
-            const text = p.content_zh || p.title_zh || p.content || p.title || '';
+            const text = p.content_zh || p.title_zh || '';
             if (text && !voiceTexts.some(v => v.text === text)) {
-              voiceTexts.push({ text, url: p.url || '', author: p.author || '匿名', sentiment: p.sentiment || 'neutral' });
+              voiceTexts.push({
+                text: cleanLoungeContent(text).substring(0, 120),
+                url: p.url || '',
+                author: p.author || '匿名',
+                time: p.post_time || p.crawled_at || '',
+                type: 'post',
+                sentiment: p.sentiment || 'neutral',
+              });
             }
           }
         }
@@ -2881,12 +2895,14 @@ async function getWeeklyHotTopics() {
           count: t.count || 0,
           heat: t.heat || 1,
           sentiment: t.sentiment || 'neutral',
-          neg: 0, pos: 0, neu: 0, // AI 不返回细分计数
+          neg: 0, pos: 0, neu: 0,
           overview: t.summary || '',
           voices: voiceTexts.slice(0, 3).map(v => ({
             text: v.text || '',
             url: v.url || '',
             author: v.author || '匿名',
+            time: v.time ? (v.time.substring(5, 16) || '') : '',
+            type: v.type || 'post',
             sentiment: v.sentiment || 'neutral',
           })),
           daily_avg: Math.round((t.count || 0) / 7 * 10) / 10,

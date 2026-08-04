@@ -11,7 +11,7 @@ const router = express.Router();
 const axios = require('axios');
 const { ensureLoggedIn } = require('../middleware/auth');
 const db = require('../db');
-const { crawlLounge, getCrawlStatus, LOUNGE_CONFIG } = require('../lounge_crawler');
+const { crawlLounge, getCrawlStatus, LOUNGE_CONFIG, parseKoreanTime } = require('../lounge_crawler');
 const translator = require('../translator');
 const { getProxyConfig } = require('../config');
 
@@ -146,7 +146,7 @@ function saveCrawlResult(crawlResult) {
         [
           post.id, post.gameCode, post.gameName, post.title, post.author,
           post.content, JSON.stringify(post.images || []),
-          post.time, post.commentCount, post.viewCount, post.url,
+          parseKoreanTime(post.time, post.crawledAt), post.commentCount, post.viewCount, post.url,
           post.crawledAt,
         ]
       );
@@ -156,7 +156,7 @@ function saveCrawlResult(crawlResult) {
       try {
         db.getDb().run(
           `UPDATE lounge_posts SET title = ?, author = ?, post_time = ?, comment_count = ?, view_count = ? WHERE post_id = ? AND game_code = ?`,
-          [post.title, post.author, post.time, post.commentCount, post.viewCount, post.id, post.gameCode]
+          [post.title, post.author, parseKoreanTime(post.time, post.crawledAt), post.commentCount, post.viewCount, post.id, post.gameCode]
         );
       } catch (_) {}
     }
@@ -169,7 +169,7 @@ function saveCrawlResult(crawlResult) {
            (post_id, game_code, author, content, comment_time, likes, crawled_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [post.id, post.gameCode, comment.author, comment.text,
-           comment.time, parseInt(comment.likes) || 0, post.crawledAt]
+           parseKoreanTime(comment.time, post.crawledAt), parseInt(comment.likes) || 0, post.crawledAt]
         );
         newComments++;
       } catch (_) {}
