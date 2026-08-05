@@ -191,17 +191,46 @@ function parseContentsHTML(html) {
 }
 
 /**
- * 解析 Naver 日期格式 "20260805101700" => "2026-08-05 10:17:00"
+ * 解析 Naver 日期格式，支持多种可能的 API 返回格式：
+ * - 14位数字字符串 "20260805101700" => "2026-08-05 10:17:00"（韩国本地时间，原样提取）
+ * - 毫秒时间戳 (数字) 1722834000000 => 直接转 ISO（时间戳是绝对时间，不加偏移）
+ * - ISO 格式 "2026-08-05T01:17:00.000Z" => 直接提取 UTC 时间
+ * - 已经是 "YYYY-MM-DD HH:mm:ss" 格式 => 原样返回
  */
 function parseNaverDate(dateStr) {
-  if (!dateStr || dateStr.length < 14) return new Date().toISOString().replace('T', ' ').substring(0, 19);
-  const y = dateStr.substring(0, 4);
-  const m = dateStr.substring(4, 6);
-  const d = dateStr.substring(6, 8);
-  const h = dateStr.substring(8, 10);
-  const min = dateStr.substring(10, 12);
-  const s = dateStr.substring(12, 14);
-  return `${y}-${m}-${d} ${h}:${min}:${s}`;
+  if (!dateStr) return new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+  // 如果是数字（毫秒时间戳），直接转 ISO — 时间戳是绝对时间，不需要加时区偏移
+  if (typeof dateStr === 'number') {
+    return new Date(dateStr).toISOString().replace('T', ' ').substring(0, 19);
+  }
+
+  const str = String(dateStr).trim();
+
+  // 如果已经是 "YYYY-MM-DD HH:mm:ss" 或 "YYYY-MM-DDTHH:mm:ss" 格式，直接返回
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(str)) {
+    return str.replace('T', ' ').substring(0, 19);
+  }
+
+  // 14位紧凑格式 "20260805101700" — 这是韩国本地时间，原样拆分
+  if (/^\d{14}$/.test(str)) {
+    return `${str.substring(0,4)}-${str.substring(4,6)}-${str.substring(6,8)} ${str.substring(8,10)}:${str.substring(10,12)}:${str.substring(12,14)}`;
+  }
+
+  // 字符串形式的数字时间戳（10位秒级或13位毫秒级）
+  if (/^\d{10,13}$/.test(str)) {
+    const ts = str.length === 10 ? parseInt(str) * 1000 : parseInt(str);
+    return new Date(ts).toISOString().replace('T', ' ').substring(0, 19);
+  }
+
+  // 最后兜底：尝试 Date 构造器（不加偏移）
+  const fallback = new Date(str);
+  if (!isNaN(fallback.getTime())) {
+    return fallback.toISOString().replace('T', ' ').substring(0, 19);
+  }
+
+  console.warn('⚠️ 无法解析的日期格式:', JSON.stringify(dateStr), '(类型:', typeof dateStr, ')');
+  return new Date().toISOString().replace('T', ' ').substring(0, 19);
 }
 
 // ===== 核心：抓取帖子列表（通过 API）=====
@@ -251,6 +280,11 @@ async function crawlPostList(game, options = {}) {
         const postId = String(feed.feedId);
         if (seenIds.has(postId)) continue;
         seenIds.add(postId);
+
+        // 调试：打印第一条帖子的原始日期格式
+        if (allPosts.length === 0) {
+          console.log(`   🔍 [调试] 第一条帖子原始日期: ${JSON.stringify(feed.createdDate)} (类型: ${typeof feed.createdDate})，解析后: ${parseNaverDate(feed.createdDate)}`);
+        }
 
         const post = {
           id: postId,
