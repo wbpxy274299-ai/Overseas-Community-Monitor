@@ -743,6 +743,26 @@ router.get('/api/lounge/games', ensureLoggedIn, (req, res) => {
   });
 });
 
+// 清空韩国社区数据（只清 lounge 表，不影响用户/任务等其他数据）
+router.post('/api/lounge/clear-data', ensureLoggedIn, (req, res) => {
+  if (!['admin', 'super_admin'].includes(req.user.role)) {
+    return res.json({ success: false, message: '权限不足' });
+  }
+  try {
+    const rawDb = db.getDb();
+    rawDb.run('DROP TABLE IF EXISTS lounge_posts');
+    rawDb.run('DROP TABLE IF EXISTS lounge_comments');
+    rawDb.run('DROP TABLE IF EXISTS lounge_daily_reports');
+    db.saveDb();
+    // 重建表结构
+    initLoungeTables();
+    console.log('✅ 韩国社区数据已清空，表结构已重建');
+    res.json({ success: true, message: '韩国社区数据已清空，可以重新抓取' });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 module.exports = router;
 module.exports.initLoungeTables = initLoungeTables;
 module.exports.fullCrawlPipeline = fullCrawlPipeline;
