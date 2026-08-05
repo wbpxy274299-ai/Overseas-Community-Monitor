@@ -49,6 +49,19 @@
 .upload-link{color:var(--ink);text-decoration:underline;cursor:pointer}
 .upload-hint{font-size:11px;color:var(--mut);margin-top:4px}
 .image-preview{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.img-card{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel);max-width:320px}
+.img-card-thumb{width:80px;height:80px;border-radius:8px;overflow:hidden;flex-shrink:0;position:relative;cursor:pointer;background:var(--bg)}
+.img-card-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.img-card-thumb .zoom-label{position:absolute;bottom:0;left:0;right:0;font-size:9px;text-align:center;background:rgba(0,0,0,.5);color:#fff;padding:2px 0;opacity:0;transition:.2s}
+.img-card-thumb:hover .zoom-label{opacity:1}
+.img-card-info{flex:1;min-width:0}
+.img-card-info .filename{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.img-card-info .file-meta{font-size:10px;color:var(--mut);margin-top:2px}
+.img-card-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.img-card-actions button{width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--bg);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:.15s}
+.img-card-actions button:hover{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.img-card-actions .btn-del{color:var(--err)}
+.img-card-actions .btn-del:hover{background:var(--err);color:#fff;border-color:var(--err)}
 .mode-switch{display:flex;gap:8px}
 .mode-option{display:flex;align-items:center;gap:8px;padding:10px 16px;border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:.2s;font-size:13px}
 .mode-option:hover{border-color:var(--ink)}
