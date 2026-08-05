@@ -111,6 +111,20 @@ function initLoungeTables() {
   rawDb.run('CREATE INDEX IF NOT EXISTS idx_lounge_posts_game ON lounge_posts(game_code, crawled_at DESC)');
   rawDb.run('CREATE INDEX IF NOT EXISTS idx_lounge_posts_sentiment ON lounge_posts(sentiment)');
 
+  // ★ 表结构迁移：给旧表补加缺失列（CREATE TABLE IF NOT EXISTS 不会改已有表）
+  const migrateColumns = [
+    'ALTER TABLE lounge_posts ADD COLUMN game_name TEXT',
+    'ALTER TABLE lounge_posts ADD COLUMN title_zh TEXT',
+    'ALTER TABLE lounge_posts ADD COLUMN content_zh TEXT',
+    'ALTER TABLE lounge_posts ADD COLUMN sentiment TEXT DEFAULT \'neutral\'',
+    'ALTER TABLE lounge_posts ADD COLUMN ai_category TEXT',
+    'ALTER TABLE lounge_posts ADD COLUMN ai_summary TEXT',
+    'ALTER TABLE lounge_posts ADD COLUMN post_date TEXT',
+  ];
+  for (const sql of migrateColumns) {
+    try { rawDb.run(sql); } catch (_) { /* 列已存在，跳过 */ }
+  }
+
   // 评论表
   rawDb.run(`
     CREATE TABLE IF NOT EXISTS lounge_comments (
