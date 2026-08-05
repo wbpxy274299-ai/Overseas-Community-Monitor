@@ -55,8 +55,29 @@ const API_HEADERS = {
   'Accept-Language': 'ko-KR,ko;q=0.9',
 };
 
-async function apiGet(url) {
-  return axios.get(url, { headers: API_HEADERS, timeout: 15000 });
+async function apiGet(url, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await axios.get(url, { headers: API_HEADERS, timeout: 30000 });
+    } catch (err) {
+      const isTimeout = err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT' || err.message?.includes('timeout');
+      const isNetwork = err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT';
+      const status = err.response?.status;
+
+      // 4xx 错误不重试（参数错误等）
+      if (status && status >= 400 && status < 500) {
+        throw err;
+      }
+
+      if (attempt < retries && (isTimeout || isNetwork || !status)) {
+        const wait = attempt * 3000; // 3s, 6s 递增等待
+        console.log(`   ⏳ API 请求超时/网络错误 (第${attempt}次)，${wait/1000}s 后重试... (${err.code || err.message?.substring(0,50)})`);
+        await sleep(wait);
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 // ===== 配置 =====
@@ -201,12 +222,23 @@ async function crawlPostList(game, options = {}) {
     while (offset < maxOffset) {
       const url = `${API_BASE}/community/lounge/${game.code}/feed?buffFilteringYN=N&limit=${limit}&offset=${offset}&order=NEW`;
       let res;
-      try {
-        res = await apiGet(url);
-      } catch (apiErr) {
-        console.error(`   ❌ API 请求失败 (offset=${offset}): ${apiErr.response?.status || apiErr.message}`);
-        break;
+      let batchRetries = 0;
+      while (batchRetries < 2) {
+        try {
+          res = await apiGet(url);
+          break;
+        } catch (apiErr) {
+          batchRetries++;
+          const status = apiErr.response?.status || apiErr.code || 'NETWORK';
+          console.error(`   ❌ API 请求失败 (offset=${offset}, 第${batchRetries}次): ${status}`);
+          if (batchRetries >= 2) {
+            console.error(`   ⛔ 本批放弃，继续已获取的数据`);
+            break;
+          }
+          await sleep(5000); // 等 5 秒再试一次
+        }
       }
+      if (!res) break;
       const feeds = res.data?.content?.feeds || [];
 
       if (feeds.length === 0) break;
