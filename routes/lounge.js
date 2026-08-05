@@ -157,9 +157,28 @@ function initLoungeTables() {
  * @param {Object} crawlResult - crawlLounge() 的返回值
  */
 function saveCrawlResult(crawlResult) {
-  if (!crawlResult.success || !crawlResult.posts.length) return;
+  if (!crawlResult.success || !crawlResult.posts.length) {
+    console.warn('⚠️ saveCrawlResult: 无数据可入库 (success=' + crawlResult.success + ', posts=' + (crawlResult.posts?.length || 0) + ')');
+    return { newPosts: 0, newComments: 0, error: '无数据' };
+  }
 
-  let newPosts = 0, newComments = 0;
+  // ★ 预检：数据库是否就绪
+  const database = db.getDb();
+  if (!database) {
+    console.error('❌ saveCrawlResult: 数据库未初始化 (getDb() 返回 null)，无法入库！');
+    return { newPosts: 0, newComments: 0, error: '数据库未初始化' };
+  }
+
+  // ★ 预检：lounge_posts 表是否存在
+  try {
+    database.run('SELECT 1 FROM lounge_posts LIMIT 1');
+  } catch (tableErr) {
+    console.error('❌ saveCrawlResult: lounge_posts 表不存在！', tableErr.message);
+    return { newPosts: 0, newComments: 0, error: 'lounge_posts 表不存在' };
+  }
+
+  let newPosts = 0, newComments = 0, failedPosts = 0, failedComments = 0;
+  const firstError = { post: null, comment: null };
 
   for (const post of crawlResult.posts) {
     // 帖子入库（已存在则更新标题、作者等字段）
@@ -188,13 +207,19 @@ function saveCrawlResult(crawlResult) {
       );
       newPosts++;
     } catch (e) {
-      // 兆底：如果 ON CONFLICT 不支持，回退到 UPDATE
+      failedPosts++;
+      if (!firstError.post) firstError.post = { id: post.id, error: e.message };
+      // 回退：尝试简单 UPDATE
       try {
         db.getDb().run(
           `UPDATE lounge_posts SET title = ?, author = ?, post_time = ?, comment_count = ?, view_count = ? WHERE post_id = ? AND game_code = ?`,
           [post.title, post.author, parseKoreanTime(post.time, post.crawledAt), post.commentCount, post.viewCount, post.id, post.gameCode]
         );
-      } catch (_) {}
+        failedPosts--; // UPDATE 成功则撤销失败计数
+        newPosts++;
+      } catch (e2) {
+        console.error(`❌ 帖子 #${post.id} 入库失败: ${e2.message}`);
+      }
     }
 
     // 评论入库
@@ -208,13 +233,21 @@ function saveCrawlResult(crawlResult) {
            parseKoreanTime(comment.time, post.crawledAt), parseInt(comment.likes) || 0, post.crawledAt]
         );
         newComments++;
-      } catch (_) {}
+      } catch (e) {
+        failedComments++;
+        if (!firstError.comment) firstError.comment = { postId: post.id, error: e.message };
+      }
     }
   }
 
   db.saveDb();
-  console.log(`💾 入库完成：新增帖子 ${newPosts} 条，评论 ${newComments} 条`);
-  return { newPosts, newComments };
+
+  // ★ 入库结果汇总（含错误信息）
+  console.log(`💾 入库完成：帖子 ${newPosts} 条${failedPosts > 0 ? '（失败 ' + failedPosts + ' 条）' : ''}，评论 ${newComments} 条${failedComments > 0 ? '（失败 ' + failedComments + ' 条）' : ''}`);
+  if (firstError.post) console.error('   首个帖子错误:', firstError.post);
+  if (firstError.comment) console.error('   首个评论错误:', firstError.comment);
+
+  return { newPosts, newComments, failedPosts, failedComments, error: failedPosts > 0 ? firstError.post?.error : null };
 }
 
 // ===== 帖子正文清洗 =====
@@ -505,6 +538,14 @@ async function fullCrawlPipeline(options = {}) {
 
   // 第二步：入库
   const saved = saveCrawlResult(crawlResult);
+
+  // ★ 检查入库结果
+  if (!saved || saved.newPosts === 0) {
+    console.error('❌ 入库失败：0 条帖子成功入库');
+    if (saved?.error) console.error('   原因:', saved.error);
+    return { success: false, error: '入库失败: ' + (saved?.error || '0条帖子入库'), crawl: { posts: crawlResult.posts.length } };
+  }
+  console.log(`✅ 入库成功：${saved.newPosts} 条帖子，${saved.newComments} 条评论`);
 
   // 第三步：翻译 + AI分析
   const translated = await translateAndAnalyze(options.translateLimit || 100);
