@@ -1034,7 +1034,7 @@ async function collectFromDiscord() {
     { id: '1320748853732970556', name: '👂八卦吃瓜' },
   ];
   
-  const BATCH_SIZE = 50; // 每批50条，发现重复就停
+  const BATCH_SIZE = 30; // 每批30条，发现重复就停
   const messageMap = new Map();
   
   console.log(`\n   正在采集 TC（繁中服）Discord 数据...`);

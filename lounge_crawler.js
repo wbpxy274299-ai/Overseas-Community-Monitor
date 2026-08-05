@@ -238,17 +238,15 @@ function parseNaverDate(dateStr) {
 async function crawlPostList(game, options = {}) {
   const allPosts = [];
   const seenIds = new Set();
-  const limit = 20;
+  const limit = 30; // 每批30条
   let offset = 0;
-  const maxOffset = LOUNGE_CONFIG.maxPosts;
 
   try {
-    console.log(`📋 正在通过 API 获取 ${game.name} 帖子列表...`);
+    console.log(` 正在通过 API 获取 ${game.name} 帖子列表（增量模式）...`);
     const existingMap = getExistingPosts();
     const existingIds = new Set(Object.keys(existingMap));
-    let emptyRounds = 0;
 
-    while (offset < maxOffset) {
+    while (true) {
       const url = `${API_BASE}/community/lounge/${game.code}/feed?buffFilteringYN=N&limit=${limit}&offset=${offset}&order=NEW`;
       let res;
       let batchRetries = 0;
@@ -261,18 +259,58 @@ async function crawlPostList(game, options = {}) {
           const status = apiErr.response?.status || apiErr.code || 'NETWORK';
           console.error(`   ❌ API 请求失败 (offset=${offset}, 第${batchRetries}次): ${status}`);
           if (batchRetries >= 2) {
-            console.error(`   ⛔ 本批放弃，继续已获取的数据`);
+            console.error(`   ⛔ 本批放弃，停止抓取`);
             break;
           }
-          await sleep(5000); // 等 5 秒再试一次
+          await sleep(5000);
         }
       }
       if (!res) break;
       const feeds = res.data?.content?.feeds || [];
-
       if (feeds.length === 0) break;
 
+      // 检查这批的排重情况
+      let dupInBatch = 0;
       let newInBatch = 0;
+      for (const item of feeds) {
+        const feed = item.feed || {};
+        const postId = String(feed.feedId);
+        if (existingIds.has(postId)) dupInBatch++;
+        else newInBatch++;
+      }
+
+      console.log(`   📜 offset=${offset}：本批 ${feeds.length} 条，新增 ${newInBatch}，重复 ${dupInBatch}（累计 ${allPosts.length}）`);
+
+      // 如果这批大部分是重复的（>70%），说明已经抓到旧数据了，停止
+      if (feeds.length > 0 && dupInBatch / feeds.length > 0.7) {
+        console.log(`   🛑 本批重复率 ${Math.round(dupInBatch/feeds.length*100)}%，停止抓取`);
+        // 但这批里的新帖子还是要收进来
+        for (const item of feeds) {
+          const feed = item.feed || {};
+          const postId = String(feed.feedId);
+          if (!seenIds.has(postId) && !existingIds.has(postId)) {
+            seenIds.add(postId);
+            const user = item.user || {};
+            const comment = item.comment || {};
+            allPosts.push({
+              id: postId,
+              title: feed.title || '(无标题)',
+              author: user.nickname || '',
+              time: parseNaverDate(feed.createdDate),
+              commentCount: comment.totalCount || 0,
+              viewCount: item.readCount || 0,
+              url: `https://m.game.naver.com/lounge/${game.code}/board/detail/${feed.feedId}`,
+              repImageUrl: feed.repImageUrl || '',
+              buff: feed.buff || 0,
+              nerf: feed.nerf || 0,
+              _contentsJSON: feed.contents || '',
+            });
+          }
+        }
+        break;
+      }
+
+      // 正常收进这批帖子
       for (const item of feeds) {
         const feed = item.feed || {};
         const user = item.user || {};
@@ -281,12 +319,11 @@ async function crawlPostList(game, options = {}) {
         if (seenIds.has(postId)) continue;
         seenIds.add(postId);
 
-        // 调试：打印第一条帖子的原始日期格式
         if (allPosts.length === 0) {
           console.log(`   🔍 [调试] 第一条帖子原始日期: ${JSON.stringify(feed.createdDate)} (类型: ${typeof feed.createdDate})，解析后: ${parseNaverDate(feed.createdDate)}`);
         }
 
-        const post = {
+        allPosts.push({
           id: postId,
           title: feed.title || '(无标题)',
           author: user.nickname || '',
@@ -297,26 +334,10 @@ async function crawlPostList(game, options = {}) {
           repImageUrl: feed.repImageUrl || '',
           buff: feed.buff || 0,
           nerf: feed.nerf || 0,
-          // 列表 API 的 contents 是 JSON 字符串，先解析出文本
           _contentsJSON: feed.contents || '',
-        };
-        allPosts.push(post);
-        if (!existingIds.has(postId)) newInBatch++;
+        });
       }
 
-      console.log(`   📜 offset=${offset}：本批 ${feeds.length} 条，新增 ${newInBatch} 条（累计 ${allPosts.length}）`);
-
-      if (newInBatch === 0) {
-        emptyRounds++;
-        if (emptyRounds >= 2) {
-          console.log(`   🛑 连续 2 轮无新帖子，停止`);
-          break;
-        }
-      } else {
-        emptyRounds = 0;
-      }
-
-      if (allPosts.length >= LOUNGE_CONFIG.maxPosts) break;
       offset += limit;
       await sleep(500);
     }
@@ -332,7 +353,7 @@ async function crawlPostList(game, options = {}) {
 
 // ===== 核心：抓取帖子详情 + 评论（通过 API）=====
 
-async function crawlPostDetail(post) {
+async function crawlPostDetail(post, shouldFetchComments = true) {
   const detail = { content: '', images: [], comments: [] };
 
   try {
@@ -363,27 +384,30 @@ async function crawlPostDetail(post) {
     // 用详情页的信息补充列表信息
     if (content?.user?.nickname) post.author = content.user.nickname;
 
-    // 2. 尝试获取评论
-    try {
-      const commentUrl = `${COMMENT_API_BASE}/type/FEED/id/${post.id}/comments?limit=${LOUNGE_CONFIG.maxComments}&offset=0&orderType=ASC&originalLoungeId=${post.gameCode || 'Tree_Of_Savior_Neverland'}`;
-      const commentRes = await apiGet(commentUrl);
-      const commentData = commentRes.data?.content;
-      const comments = commentData?.comments || [];
-      for (const c of comments) {
-        if (detail.comments.length >= LOUNGE_CONFIG.maxComments) break;
-        detail.comments.push({
-          author: c.user?.nickname || '',
-          text: (c.contents || '').substring(0, 1000),
-          time: parseNaverDate(c.createdDate || ''),
-          likes: String(c.likeCount || 0),
-        });
+    // 2. 获取评论（只有需要时才请求）
+    if (shouldFetchComments) {
+      try {
+        const commentUrl = `${COMMENT_API_BASE}/type/FEED/id/${post.id}/comments?limit=${LOUNGE_CONFIG.maxComments}&offset=0&orderType=ASC&originalLoungeId=${post.gameCode || 'Tree_Of_Savior_Neverland'}`;
+        const commentRes = await apiGet(commentUrl);
+        const commentData = commentRes.data?.content;
+        const comments = commentData?.comments || [];
+        for (const c of comments) {
+          if (detail.comments.length >= LOUNGE_CONFIG.maxComments) break;
+          detail.comments.push({
+            author: c.user?.nickname || '',
+            text: (c.contents || '').substring(0, 1000),
+            time: parseNaverDate(c.createdDate || ''),
+            likes: String(c.likeCount || 0),
+          });
+        }
+      } catch (commentErr) {
+        console.log(`  ⚠️ 帖子 #${post.id} 评论获取跳过（API 限制）`);
       }
-    } catch (commentErr) {
-      // 评论 API 可能需要认证，静默忽略
-      console.log(`  ⚠️ 帖子 #${post.id} 评论获取跳过（API 限制）`);
+    } else {
+      console.log(`  ⏭️ 帖子 #${post.id} 跳过评论（非2天内新帖且评论数未增加）`);
     }
 
-    console.log(`  📄 帖子 #${post.id} 抓取完成：正文 ${detail.content.length} 字，图片 ${detail.images.length} 张，评论 ${detail.comments.length} 条`);
+    console.log(`   帖子 #${post.id} 抓取完成：正文 ${detail.content.length} 字，图片 ${detail.images.length} 张，评论 ${detail.comments.length} 条`);
   } catch (err) {
     console.error(`  ❌ 帖子 #${post.id} 详情抓取失败: ${err.message}`);
   }
@@ -410,8 +434,8 @@ function isRecentPost(timeStr) {
   if (!timeStr) return true;
   try {
     const postDate = new Date(timeStr.replace(' ', 'T'));
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    return postDate >= sevenDaysAgo;
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    return postDate >= twoDaysAgo;
   } catch (_) {
     return true;
   }
@@ -481,6 +505,12 @@ async function crawlLounge(options = {}) {
         console.log(`  [${i + 1}/${postsToOpen.length}] 正在抓取: ${post.title.substring(0, 30)}...`);
         updateProgress('detail', '抓取详情', `[${i + 1}/${postsToOpen.length}] ${post.title.substring(0, 40)}...`, { currentStep: 3 + i, postsCrawled: i });
 
+        // 决定是否翻评论：2天内的新帖子 或 评论数增加了的旧帖子
+        const existing = existingMap[post.id];
+        const isRecent = isRecentPost(post.time);
+        const commentIncreased = existing && post.commentCount > existing.commentCount;
+        const shouldFetchComments = isRecent || commentIncreased || !existing;
+
         // 对于列表里已有 JSON contents 的帖子，先尝试直接解析
         let detail;
         if (post._contentsJSON && post._contentsJSON.startsWith('{')) {
@@ -488,27 +518,31 @@ async function crawlLounge(options = {}) {
           if (parsed.text.length > 20) {
             // 列表 JSON 已够用，不需要再请求详情 API
             detail = { content: parsed.text, images: parsed.images, comments: [] };
-            // 但仍尝试获取评论
-            try {
-              const commentUrl = `${COMMENT_API_BASE}/type/FEED/id/${post.id}/comments?limit=${LOUNGE_CONFIG.maxComments}&offset=0&orderType=ASC&originalLoungeId=${game.code}`;
-              const commentRes = await apiGet(commentUrl);
-              const comments = commentRes.data?.content?.comments || [];
-              for (const c of comments) {
-                if (detail.comments.length >= LOUNGE_CONFIG.maxComments) break;
-                detail.comments.push({
-                  author: c.user?.nickname || '',
-                  text: (c.contents || '').substring(0, 1000),
-                  time: parseNaverDate(c.createdDate || ''),
-                  likes: String(c.likeCount || 0),
-                });
-              }
-            } catch (_) {}
+            // 只有需要时才获取评论
+            if (shouldFetchComments) {
+              try {
+                const commentUrl = `${COMMENT_API_BASE}/type/FEED/id/${post.id}/comments?limit=${LOUNGE_CONFIG.maxComments}&offset=0&orderType=ASC&originalLoungeId=${game.code}`;
+                const commentRes = await apiGet(commentUrl);
+                const comments = commentRes.data?.content?.comments || [];
+                for (const c of comments) {
+                  if (detail.comments.length >= LOUNGE_CONFIG.maxComments) break;
+                  detail.comments.push({
+                    author: c.user?.nickname || '',
+                    text: (c.contents || '').substring(0, 1000),
+                    time: parseNaverDate(c.createdDate || ''),
+                    likes: String(c.likeCount || 0),
+                  });
+                }
+              } catch (_) {}
+            } else {
+              console.log(`  ⏭️ 帖子 #${post.id} 跳过评论（非2天内新帖且评论数未增加）`);
+            }
             console.log(`  📄 帖子 #${post.id} 从列表JSON解析：正文 ${detail.content.length} 字，评论 ${detail.comments.length} 条`);
           }
         }
 
         if (!detail) {
-          detail = await crawlPostDetail({ ...post, gameCode: game.code });
+          detail = await crawlPostDetail({ ...post, gameCode: game.code }, shouldFetchComments);
         }
 
         result.posts.push({
