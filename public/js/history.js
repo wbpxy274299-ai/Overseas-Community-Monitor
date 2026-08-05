@@ -418,6 +418,26 @@ async function checkRunningCollection() {
   } catch (_) {}
 }
 
+// ===== 韩国社区数据清空 =====
+async function clearLoungeData() {
+  if (!confirm('确认清空所有韩国社区数据？\n\n这将删除所有帖子、评论和日报，但不会影响用户账号。\n\n此操作不可恢复！')) return;
+  try {
+    const res = await fetch('/api/lounge/clear-data', { method: 'POST' });
+    const result = await res.json();
+    if (result.success) {
+      alert(result.message || '数据已清空');
+      // 刷新统计和列表
+      initLoungeDates();
+      loadLoungePosts();
+      loadLoungeStats();
+    } else {
+      alert(result.message || '清空失败');
+    }
+  } catch (e) {
+    alert('清空请求失败: ' + e.message);
+  }
+}
+
 // ===== 韩国社区爬虫触发 =====
 async function triggerLoungeCrawl() {
   const btn = document.getElementById('btnLoungeCrawl');
