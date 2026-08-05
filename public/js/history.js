@@ -39,6 +39,16 @@ function formatCrawlTime(timeStr) {
   return `${mm}-${dd} ${hh}:${min}`;
 }
 
+// 格式化发帖时间 "2026-08-05 10:17:00" -> "08-05 10:17"
+function formatPostTime(timeStr) {
+  if (!timeStr) return '';
+  // 直接解析 "YYYY-MM-DD HH:mm:ss" 格式，避免时区问题
+  const match = timeStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+  if (match) return `${match[2]}-${match[3]} ${match[4]}:${match[5]}`;
+  // 兜底：尝试 Date 解析
+  return formatCrawlTime(timeStr);
+}
+
 function formatDateInput(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -639,7 +649,7 @@ function renderLoungePosts(posts) {
       </div>
       <div class="strong" style="font-size:14px">${escapeHtml(title)}</div>
       <div style="font-size:11px;color:var(--mut);margin-top:6px">
-         ${escapeHtml(p.author || '匿名')} · ${formatCrawlTime(p.crawled_at)} · ${p.view_count||0} · 💬 ${cmtCount}条评论
+         ${escapeHtml(p.author || '匿名')} · ${formatPostTime(p.post_time)} · ${p.view_count||0} · 💬 ${cmtCount}条评论
         ${p.url ? ` · <a class="oplink" href="${p.url}" target="_blank" onclick="event.stopPropagation()">原帖 ↗</a>` : ''}
       </div>
     </div>`;
