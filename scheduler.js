@@ -29,6 +29,8 @@ const taskRunLog = {
   midnightCollect: { lastRun: null, success: false, message: '' },
   afternoonBackup: { lastRun: null, success: false, message: '' },
   loungeCrawl: { lastRun: null, success: false, message: '' },
+  loungeCrawlMorning: { lastRun: null, success: false, message: '' },
+  loungeWatchdog: { lastRun: null, success: false, message: '' },
 };
 
 // 从文件读取状态（重启后恢复）
@@ -42,7 +44,7 @@ function loadState() {
   } catch (e) {
     console.warn('⚠️ 调度器状态文件读取失败，使用默认值');
   }
-  return { dailyAnalysis: null, dailySnapshot: null, midnightCollect: null, afternoonBackup: null, loungeCrawl: null };
+  return { dailyAnalysis: null, dailySnapshot: null, midnightCollect: null, afternoonBackup: null, loungeCrawl: null, loungeCrawlMorning: null, loungeCrawlEvening: null, loungeWatchdogCheck: null };
 }
 
 // 状态写入文件（持久化）
@@ -236,6 +238,48 @@ async function checkAndExecuteTasks() {
 // ===== 删除重复报告生成代码，统一使用 weekly_report.js =====
 
 /**
+ * 启动健康自检（调度器启动时调用）
+ * 比喻：每天早上开工前先检查一遍工具和设备是否正常
+ */
+function startupHealthCheck() {
+  console.log('\n🏥 ===== 启动健康自检 =====');
+  const today = todayStr();
+  const now = new Date();
+
+  // 1. 检查韩国社区数据新鲜度
+  if (loungeModule && loungeModule.fullCrawlPipeline) {
+    try {
+      const latestPost = db.queryOne(`SELECT crawled_at FROM lounge_posts ORDER BY crawled_at DESC LIMIT 1`);
+      if (!latestPost || !latestPost.crawled_at) {
+        console.log('  🇰🇷 韩国数据: 空数据库，将在1分钟内触发首次抓取');
+        // 1分钟后触发（给数据库初始化时间）
+        setTimeout(() => loungeFreshnessCheck(), 60000);
+      } else {
+        const hoursSince = (Date.now() - new Date(latestPost.crawled_at).getTime()) / (1000 * 60 * 60);
+        if (hoursSince > 24) {
+          console.log(`  🇰🇷 韩国数据: ⚠️ 已 ${hoursSince.toFixed(1)} 小时未更新，将在1分钟内触发补抓`);
+          setTimeout(() => loungeFreshnessCheck(), 60000);
+        } else {
+          console.log(`  🇰🇷 韩国数据: ✅ 正常（${hoursSince.toFixed(1)} 小时前更新）`);
+        }
+      }
+    } catch (e) {
+      console.warn(`  🇰🇷 韩国数据: 检查异常 - ${e.message}`);
+    }
+  }
+
+  // 2. 检查今日任务完成情况
+  const tasksDone = [
+    lastRunDates.dailyAnalysis === today ? '✅每日分析' : '⬜每日分析',
+    lastRunDates.midnightCollect === today ? '✅零点采集' : '⬜零点采集',
+    lastRunDates.dailySnapshot === today ? '✅快照保存' : '⬜快照保存',
+  ].join(' | ');
+  console.log(`  📊 今日任务: ${tasksDone}`);
+
+  console.log('🏥 ===== 自检完成 =====\n');
+}
+
+/**
  * 启动定时任务调度器
  * 每分钟检查一次是否有到期的任务
  */
@@ -248,6 +292,9 @@ function startScheduler() {
   console.log('\n🕐 舆情监控定时任务调度器已启动');
   console.log('   检查频率: 每1分钟检查一次\n');
   log.info('舆情监控定时任务调度器已启动');
+
+  // ★ 启动时立即做一次健康自检
+  startupHealthCheck();
   
   // 立即检查一次定时发送任务
   checkAndExecuteTasks();
@@ -414,8 +461,25 @@ function checkScheduledJobs() {
     }
   }
 
-  // 5. 韩国社区额外补抓（21:00~21:59，因为韩国帖子更新频繁，早晚各一次不够）
-  // 零点和14:00 的韩国采集已随全平台统一执行，这里只是晚上补一次
+  // 5. ★ 韩国社区早9点补抓（填补 0:00~14:00 之间的空档）
+  // 比喻：凌晨的货到了但可能有问题，早上再验一次
+  if (loungeModule && loungeModule.fullCrawlPipeline) {
+    if (lastRunDates.loungeCrawlMorning !== today) {
+      if ((currentHour === 9 || (currentHour >= 9 && currentHour < 12)) && !sentiment.getIsCollecting()) {
+        console.log('⏰ 触发韩国社区早9点补抓');
+        lastRunDates.loungeCrawlMorning = today;
+        saveState();
+        loungeCrawlTask().then((result) => {
+          taskRunLog.loungeCrawlMorning = { lastRun: new Date().toISOString(), success: result?.success || false, message: result?.message || '完成' };
+        }).catch(e => {
+          taskRunLog.loungeCrawlMorning = { lastRun: new Date().toISOString(), success: false, message: e.message };
+          console.error('❌ 韩国社区早9点抓取失败:', e.message);
+        });
+      }
+    }
+  }
+
+  // 6. ★ 韩国社区晚间补抓（21:00~21:59）
   if (loungeModule && loungeModule.fullCrawlPipeline) {
     if (lastRunDates.loungeCrawlEvening !== today) {
       if (currentHour === 21 && !sentiment.getIsCollecting()) {
@@ -430,6 +494,21 @@ function checkScheduledJobs() {
           console.error('❌ 韩国社区抓取失败:', e.message);
         });
       }
+    }
+  }
+
+  // 7. ★ 数据新鲜度看门狗（每小时检查一次）
+  // 比喻：保安每小时巡逻一次，看冰箱里有没有过期的食物
+  // 如果韩国帖子超过 24 小时没有新抓取，自动触发补抓
+  if (loungeModule && loungeModule.fullCrawlPipeline) {
+    const lastWatchdogCheck = lastRunDates.loungeWatchdogCheck || '';
+    const watchdogHourKey = `${today}-${currentHour}`;
+    if (lastWatchdogCheck !== watchdogHourKey) {
+      lastRunDates.loungeWatchdogCheck = watchdogHourKey;
+      saveState();
+      loungeFreshnessCheck().catch(e => {
+        console.error('❌ 韩国数据新鲜度检查失败:', e.message);
+      });
     }
   }
 }
@@ -648,6 +727,42 @@ async function afternoonBackupTask() {
     return { success: false, message: e.message };
   } finally {
     sentiment.setIsCollecting(false);
+  }
+}
+
+/**
+ * 韩国社区数据新鲜度检查（看门狗）
+ * 比喻：保安检查冰箱里的食物有没有过期
+ * 如果超过 24 小时没有新抓取，自动触发补抓
+ */
+async function loungeFreshnessCheck() {
+  try {
+    // 查询最近一条帖子的抓取时间
+    const latestPost = db.queryOne(
+      `SELECT crawled_at FROM lounge_posts ORDER BY crawled_at DESC LIMIT 1`
+    );
+    if (!latestPost || !latestPost.crawled_at) {
+      console.log('🐕 看门狗: 韩国数据库为空，触发首次抓取');
+      await loungeCrawlTask();
+      return;
+    }
+
+    const lastCrawl = new Date(latestPost.crawled_at);
+    const hoursSinceLastCrawl = (Date.now() - lastCrawl.getTime()) / (1000 * 60 * 60);
+
+    if (hoursSinceLastCrawl > 24) {
+      console.log(`🐕 看门狗: 韩国数据已 ${hoursSinceLastCrawl.toFixed(1)} 小时未更新，触发补抓！`);
+      if (!sentiment.getIsCollecting()) {
+        await loungeCrawlTask();
+      } else {
+        console.log('🐕 看门狗: 采集进行中，等待下一轮检查');
+      }
+    } else {
+      console.log(`🐕 看门狗: 韩国数据正常（${hoursSinceLastCrawl.toFixed(1)} 小时前更新）`);
+    }
+  } catch (e) {
+    // 数据库查询失败不影响主流程
+    console.warn(`🐕 看门狗: 检查异常 - ${e.message}`);
   }
 }
 
