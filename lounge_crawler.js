@@ -90,8 +90,7 @@ const LOUNGE_CONFIG = {
       url: 'https://m.game.naver.com/lounge/Tree_Of_Savior_Neverland/board',
     },
   ],
-  maxPosts: 300,
-  maxComments: 30,
+  maxComments: 30,  // 每帖最多抓30条评论
   delayBetween: 1000,
 };
 
