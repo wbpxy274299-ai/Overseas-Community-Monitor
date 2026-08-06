@@ -239,6 +239,7 @@ async function crawlPostList(game, options = {}) {
   const seenIds = new Set();
   const limit = 30; // 每批30条
   let offset = 0;
+  const minDate = options.minDate || '2026-05-01'; // 默认不抓5月之前的数据
 
   try {
     console.log(` 正在通过 API 获取 ${game.name} 帖子列表（增量模式）...`);
@@ -268,17 +269,53 @@ async function crawlPostList(game, options = {}) {
       const feeds = res.data?.content?.feeds || [];
       if (feeds.length === 0) break;
 
-      // 检查这批的排重情况
+      // 检查这批的排重情况 + 日期截止
       let dupInBatch = 0;
       let newInBatch = 0;
+      let tooOld = false;
       for (const item of feeds) {
         const feed = item.feed || {};
         const postId = String(feed.feedId);
         if (existingIds.has(postId)) dupInBatch++;
         else newInBatch++;
+        // 检查帖子日期，超过 cutoff 就停
+        const postDate = parseNaverDate(feed.createdDate);
+        if (postDate && postDate.substring(0, 10) < minDate) {
+          tooOld = true;
+        }
       }
 
       console.log(`   📜 offset=${offset}：本批 ${feeds.length} 条，新增 ${newInBatch}，重复 ${dupInBatch}（累计 ${allPosts.length}）`);
+
+      // 如果这批有帖子日期早于 cutoff，停止抓取
+      if (tooOld) {
+        console.log(`   🛑 遇到 ${minDate} 之前的帖子，停止抓取`);
+        // 但这批里日期合格的新帖子还是要收进来
+        for (const item of feeds) {
+          const feed = item.feed || {};
+          const postId = String(feed.feedId);
+          const postDate = parseNaverDate(feed.createdDate);
+          if (!seenIds.has(postId) && !existingIds.has(postId) && postDate && postDate.substring(0, 10) >= minDate) {
+            seenIds.add(postId);
+            const user = item.user || {};
+            const comment = item.comment || {};
+            allPosts.push({
+              id: postId,
+              title: feed.title || '(无标题)',
+              author: user.nickname || '',
+              time: postDate,
+              commentCount: comment.totalCount || 0,
+              viewCount: item.readCount || 0,
+              url: `https://m.game.naver.com/lounge/${game.code}/board/detail/${feed.feedId}`,
+              repImageUrl: feed.repImageUrl || '',
+              buff: feed.buff || 0,
+              nerf: feed.nerf || 0,
+              _contentsJSON: feed.contents || '',
+            });
+          }
+        }
+        break;
+      }
 
       // 如果这批大部分是重复的（>70%），说明已经抓到旧数据了，停止
       if (feeds.length > 0 && dupInBatch / feeds.length > 0.7) {
