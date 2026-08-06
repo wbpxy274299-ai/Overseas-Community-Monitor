@@ -271,37 +271,38 @@ async function initTopicHistoryTable() {
 
 // ===== 工具函数：获取今日统计周期（昨日 8:30 ~ 今日 8:30）=====
 function getTodayPeriod() {
-  // 直接使用本地时间（Windows系统已是 CST）
+  // ★ 强制使用 UTC+8（与数据库存储格式一致）
   const now = new Date();
+  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   
-  // 今天的 8:30
-  const today830am = new Date(now);
-  today830am.setHours(8, 30, 0, 0);
+  // 今天的 8:30（UTC+8）
+  const today830am = new Date(utc8);
+  today830am.setUTCHours(8, 30, 0, 0);
   
-  // 如果当前时间在 8:30 之前，则“今天”的8:30实际上是昨天的
-  if (now < today830am) {
-    today830am.setDate(today830am.getDate() - 1);
+  // 如果当前时间在 8:30 之前，则"今天"的8:30实际上是昨天的
+  if (utc8 < today830am) {
+    today830am.setUTCDate(today830am.getUTCDate() - 1);
   }
   
-  // 昨天的 8:30
+  // 昨天的 8:30（UTC+8）
   const yesterday830am = new Date(today830am);
-  yesterday830am.setDate(today830am.getDate() - 1);
+  yesterday830am.setUTCDate(today830am.getUTCDate() - 1);
   
   // 格式化为数据库字符串格式 "YYYY-MM-DD HH:mm:ss"
   const formatDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const hours = String(date.getUTCHours()).padStart(2, '0');
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(date.getUTCSeconds()).padStart(2, '0');
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   };
   
   return {
     startDate: formatDate(yesterday830am),
     endDate: formatDate(today830am),
-    periodLabel: `${yesterday830am.getFullYear()}/${yesterday830am.getMonth()+1}/${yesterday830am.getDate()} 8:30 ~ ${today830am.getFullYear()}/${today830am.getMonth()+1}/${today830am.getDate()} 8:30`
+    periodLabel: `${yesterday830am.getUTCFullYear()}/${yesterday830am.getUTCMonth()+1}/${yesterday830am.getUTCDate()} 8:30 ~ ${today830am.getUTCFullYear()}/${today830am.getUTCMonth()+1}/${today830am.getUTCDate()} 8:30`
   };
 }
 
@@ -2567,12 +2568,14 @@ async function fullCollectAndSave() {
 
 // ===== 七日概览（逐日数据，给前端趋势图用） =====
 function getWeeklyOverview() {
+  // ★ 强制使用 UTC+8（与数据库存储格式一致）
   const now = new Date();
+  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   const days = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const d = new Date(utc8);
+    d.setUTCDate(utc8.getUTCDate() - i);
+    const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
     const start = dateStr + ' 00:00:00';
     const end = dateStr + ' 23:59:59';
     
@@ -2614,7 +2617,7 @@ function getWeeklyOverview() {
     
     days.push({
       date: dateStr,
-      label: `${d.getMonth()+1}/${d.getDate()}`,
+      label: `${d.getUTCMonth()+1}/${d.getUTCDate()}`,
       twitter: twCount.cnt || 0,
       discord: dcCount.cnt || 0,
       lounge: loungeCnt,
@@ -2632,10 +2635,10 @@ function getWeeklyOverview() {
   const trendChange = yesterday ? today.total - yesterday.total : 0;
   
   // 7日时间范围
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 6);
-  const wStart = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')} 00:00:00`;
-  const wEnd = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} 23:59:59`;
+  const sevenDaysAgo = new Date(utc8);
+  sevenDaysAgo.setUTCDate(utc8.getUTCDate() - 6);
+  const wStart = `${sevenDaysAgo.getUTCFullYear()}-${String(sevenDaysAgo.getUTCMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getUTCDate()).padStart(2,'0')} 00:00:00`;
+  const wEnd = `${utc8.getUTCFullYear()}-${String(utc8.getUTCMonth()+1).padStart(2,'0')}-${String(utc8.getUTCDate()).padStart(2,'0')} 23:59:59`;
   
   // 7日负面舆情统计
   const negCount = db.queryOne(
@@ -2663,11 +2666,13 @@ function getWeeklyOverview() {
 
 // ===== 七日热门话题（从 sentiment_records 聚合7日数据 + AI概述） =====
 async function getWeeklyHotTopics() {
+  // ★ 强制使用 UTC+8（与数据库存储格式一致）
   const now = new Date();
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 6);
-  const wStart = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')} 00:00:00`;
-  const wEnd = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} 23:59:59`;
+  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(utc8);
+  sevenDaysAgo.setUTCDate(utc8.getUTCDate() - 6);
+  const wStart = `${sevenDaysAgo.getUTCFullYear()}-${String(sevenDaysAgo.getUTCMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getUTCDate()).padStart(2,'0')} 00:00:00`;
+  const wEnd = `${utc8.getUTCFullYear()}-${String(utc8.getUTCMonth()+1).padStart(2,'0')}-${String(utc8.getUTCDate()).padStart(2,'0')} 23:59:59`;
 
   const tagLabels = {
     bug_report: 'Bug', gacha: '抽卡', knight_order: '骑士团',
@@ -3185,7 +3190,9 @@ async function getDailyOverview() {
   }
   
   async function buildLoungeOverview() {
-    const today = new Date().toLocaleDateString('sv-SE');
+    // ★ 强制使用 UTC+8 日期
+    const utc8 = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const today = `${utc8.getUTCFullYear()}-${String(utc8.getUTCMonth()+1).padStart(2,'0')}-${String(utc8.getUTCDate()).padStart(2,'0')}`;
     const lwStart = today + 'T00:00:00';
     const lwEnd = today + 'T23:59:59';
     try {
