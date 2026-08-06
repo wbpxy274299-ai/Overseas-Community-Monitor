@@ -868,10 +868,10 @@ function renderKoreanMessages(posts) {
     const sColor = sentimentColor(p.sentiment);
     const sIcon = sentimentIcon(p.sentiment);
     const cat = catLabel(p.ai_category);
-    // 使用 crawled_at (ISO格式) 而不是 post_time (韩文相对时间)
+    // crawled_at 是数据库 UTC+8 时间，补上 +08:00 让浏览器正确转换时区
     let time = '';
     if (p.crawled_at) {
-      const d = new Date(p.crawled_at);
+      const d = new Date(p.crawled_at.replace(' ', 'T') + '+08:00');
       if (!isNaN(d.getTime())) {
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');

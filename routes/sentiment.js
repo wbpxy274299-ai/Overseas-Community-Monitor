@@ -189,8 +189,8 @@ router.get('/api/sentiment/lounge-posts', (req, res) => {
 
     let whereClauses = [];
     let params = [];
-    if (startDate) { whereClauses.push('crawled_at >= ?'); params.push(startDate + 'T00:00:00'); }
-    if (endDate) { whereClauses.push('crawled_at <= ?'); params.push(endDate + 'T23:59:59'); }
+    if (startDate) { whereClauses.push('crawled_at >= ?'); params.push(startDate + ' 00:00:00'); }
+    if (endDate) { whereClauses.push('crawled_at <= ?'); params.push(endDate + ' 23:59:59'); }
     if (sentiment) { whereClauses.push('sentiment = ?'); params.push(sentiment); }
     if (category) { whereClauses.push('ai_category = ?'); params.push(category); }
 
@@ -267,8 +267,8 @@ router.get('/api/sentiment/lounge-comments/:postId', (req, res) => {
 router.get('/api/sentiment/lounge-daily', (req, res) => {
   try {
     const today = new Date().toLocaleDateString('sv-SE');
-    const start = today + 'T00:00:00';
-    const end = today + 'T23:59:59';
+    const start = today + ' 00:00:00';
+    const end = today + ' 23:59:59';
     const limit = parseInt(req.query.limit) || 200;
     const posts = db.queryAll(
       `SELECT title_zh, title, content_zh, author, url, sentiment, ai_category, post_time, crawled_at

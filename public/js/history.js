@@ -27,11 +27,23 @@ function formatKrTime(timeStr) {
   return `${m}-${d} ${h}:${min}`;
 }
 
-// 格式化爬取时间 "2026-07-31T13:00:30.334Z" -> "07-31 13:00"
+// 解析数据库中的时间字符串（UTC+8，无时区标记）→ 正确的 Date 对象
+function parseDBTime(timeStr) {
+  if (!timeStr) return null;
+  // 已经是 ISO 格式（带Z或+），直接解析
+  if (timeStr.includes('Z') || /\+\d{2}:\d{2}$/.test(timeStr)) {
+    const d = new Date(timeStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // 数据库存的 UTC+8 时间（如 "2026-08-06 15:30:00"），补上 +08:00 让浏览器正确转换
+  const d = new Date(timeStr.replace(' ', 'T') + '+08:00');
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// 格式化爬取时间（数据库存的是 UTC+8）
 function formatCrawlTime(timeStr) {
-  if (!timeStr) return '';
-  const d = new Date(timeStr);
-  if (isNaN(d.getTime())) return '';
+  const d = parseDBTime(timeStr);
+  if (!d) return '';
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   const hh = String(d.getHours()).padStart(2, '0');
@@ -39,13 +51,23 @@ function formatCrawlTime(timeStr) {
   return `${mm}-${dd} ${hh}:${min}`;
 }
 
-// 格式化发帖时间 "2026-08-05 10:17:00" -> "08-05 10:17"
+// 格式化发帖时间（post_time 是韩国时间 UTC+9）
 function formatPostTime(timeStr) {
   if (!timeStr) return '';
-  // 直接解析 "YYYY-MM-DD HH:mm:ss" 或 "YYYY-MM-DDTHH:mm:ss" 格式，避免时区问题
+  // post_time 是韩国本地时间 (UTC+9)，补上 +09:00 让浏览器正确转换到本地时区
   const match = timeStr.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  if (match) return `${match[2]}-${match[3]} ${match[4]}:${match[5]}`;
-  // 兜底：尝试 Date 解析
+  if (match) {
+    const d = new Date(timeStr.replace(' ', 'T') + '+09:00');
+    if (!isNaN(d.getTime())) {
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${mm}-${dd} ${hh}:${min}`;
+    }
+    // 解析失败则回退到直接提取数字
+    return `${match[2]}-${match[3]} ${match[4]}:${match[5]}`;
+  }
   return formatCrawlTime(timeStr);
 }
 
@@ -624,14 +646,16 @@ async function loadLoungeStats() {
     if (el('statTranslated')) el('statTranslated').textContent = translated;
     if (el('statTranslatePct')) el('statTranslatePct').textContent = pct + '%';
     if (el('statLastCrawl')) {
-      // lastCrawl 是 ISO 格式 "2026-07-31T13:00:30.334Z"，转为 "07-31 13:00"
+      // lastCrawl 是数据库 UTC+8 时间，用 parseDBTime 正确解析时区
       if (lastCrawl !== '--') {
-        const d = new Date(lastCrawl);
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        const hh = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        el('statLastCrawl').textContent = `${mm}-${dd} ${hh}:${min}`;
+        const d = parseDBTime(lastCrawl);
+        if (d) {
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          const hh = String(d.getHours()).padStart(2, '0');
+          const min = String(d.getMinutes()).padStart(2, '0');
+          el('statLastCrawl').textContent = `${mm}-${dd} ${hh}:${min}`;
+        }
       } else {
         el('statLastCrawl').textContent = '--';
       }
