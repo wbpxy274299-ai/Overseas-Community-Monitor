@@ -460,6 +460,30 @@ async function clearLoungeData() {
   }
 }
 
+// ===== 删除指定日期之前的韩国社区数据 =====
+async function deleteOldLoungeData() {
+  if (!confirm('确认删除 2026-05-01 之前的所有韩国社区数据？\n\n这将删除旧帖子、评论和日报，但不会影响 5 月之后的数据。\n\n此操作不可恢复！')) return;
+  try {
+    const res = await fetch('/api/lounge/delete-before', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ beforeDate: '2026-05-01' })
+    });
+    const result = await res.json();
+    if (result.success) {
+      alert(result.message || '删除完成');
+      // 刷新统计和列表
+      initLoungeDates();
+      loadLoungePosts();
+      loadLoungeStats();
+    } else {
+      alert(result.message || '删除失败');
+    }
+  } catch (e) {
+    alert('删除请求失败: ' + e.message);
+  }
+}
+
 // ===== 韩国社区爬虫触发 =====
 async function triggerLoungeCrawl() {
   const btn = document.getElementById('btnLoungeCrawl');

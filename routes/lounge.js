@@ -17,14 +17,20 @@ const { getProxyConfig } = require('../config');
 
 /**
  * 从韩文时间字符串提取实际发布日期
- * @param {string} koreanTime - 韩文时间 (如 "06.16", "1시간 전")
+ * @param {string} koreanTime - 韩文时间 (如 "06.16", "2026-08-05 10:17:00", "1시간 전")
  * @param {string} crawledAt - 抓取时间 (ISO 格式)
  * @returns {string|null} YYYY-MM-DD 格式日期
  */
 function extractPostDate(koreanTime, crawledAt) {
   if (!koreanTime) return null;
   
-  // 尝试解析 "MM.DD" 格式 (如 "06.16")
+  // 1. 尝试解析 "YYYY-MM-DD HH:mm:ss" 或 "YYYY-MM-DDTHH:mm:ss" 格式（Naver API 实际返回的格式）
+  const fullDateMatch = koreanTime.match(/^(\d{4})-(\d{2})-(\d{2})[T ]/);
+  if (fullDateMatch) {
+    return `${fullDateMatch[1]}-${fullDateMatch[2]}-${fullDateMatch[3]}`;
+  }
+  
+  // 2. 尝试解析 "MM.DD" 格式 (如 "06.16")
   const match = koreanTime.match(/^(\d{2})\.(\d{2})$/);
   if (match) {
     const month = parseInt(match[1]);
@@ -36,7 +42,7 @@ function extractPostDate(koreanTime, crawledAt) {
     }
   }
   
-  // 相对时间 (如 "1시간 전") 或解析失败，使用抓取时间
+  // 3. 相对时间 (如 "1시간 전") 或解析失败，使用抓取时间
   if (crawledAt) {
     const d = new Date(crawledAt);
     if (!isNaN(d.getTime())) {
@@ -124,6 +130,17 @@ function initLoungeTables() {
   for (const sql of migrateColumns) {
     try { rawDb.run(sql); } catch (_) { /* 列已存在，跳过 */ }
   }
+
+  // ★ 数据回填：把已有数据的 post_date 从 post_time 提取出来
+  // post_time 格式为 "YYYY-MM-DD HH:mm:ss"，用 substr 取前10位
+  try {
+    const backfillResult = rawDb.run(
+      `UPDATE lounge_posts SET post_date = substr(post_time, 1, 10) WHERE post_date IS NULL AND post_time IS NOT NULL AND post_time != ''`
+    );
+    if (backfillResult.changes > 0) {
+      console.log(`✅ 回填 post_date: ${backfillResult.changes} 条`);
+    }
+  } catch (_) { /* 忽略 */ }
 
   // 评论表
   rawDb.run(`
@@ -758,6 +775,46 @@ router.post('/api/lounge/clear-data', ensureLoggedIn, (req, res) => {
     initLoungeTables();
     console.log('✅ 韩国社区数据已清空，表结构已重建');
     res.json({ success: true, message: '韩国社区数据已清空，可以重新抓取' });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// 删除指定日期之前的韩国社区数据
+router.post('/api/lounge/delete-before', ensureLoggedIn, (req, res) => {
+  if (!['admin', 'super_admin'].includes(req.user.role)) {
+    return res.json({ success: false, message: '权限不足' });
+  }
+  const { beforeDate } = req.body; // 格式: "2026-05-01"
+  if (!beforeDate || !/^\d{4}-\d{2}-\d{2}$/.test(beforeDate)) {
+    return res.json({ success: false, message: '日期格式错误，需要 YYYY-MM-DD 格式' });
+  }
+  try {
+    const rawDb = db.getDb();
+    // 删除帖子（post_date 或 crawled_at 早于指定日期）
+    const postResult = rawDb.run(
+      `DELETE FROM lounge_posts WHERE post_date < ? OR (post_date IS NULL AND crawled_at < ?)`,
+      [beforeDate, beforeDate + ' 00:00:00']
+    );
+    // 删除关联评论（帖子已被删的）
+    const deletedPostIds = db.queryAll(
+      `SELECT post_id FROM lounge_posts WHERE post_date >= ? OR (post_date IS NULL AND crawled_at >= ?)`,
+      [beforeDate, beforeDate + ' 00:00:00']
+    );
+    const keptIds = new Set(deletedPostIds.map(r => r.post_id));
+    const allPostIds = db.queryAll('SELECT DISTINCT post_id FROM lounge_comments');
+    let commentDeleted = 0;
+    for (const row of allPostIds) {
+      if (!keptIds.has(row.post_id)) {
+        const r = rawDb.run('DELETE FROM lounge_comments WHERE post_id = ?', [row.post_id]);
+        commentDeleted += r.changes;
+      }
+    }
+    // 删除旧日报
+    const reportResult = rawDb.run('DELETE FROM lounge_daily_reports WHERE report_date < ?', [beforeDate]);
+    db.saveDb();
+    console.log(`✅ 删除 ${beforeDate} 之前的数据：帖子 ${postResult.changes} 条，评论 ${commentDeleted} 条，日报 ${reportResult.changes} 条`);
+    res.json({ success: true, message: `已删除 ${beforeDate} 之前的数据：帖子 ${postResult.changes} 条，评论 ${commentDeleted} 条，日报 ${reportResult.changes} 条` });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
