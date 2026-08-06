@@ -40,11 +40,13 @@ function recordError(source, message) {
 function getSystemErrors() { return systemErrors; }
 function getCollectionStatus() { return collectionStatus; }
 
-// 本地时间格式化（避免 toISOString 的 UTC 偏移）
+// UTC+8 时间格式化（与数据库存储格式一致）
 function fmtLocalDate(d) {
-  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'),
-        day = String(d.getDate()).padStart(2,'0'), h = String(d.getHours()).padStart(2,'0'),
-        min = String(d.getMinutes()).padStart(2,'0'), sec = String(d.getSeconds()).padStart(2,'0');
+  // 转为 UTC+8 时间
+  const utc8 = new Date(d.getTime() + 8 * 60 * 60 * 1000);
+  const y = utc8.getUTCFullYear(), m = String(utc8.getUTCMonth()+1).padStart(2,'0'),
+        day = String(utc8.getUTCDate()).padStart(2,'0'), h = String(utc8.getUTCHours()).padStart(2,'0'),
+        min = String(utc8.getUTCMinutes()).padStart(2,'0'), sec = String(utc8.getUTCSeconds()).padStart(2,'0');
   return `${y}-${m}-${day} ${h}:${min}:${sec}`;
 }
 
@@ -1529,7 +1531,9 @@ function deduplicateHistoricalData() {
 
 // ===== 获取统计数据（新版：Twitter + Discord）=====
 function getStatistics(period = 'week') {
-  const now = new Date(); // 直接使用本地时间(CST)
+  // ★ 强制使用 UTC+8（与数据库存储格式一致）
+  const now = new Date();
+  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   
   let startDate, endDate, periodLabel;
   
@@ -1540,23 +1544,24 @@ function getStatistics(period = 'week') {
     endDate = e;
     periodLabel = label;
   } else {
-    // 周报：上周一 00:00 到 上周日 23:59
-    const daysSinceMonday = (now.getDay() + 6) % 7; // 距离上周一的天数
+    // 周报：上周一 00:00 到 上周日 23:59（UTC+8）
+    const dayOfWeek = utc8.getUTCDay(); // 0=周日, 1=周一...
+    const daysSinceMonday = (dayOfWeek + 6) % 7; // 距离上周一的天数
     
-    // 上周一 00:00
-    const startOfLastMonday = new Date(now);
-    startOfLastMonday.setDate(now.getDate() - daysSinceMonday - 7);
-    startOfLastMonday.setHours(0, 0, 0, 0);
+    // 上周一 00:00 (UTC+8)
+    const startOfLastMonday = new Date(utc8);
+    startOfLastMonday.setUTCDate(utc8.getUTCDate() - daysSinceMonday - 7);
+    startOfLastMonday.setUTCHours(0, 0, 0, 0);
     
-    // 上周日 23:59:59
+    // 上周日 23:59:59 (UTC+8)
     const endOfLastSunday = new Date(startOfLastMonday);
-    endOfLastSunday.setDate(startOfLastMonday.getDate() + 6);
-    endOfLastSunday.setHours(23, 59, 59, 999);
+    endOfLastSunday.setUTCDate(startOfLastMonday.getUTCDate() + 6);
+    endOfLastSunday.setUTCHours(23, 59, 59, 999);
     
     const fmtLocal = fmtLocalDate;
     startDate = fmtLocal(startOfLastMonday);
     endDate = fmtLocal(endOfLastSunday);
-    periodLabel = `${startOfLastMonday.toLocaleDateString('zh-CN')} ~ ${endOfLastSunday.toLocaleDateString('zh-CN')}`;
+    periodLabel = `${startOfLastMonday.getUTCFullYear()}/${startOfLastMonday.getUTCMonth()+1}/${startOfLastMonday.getUTCDate()} ~ ${endOfLastSunday.getUTCFullYear()}/${endOfLastSunday.getUTCMonth()+1}/${endOfLastSunday.getUTCDate()}`;
   }
   
   console.log(`📅 统计周期: ${periodLabel}`);
@@ -1791,10 +1796,12 @@ function getDailySentiment(limit = 200, platform = null) {
 
 // ===== 获取情绪倾向分析（新增）=====
 function getSentimentTrendAnalysis(platform = null, days = 7) {
-  const now = new Date(); // 直接使用本地时间(CST)
-  const startDate = new Date(now);
-  startDate.setDate(now.getDate() - days);
-  startDate.setHours(0, 0, 0, 0);
+  // ★ 强制使用 UTC+8（与数据库存储格式一致）
+  const now = new Date();
+  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const startDate = new Date(utc8);
+  startDate.setUTCDate(utc8.getUTCDate() - days);
+  startDate.setUTCHours(0, 0, 0, 0);
   
   const startStr = fmtLocalDate(startDate);
   

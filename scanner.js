@@ -17,17 +17,19 @@ const discordClient = require('./discord_client');
 const CST_OFFSET = 8 * 3600 * 1000;
 
 function nowCst() {
-  return new Date(); // 直接使用本地时间(CST),不需要手动加偏移
+  // ★ 返回当前 UTC+8 时间
+  return new Date(Date.now() + CST_OFFSET);
 }
 
 function formatCst(d) {
-  // 格式化为本地时间字符串 (CST)
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const seconds = String(d.getSeconds()).padStart(2, '0');
+  // ★ 格式化为 UTC+8 时间字符串（与数据库存储格式一致）
+  const utc8 = new Date(d.getTime()); // d 已经是 UTC+8 时间
+  const year = utc8.getUTCFullYear();
+  const month = String(utc8.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(utc8.getUTCDate()).padStart(2, '0');
+  const hours = String(utc8.getUTCHours()).padStart(2, '0');
+  const minutes = String(utc8.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(utc8.getUTCSeconds()).padStart(2, '0');
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
