@@ -104,6 +104,76 @@ function renderUserTable(users) {
   tbody.innerHTML = html;
 }
 
+// ===== 构建权限单元格（operator 显示权限开关，admin/super_admin 显示全权限）=====
+function buildPermissionsCell(user) {
+  const currentUser = getCurrentUser();
+  const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  
+  // admin 和 super_admin 默认有所有权限，显示“默认全权限”
+  if (user.role === 'admin' || user.role === 'super_admin') {
+    return '<span style="color:var(--mut);font-size:12px;">默认全权限</span>';
+  }
+  
+  // operator/viewer/pending 用户显示权限开关
+  const perms = JSON.parse(user.user_permissions || '{}');
+  const canUpload = perms.upload || false;
+  const regions = perms.regions || [];
+  
+  if (!isSuperAdmin) {
+    return '<span style="color:var(--mut);font-size:12px;">非管理员</span>';
+  }
+  
+  // 超管可以编辑其他角色的权限
+  return `
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
+      <label>
+        <input type="checkbox" ${canUpload ? 'checked' : ''} onchange="toggleUploadPermission('${user.username}', this.checked)" />
+        DC 上传
+      </label>
+      <label>
+        <input type="checkbox" checked="${hasRegionAccess(regions)}" onchange="toggleRegionPermission('${user.username}', this.checked)" />
+        地区访问
+      </label>
+    </div>
+  `;
+}
+
+// 切换 DC 上传权限
+async function toggleUploadPermission(username, value) {
+  try {
+    const resp = await fetch(`/api/admin/users/${username}/permissions`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upload: value }),
+      credentials: 'same-origin'
+    });
+    const data = await resp.json();
+    if (data.ok) Toast.success('权限已更新');
+  } catch (e) {
+    Toast.error('网络错误');
+  }
+}
+
+// 切换地区访问权限
+async function toggleRegionPermission(username, value) {
+  try {
+    const resp = await fetch(`/api/admin/users/${username}/permissions`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ regions: value ? ['TC', 'JP', 'SEA', 'KR'] : [] }),
+      credentials: 'same-origin'
+    });
+    const data = await resp.json();
+    if (data.ok) Toast.success('权限已更新');
+  } catch (e) {
+    Toast.error('网络错误');
+  }
+}
+
+function hasRegionAccess(permissions) {
+  return permissions.length === Object.keys(permissions).length;
+}
+
 // 构建角色选择下拉框
 function buildRoleSelector(username, currentRole, isSelf) {
   const currentUser = getCurrentUser();
