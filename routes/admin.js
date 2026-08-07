@@ -10,7 +10,7 @@ const axios = require('axios');
 const db = require('../db');
 const log = require('../logger');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { getDiscordToken, ENV_PATH, loadChannels } = require('../config');
+const { getDiscordToken, ENV_PATH, loadChannels, fmtCST8 } = require('../config');
 const sentiment = require('../sentiment');
 
 // Discord 服务器列表
@@ -189,7 +189,7 @@ router.post('/api/admin/tokens/test', requireRole('admin', 'super_admin'), async
     try {
       const sendRes = await axios.post(
         `https://discord.com/api/v10/channels/${chId}/messages`,
-        { content: `[Health Check] ${new Date().toISOString()}` },
+        { content: `[Health Check] ${fmtCST8(new Date())}` },
         { headers: { 'Authorization': 'Bot ' + token, 'Content-Type': 'application/json' }, timeout: 30000 }
       );
       sendOk = true;

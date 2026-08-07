@@ -3,7 +3,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { getDiscordToken } = require('../config');
+const { getDiscordToken, fmtCST8 } = require('../config');
 const db = require('../db');
 const sentiment = require('../sentiment');
 const aiAnalyzer = require('../ai_analyzer');
@@ -66,7 +66,7 @@ function todayStr() {
 router.get('/health', (req, res) => {
   const health = {
     status: 'ok',
-    timestamp: new Date().toISOString(),
+    timestamp: fmtCST8(new Date()),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
     version: 'v17.3'
@@ -266,7 +266,7 @@ router.get('/api/sentiment/lounge-comments/:postId', (req, res) => {
 // ===== 韩国社区当日帖子（发言原声用） =====
 router.get('/api/sentiment/lounge-daily', (req, res) => {
   try {
-    const today = new Date().toLocaleDateString('sv-SE');
+    const today = fmtCST8(new Date()).substring(0, 10);
     const start = today + ' 00:00:00';
     const end = today + ' 23:59:59';
     const limit = parseInt(req.query.limit) || 200;
@@ -476,7 +476,7 @@ router.post('/api/sentiment/force-analyze', requireRole('super_admin'), async (r
       if (result.lounge_topics.length > 0) sentiment.saveTopicHistory(result.lounge_topics, 'lounge', true);
 
       dailyAnalysisLock = { date: todayStr(), analyzing: false };
-      sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
+      sentiment.getCollectionStatus().analysis.lastRun = fmtCST8(new Date());
       sentiment.getCollectionStatus().analysis.topicCount = totalTopics;
       console.log('🔒 [手动AI分析] 分析完成');
     } finally {
@@ -591,13 +591,13 @@ router.post('/api/sentiment/refresh-analysis', requireRole('operator'), async (r
       if (result.lounge_topics.length > 0) sentiment.saveTopicHistory(result.lounge_topics, 'lounge', true);
 
       dailyAnalysisLock = { date: todayStr(), analyzing: false };
-      sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
+      sentiment.getCollectionStatus().analysis.lastRun = fmtCST8(new Date());
 
       // 更新分析快照
       sentiment.setAnalysisSnapshot({
         recordCount: current.recordCount,
         maxUpdatedAt: current.maxUpdatedAt,
-        analyzedAt: new Date().toISOString(),
+        analyzedAt: fmtCST8(new Date()),
       });
       console.log('✅ [刷新分析] 分析完成');
     } finally {
@@ -792,7 +792,7 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
           collectionTwitter: cs.twitter?.lastRun || null,
           collectionDiscord: cs.discord?.lastRun || null
         };
-        sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
+        sentiment.getCollectionStatus().analysis.lastRun = fmtCST8(new Date());
         sentiment.getCollectionStatus().analysis.topicCount = 0;
         return res.json({ ok: true, data: result, diagnosis });
       }
@@ -801,7 +801,7 @@ router.get('/api/sentiment/hot-topics', async (req, res) => {
       console.log('🔒 分析成功，已上锁（今天不再重复调AI）');
       
       // 更新分析状态
-      sentiment.getCollectionStatus().analysis.lastRun = new Date().toISOString();
+      sentiment.getCollectionStatus().analysis.lastRun = fmtCST8(new Date());
       sentiment.getCollectionStatus().analysis.topicCount = totalTopics;
       
       res.json({ ok: true, data: result, cached: false });
@@ -1251,11 +1251,11 @@ router.post('/api/sentiment/upload', requireRole('operator', 'admin'), async (re
             if (!isNaN(d.getTime())) {
               postTime = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':00';
             } else {
-              postTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+              postTime = fmtCST8(new Date());
             }
           }
         } catch (_) {
-          postTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+          postTime = fmtCST8(new Date());
         }
         
         const crypto = require('crypto');

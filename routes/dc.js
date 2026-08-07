@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { CHANNELS, STATUS, SERVER_SENDER, getDiscordToken } = require('../config');
+const { CHANNELS, STATUS, SERVER_SENDER, getDiscordToken, fmtCST8Date } = require('../config');
 const db = require('../db');
 const { sendRecord, fetchMessage, fetchChannel } = require('../scanner');
 const log = require('../logger');
@@ -177,7 +177,7 @@ router.get('/api/tasks/stats', dcAuth, (req, res) => {
     recalled: db.countTasks('recalled'),
   };
   // 今日统计（按 created_at 前缀匹配）
-  const today = new Date().toISOString().slice(0, 10);
+  const today = fmtCST8Date(new Date());
   const todayRows = db.queryAll(
     "SELECT status, COUNT(*) as cnt FROM tasks WHERE created_at LIKE ? GROUP BY status",
     [today + '%']

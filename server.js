@@ -13,7 +13,7 @@ const path = require('path');
 const fs = require('fs');
 const log = require('./logger');
 
-const { UPLOAD_DIR } = require('./config');
+const { UPLOAD_DIR, fmtCST8 } = require('./config');
 const db = require('./db');
 const sentiment = require('./sentiment');
 const scheduler = require('./scheduler');
@@ -78,7 +78,7 @@ app.get('/api/health', (req, res) => {
       rss: Math.round(memoryUsage.rss / 1024 / 1024) + 'MB',
       heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
     },
-    timestamp: new Date().toISOString(),
+    timestamp: fmtCST8(new Date()),
   });
 });
 

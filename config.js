@@ -96,6 +96,23 @@ function getDiscordToken(server) {
   return process.env[key] || '';
 }
 
+// ===== 日期工具（全局唯一标准）=====
+// ★ 项目铁律：所有日期统一使用 YYYY-MM-DD HH:MM:SS 格式，UTC+8 时区
+// 服务器已通过 process.env.TZ = 'Asia/Shanghai' 设置时区，
+// 因此 getFullYear()/getMonth() 等本地方法直接返回 UTC+8 时间
+function fmtCST8(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+function fmtCST8Date(d) {
+  return fmtCST8(d).substring(0, 10);
+}
+
 module.exports = {
   ROOT, DB_PATH, UPLOAD_DIR, ENV_PATH,
   DISCORD_UA,
@@ -103,4 +120,5 @@ module.exports = {
   CHANNELS, CHANNELS_FALLBACK,
   SERVER_SENDER, STATUS,
   loadChannels, getDiscordToken,
+  fmtCST8, fmtCST8Date,
 };

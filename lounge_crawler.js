@@ -10,10 +10,11 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const log = require('./logger');
 const db = require('./db');
+const { fmtCST8 } = require('./config');
 
 // ===== 韩国时间解析（把韩文时间转成标准 ISO 格式）=====
 function parseKoreanTime(timeStr, crawlTime) {
-  if (!timeStr) return crawlTime || new Date().toISOString();
+  if (!timeStr) return crawlTime || fmtCST8(new Date());
   if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(timeStr)) return timeStr.replace('T', ' ');
   const dateMatch = timeStr.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})\.?\s*(\d{1,2}):(\d{2})/);
   if (dateMatch) {
@@ -41,7 +42,7 @@ function parseKoreanTime(timeStr, crawlTime) {
     const min = String(baseTime.getMinutes()).padStart(2, '0');
     return `${y}-${m}-${d} ${h}:${min}:00`;
   }
-  return crawlTime || new Date().toISOString();
+  return crawlTime || fmtCST8(new Date());
 }
 
 // ===== Naver API 基础配置 =====
@@ -197,11 +198,11 @@ function parseContentsHTML(html) {
  * - 已经是 "YYYY-MM-DD HH:mm:ss" 格式 => 原样返回
  */
 function parseNaverDate(dateStr) {
-  if (!dateStr) return new Date().toISOString().replace('T', ' ').substring(0, 19);
+  if (!dateStr) return fmtCST8(new Date());
 
   // 如果是数字（毫秒时间戳），直接转 ISO — 时间戳是绝对时间，不需要加时区偏移
   if (typeof dateStr === 'number') {
-    return new Date(dateStr).toISOString().replace('T', ' ').substring(0, 19);
+    return fmtCST8(new Date(dateStr));
   }
 
   const str = String(dateStr).trim();
@@ -219,17 +220,17 @@ function parseNaverDate(dateStr) {
   // 字符串形式的数字时间戳（10位秒级或13位毫秒级）
   if (/^\d{10,13}$/.test(str)) {
     const ts = str.length === 10 ? parseInt(str) * 1000 : parseInt(str);
-    return new Date(ts).toISOString().replace('T', ' ').substring(0, 19);
+    return fmtCST8(new Date(ts));
   }
 
   // 最后兜底：尝试 Date 构造器（不加偏移）
   const fallback = new Date(str);
   if (!isNaN(fallback.getTime())) {
-    return fallback.toISOString().replace('T', ' ').substring(0, 19);
+    return fmtCST8(fallback);
   }
 
   console.warn('⚠️ 无法解析的日期格式:', JSON.stringify(dateStr), '(类型:', typeof dateStr, ')');
-  return new Date().toISOString().replace('T', ' ').substring(0, 19);
+  return fmtCST8(new Date());
 }
 
 // ===== 核心：抓取帖子列表（通过 API）=====
@@ -588,7 +589,7 @@ async function crawlLounge(options = {}) {
           content: detail.content,
           images: detail.images,
           comments: detail.comments,
-          crawledAt: new Date().toISOString(),
+          crawledAt: fmtCST8(new Date()),
         });
         result.totalComments += detail.comments.length;
 
@@ -607,7 +608,7 @@ async function crawlLounge(options = {}) {
           content: parsed.text,
           images: parsed.images,
           comments: [],
-          crawledAt: new Date().toISOString(),
+          crawledAt: fmtCST8(new Date()),
         });
       }
     }
@@ -628,7 +629,7 @@ async function crawlLounge(options = {}) {
     log.error('Lounge crawl error', err.stack);
   } finally {
     isCrawling = false;
-    lastCrawlTime = new Date().toISOString();
+    lastCrawlTime = fmtCST8(new Date());
     lastCrawlResult = { success: result.success, postCount: result.posts.length, commentCount: result.totalComments, crawlTime: result.crawlTime, error: result.error };
   }
 

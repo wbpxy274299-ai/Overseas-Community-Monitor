@@ -8,7 +8,7 @@ const sentiment = require('./sentiment');
 const weeklyReport = require('./weekly_report');
 const log = require('./logger');
 const db = require('./db');
-const { CHANNELS } = require('./config');
+const { CHANNELS, fmtCST8 } = require('./config');
 
 // 韩国社区抓取模块（可选，如果 routes/lounge.js 存在）
 let loungeModule = null;
@@ -350,19 +350,19 @@ function checkScheduledJobs() {
           // 有话题产生 → 标记完成
           lastRunDates.dailyAnalysis = today;
           saveState();
-          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: true, message: `${topicCount} 个话题` };
+          taskRunLog.dailyAnalysis = { lastRun: fmtCST8(new Date()), success: true, message: `${topicCount} 个话题` };
           console.log(`✅ 每日分析成功: ${topicCount} 个话题，已标记完成`);
         } else if (result.success && result.message === '无数据') {
           // 时间窗口内没有高质量数据 → 也标记完成，别死循环
           lastRunDates.dailyAnalysis = today;
           saveState();
-          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: '时间窗口内无高质量数据' };
+          taskRunLog.dailyAnalysis = { lastRun: fmtCST8(new Date()), success: false, message: '时间窗口内无高质量数据' };
           console.log('⚠️ 每日分析: 时间窗口内无高质量数据(content_quality≥2)，已标记完成不再重试');
           console.log('   💡 提示: 检查 sentiment_records 表中 created_at 在昨日8:30~今日8:30 之间且 content_quality≥2 的记录数');
         } else if (result.success && topicCount === 0) {
           // AI 分析完成但没产出话题（AI 返回空结果）→ 重试次数+1，超过3次就放弃
           analysisRetryCount++;
-          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: `AI返回0话题(重试${analysisRetryCount}/3)` };
+          taskRunLog.dailyAnalysis = { lastRun: fmtCST8(new Date()), success: false, message: `AI返回0话题(重试${analysisRetryCount}/3)` };
           if (analysisRetryCount >= 3) {
             lastRunDates.dailyAnalysis = today;
             saveState();
@@ -373,7 +373,7 @@ function checkScheduledJobs() {
         } else {
           // 真正的失败（采集异常、AI API报错等）→ 允许重试
           analysisRetryCount++;
-          taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: result?.message || '未知错误' };
+          taskRunLog.dailyAnalysis = { lastRun: fmtCST8(new Date()), success: false, message: result?.message || '未知错误' };
           if (analysisRetryCount >= 5) {
             lastRunDates.dailyAnalysis = today;
             saveState();
@@ -384,7 +384,7 @@ function checkScheduledJobs() {
         }
       }).catch(e => {
         analysisRetryCount++;
-        taskRunLog.dailyAnalysis = { lastRun: new Date().toISOString(), success: false, message: e.message };
+        taskRunLog.dailyAnalysis = { lastRun: fmtCST8(new Date()), success: false, message: e.message };
         sentiment.recordError('调度器-每日分析', e.message);
         if (analysisRetryCount >= 5) {
           lastRunDates.dailyAnalysis = today;
@@ -408,9 +408,9 @@ function checkScheduledJobs() {
         lastRunDates.dailySnapshot = today;
         saveState();
         saveDailySnapshotTask().then(() => {
-          taskRunLog.dailySnapshot = { lastRun: new Date().toISOString(), success: true, message: '完成' };
+          taskRunLog.dailySnapshot = { lastRun: fmtCST8(new Date()), success: true, message: '完成' };
         }).catch(e => {
-          taskRunLog.dailySnapshot = { lastRun: new Date().toISOString(), success: false, message: e.message };
+          taskRunLog.dailySnapshot = { lastRun: fmtCST8(new Date()), success: false, message: e.message };
           sentiment.recordError('调度器-快照', e.message);
           console.error('❌ 快照保存失败:', e.message);
         });
@@ -425,9 +425,9 @@ function checkScheduledJobs() {
       lastRunDates.midnightCollect = today;
       saveState();  // 持久化
       midnightFullCollectTask().then(() => {
-        taskRunLog.midnightCollect = { lastRun: new Date().toISOString(), success: true, message: '完成' };
+        taskRunLog.midnightCollect = { lastRun: fmtCST8(new Date()), success: true, message: '完成' };
       }).catch(e => {
-        taskRunLog.midnightCollect = { lastRun: new Date().toISOString(), success: false, message: e.message };
+        taskRunLog.midnightCollect = { lastRun: fmtCST8(new Date()), success: false, message: e.message };
         sentiment.recordError('调度器-零点采集', e.message);
         console.error('❌ 零点采集失败:', e.message);
       });
@@ -447,9 +447,9 @@ function checkScheduledJobs() {
         lastRunDates.afternoonBackup = today;
         saveState();
         afternoonBackupTask().then((result) => {
-          taskRunLog.afternoonBackup = { lastRun: new Date().toISOString(), success: result?.success || false, message: result?.message || '完成' };
+          taskRunLog.afternoonBackup = { lastRun: fmtCST8(new Date()), success: result?.success || false, message: result?.message || '完成' };
         }).catch(e => {
-          taskRunLog.afternoonBackup = { lastRun: new Date().toISOString(), success: false, message: e.message };
+          taskRunLog.afternoonBackup = { lastRun: fmtCST8(new Date()), success: false, message: e.message };
           sentiment.recordError('调度器-下午备份', e.message);
           console.error('❌ 下午备份采集失败:', e.message);
         });
@@ -470,9 +470,9 @@ function checkScheduledJobs() {
         lastRunDates.loungeCrawlMorning = today;
         saveState();
         loungeCrawlTask().then((result) => {
-          taskRunLog.loungeCrawlMorning = { lastRun: new Date().toISOString(), success: result?.success || false, message: result?.message || '完成' };
+          taskRunLog.loungeCrawlMorning = { lastRun: fmtCST8(new Date()), success: result?.success || false, message: result?.message || '完成' };
         }).catch(e => {
-          taskRunLog.loungeCrawlMorning = { lastRun: new Date().toISOString(), success: false, message: e.message };
+          taskRunLog.loungeCrawlMorning = { lastRun: fmtCST8(new Date()), success: false, message: e.message };
           console.error('❌ 韩国社区早9点抓取失败:', e.message);
         });
       }
@@ -487,9 +487,9 @@ function checkScheduledJobs() {
         lastRunDates.loungeCrawlEvening = today;
         saveState();
         loungeCrawlTask().then((result) => {
-          taskRunLog.loungeCrawl = { lastRun: new Date().toISOString(), success: result?.success || false, message: result?.message || '完成' };
+          taskRunLog.loungeCrawl = { lastRun: fmtCST8(new Date()), success: result?.success || false, message: result?.message || '完成' };
         }).catch(e => {
-          taskRunLog.loungeCrawl = { lastRun: new Date().toISOString(), success: false, message: e.message };
+          taskRunLog.loungeCrawl = { lastRun: fmtCST8(new Date()), success: false, message: e.message };
           sentiment.recordError('调度器-韩国抓取', e.message);
           console.error('❌ 韩国社区抓取失败:', e.message);
         });
@@ -588,7 +588,7 @@ async function dailyAnalysisTask() {
       lastRunDates.dailySnapshot = todayStr();
       saveState();
       await saveDailySnapshotTask();
-      taskRunLog.dailySnapshot = { lastRun: new Date().toISOString(), success: true, message: '分析后自动保存' };
+      taskRunLog.dailySnapshot = { lastRun: fmtCST8(new Date()), success: true, message: '分析后自动保存' };
     }
   } catch (e) {
     console.error('❌ 每日日报任务异常:', e.message);

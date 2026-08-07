@@ -8,6 +8,7 @@
 
 const axios = require('axios');
 const crypto = require('crypto');
+const { fmtCST8 } = require('./config');
 const terminology = require('./terminology');
 
 // 翻译缓存：避免重复翻译相同内容（省 API 调用费）
@@ -351,7 +352,7 @@ async function retranslateRecentRecords(days = 7, limit = 500) {
   try {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    const cutoffStr = cutoff.toISOString().slice(0, 19).replace('T', ' ');
+    const cutoffStr = fmtCST8(cutoff);
 
     const twitterRecords = db.queryAll(
       `SELECT id, content, translated_content FROM sentiment_records
@@ -392,7 +393,7 @@ async function retranslateRecentRecords(days = 7, limit = 500) {
   try {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    const cutoffStr = cutoff.toISOString().slice(0, 19).replace('T', ' ');
+    const cutoffStr = fmtCST8(cutoff);
 
     const loungePosts = db.queryAll(
       `SELECT id, title, content, title_zh, content_zh FROM lounge_posts
