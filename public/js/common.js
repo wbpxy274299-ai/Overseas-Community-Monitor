@@ -318,12 +318,6 @@ function applyNavPermissions() {
   const role = getUserRole();
   const roleLevel = ROLE_LEVEL[role] || 0;
   
-  // pending 用户：显示待审批遮罩，隐藏所有内容
-  if (role === 'pending') {
-    showPendingOverlay();
-    return;
-  }
-  
   if (!isAdminUser()) {
     document.querySelectorAll('.admin-only').forEach(el => {
       el.style.display = 'none';
@@ -353,24 +347,127 @@ function applyReadOnlyMode() {
 
 // ===== Pending 用户待审批遮罩 =====
 function showPendingOverlay() {
-  // 隐藏主内容
-  const mainContent = document.querySelector('.container') || document.querySelector('#mainApp') || document.querySelector('main');
-  if (mainContent) mainContent.style.display = 'none';
+  // 🚫 完全禁用页面：只显示锁定提示，隐藏所有内容
   
-  // 创建全屏遮罩
-  const overlay = document.createElement('div');
-  overlay.id = 'pending-overlay';
-  overlay.innerHTML = `
-    <div class="pending-card">
-      <div class="pending-icon">⏳</div>
-      <h1 class="pending-title">账号待审批</h1>
-      <p class="pending-desc">需要前往阿里钉@阿饱 开通相关权限方可进入</p>
-      <div class="pending-actions">
-        <button class="btn btn-secondary" onclick="window.location.href='/api/auth/logout'">🚪 退出登录</button>
+  // 1. 隐藏整个 body 内容（防止遮罩失效后暴露）
+  document.body.innerHTML = '';
+  
+  // 2. 创建全屏锁定页面（类似报错页面）
+  const lockPage = document.createElement('div');
+  lockPage.id = 'pending-lock-page';
+  lockPage.innerHTML = `
+    <div style="
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #f8f9fa;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 20px;
+    ">
+      <!-- 图标 -->
+      <div style="
+        font-size: 64px;
+        margin-bottom: 24px;
+        opacity: 0.6;
+      ">🔒</div>
+      
+      <!-- 标题 -->
+      <h1 style="
+        font-size: 28px;
+        font-weight: 700;
+        color: #333;
+        margin: 0 0 16px 0;
+      ">账号待审批</h1>
+      
+      <!-- 描述 -->
+      <p style="
+        font-size: 16px;
+        color: #666;
+        margin: 0 0 32px 0;
+        text-align: center;
+        max-width: 400px;
+        line-height: 1.6;
+      ">
+        您的账号尚未通过管理员审批，暂时无法使用系统功能。
+        <br />
+        请联系管理员完成权限开通。
+      </p>
+      
+      <!-- 信息框 -->
+      <div style="
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 32px;
+        max-width: 400px;
+      ">
+        <p style="
+          font-size: 14px;
+          color: #856404;
+          margin: 0;
+          font-weight: 600;
+        ">⚠️ 注意事项</p>
+        <ul style="
+          font-size: 13px;
+          color: #856404;
+          margin: 8px 0 0 0;
+          padding-left: 20px;
+          line-height: 1.6;
+        ">
+          <li>请勿尝试绕过限制</li>
+          <li>所有操作功能已被禁用</li>
+          <li>审批后将自动解锁</li>
+        </ul>
+      </div>
+      
+      <!-- 操作按钮 -->
+      <div style="display: flex; gap: 12px;">
+        <button onclick="window.location.href='/api/auth/logout'" style="
+          padding: 12px 24px;
+          background: #6c757d;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 15px;
+          cursor: pointer;
+          font-weight: 600;
+        ">🚪 退出登录</button>
+      </div>
+      
+      <!-- 底部技术信息（小字） -->
+      <div style="
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        color: #999;
+      ">
+        M2G 运营后台 · 安全保护中
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
+  
+  document.body.appendChild(lockPage);
+  
+  // 3. 禁用所有键盘快捷键（防止 F12、Ctrl+Shift+I 等）
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'F12' || 
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) ||
+        (e.ctrlKey && e.key === 'u')) {
+      e.preventDefault();
+      return false;
+    }
+  });
+  
+  // 4. 禁用右键菜单
+  document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    return false;
+  });
 }
 
 // ===== 公共工具函数 =====
@@ -614,7 +711,7 @@ AbaoTip.register('home', `
 document.addEventListener('DOMContentLoaded', async () => {
   DarkMode.init();
   
-  // 同步服务器角色到 localStorage（确保 pending 用户被正确识别）
+  // 🚫 紧急检查：pending 用户立即拦截（在渲染任何内容之前）
   try {
     const resp = await fetch('/api/auth/verify', { credentials: 'same-origin' });
     if (resp.ok) {
@@ -627,6 +724,17 @@ document.addEventListener('DOMContentLoaded', async () => {
           picture: data.user.picture,
           perms: data.permissions || {},
         }));
+        
+        // 🔴 如果 pending，立即显示锁定页面，不继续渲染
+        if (data.user.role === 'pending') {
+          showPendingOverlay();
+          return; // ← 中止后续所有初始化
+        }
+      }
+    } else {
+      // 未登录或登录过期
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
       }
     }
   } catch (_) {}
