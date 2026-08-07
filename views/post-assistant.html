@@ -48,7 +48,32 @@
       </div>
       <textarea class="txta" id="pa-editor" style="min-height:110px" placeholder="输入要翻译/校对的贴文内容..."></textarea>
       <div style="display:flex;gap:12px;margin:14px 0;flex-wrap:wrap">
-        <button class="btn btn-solid btn-sm" id="pa-trans-btn" onclick="paTranslate()">🌐 翻译成 7 语言 <span class="ar">→</span></button>
+        <!-- 语言选择器 -->
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:13px;color:var(--mut)">🌐 目标语言:</span>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="pa-lang-jp" checked value="jp"> 🇯🇵日语
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="pa-lang-en" checked value="en"> 🇬🇧英语
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="pa-lang-kr" checked value="kr"> 🇰🇷韩语
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="pa-lang-tw" checked value="tw"> 🇭🇰繁中
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="pa-lang-vn" checked value="vn"> 🇻🇳越南语
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="pa-lang-id" checked value="id"> 🇮🇩印尼语
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="pa-lang-th" checked value="th"> 🇹🇭泰语
+          </label>
+        </div>
+        <button class="btn btn-solid btn-sm" id="pa-trans-btn" onclick="paTranslate()">翻译成已选语言 <span class="ar">→</span></button>
         <button class="btn btn-op ok" id="pa-proof-btn" onclick="paProofread()" style="padding:8px 16px">✅ 校对翻译</button>
         <button class="btn btn-ghost btn-sm" onclick="paClear()">清空</button>
       </div>
@@ -68,6 +93,14 @@
       <div id="pa-tab-translate" class="adm-sub on">
         <div id="pa-output">
           <div class="pa-empty-hint" style="color:var(--mut);text-align:center;padding:20px">翻译结果会显示在这里 ✨</div>
+        </div>
+              
+        <!-- 编辑模式开关（默认关闭） -->
+        <div style="margin-top:12px;display:none" id="pa-edit-mode-wrapper">
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" id="pa-edit-toggle-btn" onclick="paToggleEditMode()">✏️ 切换到编辑模式</button>
+            <span style="font-size:11px;color:var(--mut)">编辑后可直接保存，下次翻译使用修改后的版本</span>
+          </div>
         </div>
       </div>
       <div id="pa-tab-proofread" class="adm-sub">
