@@ -273,38 +273,26 @@ async function initTopicHistoryTable() {
 
 // ===== 工具函数：获取今日统计周期（昨日 8:30 ~ 今日 8:30）=====
 function getTodayPeriod() {
-  // ★ 强制使用 UTC+8（与数据库存储格式一致）
-  const now = new Date();
-  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  // ★ 直接计算 UTC+8 的日期组件（不创建偏移Date，避免 setUTCHours 陷阱）
+  const nowMs = Date.now() + 8 * 3600000;
+  const utc8Date = nowMs % 86400000;
+  const utc8DayStart = nowMs - utc8Date;
+  const utc8Hour = Math.floor(utc8Date / 3600000);
   
-  // 今天的 8:30（UTC+8）
-  const today830am = new Date(utc8);
-  today830am.setUTCHours(8, 30, 0, 0);
+  // 今天 8:30 UTC+8 的毫秒时间戳
+  const today830 = utc8DayStart + 8.5 * 3600000;
+  // 如果当前不到 8:30，则“今日周期”从昨天 8:30 开始
+  const startMs = utc8Hour < 8 || (utc8Hour === 8 && new Date().getUTCMinutes() < 30)
+    ? today830 - 86400000
+    : today830;
+  const endMs = startMs + 86400000;
   
-  // 如果当前时间在 8:30 之前，则"今天"的8:30实际上是昨天的
-  if (utc8 < today830am) {
-    today830am.setUTCDate(today830am.getUTCDate() - 1);
-  }
-  
-  // 昨天的 8:30（UTC+8）
-  const yesterday830am = new Date(today830am);
-  yesterday830am.setUTCDate(today830am.getUTCDate() - 1);
-  
-  // 格式化为数据库字符串格式 "YYYY-MM-DD HH:mm:ss"
-  const formatDate = (date) => {
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(date.getUTCDate()).padStart(2, '0');
-    const hours = String(date.getUTCHours()).padStart(2, '0');
-    const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(date.getUTCSeconds()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  };
+  const fmt = (ms) => new Date(ms).toISOString().replace('T', ' ').substring(0, 19);
   
   return {
-    startDate: formatDate(yesterday830am),
-    endDate: formatDate(today830am),
-    periodLabel: `${yesterday830am.getUTCFullYear()}/${yesterday830am.getUTCMonth()+1}/${yesterday830am.getUTCDate()} 8:30 ~ ${today830am.getUTCFullYear()}/${today830am.getUTCMonth()+1}/${today830am.getUTCDate()} 8:30`
+    startDate: fmt(startMs),
+    endDate: fmt(endMs),
+    periodLabel: `${fmt(startMs).substring(0,10)} 8:30 ~ ${fmt(endMs).substring(0,10)} 8:30`
   };
 }
 
@@ -1528,10 +1516,6 @@ function deduplicateHistoricalData() {
 
 // ===== 获取统计数据（新版：Twitter + Discord）=====
 function getStatistics(period = 'week') {
-  // ★ 强制使用 UTC+8（与数据库存储格式一致）
-  const now = new Date();
-  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  
   let startDate, endDate, periodLabel;
   
   if (period === 'today') {
@@ -1542,23 +1526,23 @@ function getStatistics(period = 'week') {
     periodLabel = label;
   } else {
     // 周报：上周一 00:00 到 上周日 23:59（UTC+8）
-    const dayOfWeek = utc8.getUTCDay(); // 0=周日, 1=周一...
-    const daysSinceMonday = (dayOfWeek + 6) % 7; // 距离上周一的天数
+    // ★ 直接计算 UTC+8 日期组件，不用偏移Date
+    const nowMs = Date.now() + 8 * 3600000;
+    const utc8Date = nowMs % 86400000;
+    const utc8DayStart = nowMs - utc8Date;
+    const dayOfWeek = (Math.floor((nowMs % (86400000 * 7)) / 86400000) + 4) % 7; // 0=周一...6=周日
+    const daysSinceMonday = dayOfWeek;
     
-    // 上周一 00:00 (UTC+8)
-    const startOfLastMonday = new Date(utc8);
-    startOfLastMonday.setUTCDate(utc8.getUTCDate() - daysSinceMonday - 7);
-    startOfLastMonday.setUTCHours(0, 0, 0, 0);
+    // 上周一 00:00 UTC+8 = 前一天 16:00 UTC
+    const lastMondayMs = utc8DayStart - daysSinceMonday * 86400000 - 7 * 86400000;
+    const startMs = lastMondayMs - 8 * 3600000; // UTC+8 00:00 = UTC 前一天 16:00
+    const endMs = lastMondayMs + 6 * 86400000 - 8 * 3600000 + 86399999; // 上周日 23:59:59 UTC+8
     
-    // 上周日 23:59:59 (UTC+8)
-    const endOfLastSunday = new Date(startOfLastMonday);
-    endOfLastSunday.setUTCDate(startOfLastMonday.getUTCDate() + 6);
-    endOfLastSunday.setUTCHours(23, 59, 59, 999);
-    
-    const fmtLocal = fmtLocalDate;
-    startDate = fmtLocal(startOfLastMonday);
-    endDate = fmtLocal(endOfLastSunday);
-    periodLabel = `${startOfLastMonday.getUTCFullYear()}/${startOfLastMonday.getUTCMonth()+1}/${startOfLastMonday.getUTCDate()} ~ ${endOfLastSunday.getUTCFullYear()}/${endOfLastSunday.getUTCMonth()+1}/${endOfLastSunday.getUTCDate()}`;
+    startDate = new Date(startMs).toISOString().replace('T', ' ').substring(0, 19);
+    endDate = new Date(endMs).toISOString().replace('T', ' ').substring(0, 19);
+    const startDay = new Date(lastMondayMs);
+    const endDay = new Date(lastMondayMs + 6 * 86400000);
+    periodLabel = `${startDay.getUTCFullYear()}/${startDay.getUTCMonth()+1}/${startDay.getUTCDate()} ~ ${endDay.getUTCFullYear()}/${endDay.getUTCMonth()+1}/${endDay.getUTCDate()}`;
   }
   
   console.log(`📅 统计周期: ${periodLabel}`);
@@ -1793,14 +1777,15 @@ function getDailySentiment(limit = 200, platform = null) {
 
 // ===== 获取情绪倾向分析（新增）=====
 function getSentimentTrendAnalysis(platform = null, days = 7) {
-  // ★ 强制使用 UTC+8（与数据库存储格式一致）
-  const now = new Date();
-  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  const startDate = new Date(utc8);
-  startDate.setUTCDate(utc8.getUTCDate() - days);
-  startDate.setUTCHours(0, 0, 0, 0);
-  
-  const startStr = fmtLocalDate(startDate);
+  // ★ 直接计算 UTC+8 日期，不用偏移Date
+  const nowMs = Date.now() + 8 * 3600000;
+  const utc8Date = nowMs % 86400000;
+  const utc8DayStart = nowMs - utc8Date;
+  const daysAgoMs = days * 86400000;
+  const targetDayMs = utc8DayStart - daysAgoMs;
+  // UTC+8 00:00 = UTC 前一天 16:00
+  const startMs = targetDayMs - 8 * 3600000;
+  const startStr = new Date(startMs).toISOString().replace('T', ' ').substring(0, 19);
   
   // 基础统计
   const baseConditions = ['is_noise = 0', 'created_at >= ?'];
@@ -2608,10 +2593,10 @@ function getWeeklyOverview() {
       );
       const postCnt = lRow?.cnt || 0;
       
-      // 评论数（comment_time 是 YYYYMMDDHHMMSS 格式，取前8位比较日期）
+      // 评论数（comment_time 是 "YYYY-MM-DD HH:mm:ss" 格式，取前10位再去掉横线比较）
       const datePrefix = dateStr.replace(/-/g, ''); // "2026-07-29" -> "20260729"
       const cRow = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM lounge_comments WHERE substr(comment_time, 1, 8) = ?`,
+        `SELECT COUNT(*) as cnt FROM lounge_comments WHERE replace(substr(comment_time, 1, 10), '-', '') = ?`,
         [datePrefix]
       );
       const commentCnt = cRow?.cnt || 0;

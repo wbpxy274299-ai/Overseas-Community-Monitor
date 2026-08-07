@@ -430,7 +430,11 @@ async function translateAndAnalyze(limit = 100) {
  * 生成当日舆情日报
  */
 async function generateDailyReport(gameCode) {
-  const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD 格式
+  // ★ 使用 UTC+8 日期（与数据库一致）
+  const nowMs = Date.now() + 8 * 3600000;
+  const utc8Date = nowMs % 86400000;
+  const utc8DayStart = nowMs - utc8Date;
+  const today = new Date(utc8DayStart).toISOString().substring(0, 10);
 
   const posts = db.queryAll(
     `SELECT * FROM lounge_posts WHERE game_code = ? AND DATE(crawled_at) = ?`,
