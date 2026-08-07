@@ -189,8 +189,8 @@ router.get('/api/sentiment/lounge-posts', (req, res) => {
 
     let whereClauses = [];
     let params = [];
-    if (startDate) { whereClauses.push('crawled_at >= ?'); params.push(startDate + ' 00:00:00'); }
-    if (endDate) { whereClauses.push('crawled_at <= ?'); params.push(endDate + ' 23:59:59'); }
+    if (startDate) { whereClauses.push('DATE(post_time) >= ?'); params.push(startDate); }
+    if (endDate) { whereClauses.push('DATE(post_time) <= ?'); params.push(endDate); }
     if (sentiment) { whereClauses.push('sentiment = ?'); params.push(sentiment); }
     if (category) { whereClauses.push('ai_category = ?'); params.push(category); }
 
@@ -203,7 +203,7 @@ router.get('/api/sentiment/lounge-posts', (req, res) => {
     const posts = db.queryAll(
       `SELECT id, post_id, game_code, game_name, title, title_zh, author, content, content_zh,
               comment_count, view_count, url, sentiment, ai_category, ai_summary, crawled_at, post_time
-       FROM lounge_posts ${whereSql} ORDER BY crawled_at DESC LIMIT ? OFFSET ?`,
+       FROM lounge_posts ${whereSql} ORDER BY post_time DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     );
 
