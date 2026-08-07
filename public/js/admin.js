@@ -852,4 +852,3 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
-});
