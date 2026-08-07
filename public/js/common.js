@@ -420,8 +420,12 @@ function showPendingOverlay() {
     <div class="pending-card">
       <h1>403</h1>
       <p>账号待审批 · 暂时无法访问</p>
-      <p class="desc">您的账号尚未通过管理员审批，系统已限制访问权限。</p>
-      <div class="warning">⚠️ 此为系统安全保护机制，请稍候联系管理员完成权限开通。</div>
+      <p class="desc">
+        您的账号尚未通过管理员审批，系统已限制访问权限。
+        <br><br>
+        <strong style="color: #333;">👉 请前往阿里钉，将您的 <span style="color: #d93025; background: #fce8e6; padding: 2px 6px; border-radius: 4px;">Gmail 地址</span> 发送给 <span style="color: #1a73e8; background: #e8f0fe; padding: 2px 6px; border-radius: 4px;">阿饱同学</span> 申请开通权限。</strong>
+      </p>
+      <div class="warning">⚠️ 提交后请等待管理员审批完成，通常会在 24 小时内处理。</div>
     </div>
   `;
   

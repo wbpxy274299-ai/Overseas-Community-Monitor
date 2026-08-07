@@ -118,10 +118,12 @@ app.use((req, res, next) => {
                 <p class="error-title">账号待审批 · 暂时无法访问</p>
                 <p class="error-desc">
                   您的账号尚未通过管理员审批，系统已限制访问权限。
-                  <br>请联系管理员完成权限开通后再试。
+                  <br><br>
+                  <strong>👉 操作指引：</strong><br>
+                  请前往阿里钉，将您的 <strong>Gmail 地址</strong> 发送给 <strong>阿饱同学</strong> 申请开通权限。
                 </p>
                 <div class="error-info">
-                  ⚠️ 此为系统安全保护机制，请勿尝试绕过限制。
+                  ⚠️ 提交后请等待管理员审批完成，通常会在 24 小时内处理。
                 </div>
               </div>
             </body>
