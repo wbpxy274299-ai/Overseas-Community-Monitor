@@ -48,6 +48,11 @@ function buildIndex() {
     const t = TERMS[i];
     // 中文建索引
     addIdx(t[0], i, true);
+    // 为中文明语建立缓存（用于模糊匹配）
+    if (t[0] && t[0].length >= 2) {
+      if (!LANG_TERMS_CACHE['cn']) LANG_TERMS_CACHE['cn'] = [];
+      LANG_TERMS_CACHE['cn'].push({ text: t[0], cn: t[0], idx: i });
+    }
     // 7种语言建索引 + 缓存
     for (let li = 0; li < LANG_KEYS.length; li++) {
       const langKey = LANG_KEYS[li];
@@ -153,6 +158,7 @@ function findTermsInText(text, maxTerms = 50, lang = 'auto') {
     langsToSearch = LANG_KEYS;
   }
 
+  // 第一优先级：精确匹配（完全一致）
   for (const lk of langsToSearch) {
     if (found.length >= maxTerms) break;
     const langList = LANG_TERMS_CACHE[lk] || [];
@@ -162,7 +168,7 @@ function findTermsInText(text, maxTerms = 50, lang = 'auto') {
       if (text.includes(termText)) {
         seen.add(idx);
         const t = TERMS[idx];
-        const result = { matched: termText, zh: t[0] };
+        const result = { matched: termText, zh: t[0], matchType: 'exact' };
         for (let li = 0; li < LANG_KEYS.length; li++) {
           result[LANG_KEYS[li]] = t[li + 1] || '';
         }
@@ -172,9 +178,67 @@ function findTermsInText(text, maxTerms = 50, lang = 'auto') {
     }
   }
 
-  // 按匹配术语长度从长到短排序（长术语更精准）
-  found.sort((a, b) => b.matched.length - a.matched.length);
+  // 第二优先级：关键词匹配（模糊匹配）
+  // ⚠️ 注意：只在中文（cn）语言缓存中搜索，避免重复匹配
+  if (!langsToSearch.includes('cn')) {
+    langsToSearch.unshift('cn');
+  }
+  
+  for (const lk of langsToSearch) {
+    if (found.length >= maxTerms) break;
+    const langList = LANG_TERMS_CACHE[lk] || [];
+    for (const { text: termText, cn, idx } of langList) {
+      if (found.length >= maxTerms) break;
+      if (seen.has(idx)) continue;
+      
+      // 计算术语的关键词覆盖率
+      const keywords = extractKeywords(termText); // ['自选', '选套', ...]
+      if (keywords.length >= 2) {
+        const hitCount = keywords.filter(kw => text.includes(kw)).length;
+        const coverage = hitCount / keywords.length;
+        
+        // 50% 以上的关键词命中就算匹配（允许错一个字）
+        if (coverage >= 0.7) {
+          seen.add(idx);
+          const t = TERMS[idx];
+          const result = { matched: termText, zh: t[0], matchType: 'fuzzy', coverage };
+          for (let li = 0; li < LANG_KEYS.length; li++) {
+            result[LANG_KEYS[li]] = t[li + 1] || '';
+          }
+          result.category = t[8] || '';
+          found.push(result);
+        }
+      }
+    }
+  }
+
+  // 按匹配术语长度从长到短排序（长术语更精准），同长度时精确匹配优先
+  found.sort((a, b) => {
+    if (b.matched.length !== a.matched.length) return b.matched.length - a.matched.length;
+    if (a.matchType === 'exact' && b.matchType !== 'exact') return -1;
+    if (a.matchType !== 'exact' && b.matchType === 'exact') return 1;
+    return 0;
+  });
   return found;
+}
+
+// ===== 提取关键词：将术语拆分为有意义的子串 =====
+function extractKeywords(term) {
+  if (!term || term.length < 2) return [term];
+  
+  // 方案 1：中文分词（简单按双字窗口滑动）
+  const bigrams = [];
+  for (let i = 0; i <= term.length - 2; i++) {
+    bigrams.push(term.substring(i, i + 2));
+  }
+  
+  // 方案 2：保留完整术语（如果较短）
+  if (term.length <= 4) {
+    return [term, ...bigrams];
+  }
+  
+  // 方案 3：长术语只返回 bigrams
+  return bigrams;
 }
 
 // ===== 批量校对：逐行检查术语命中 =====
