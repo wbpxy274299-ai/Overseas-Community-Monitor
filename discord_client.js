@@ -6,9 +6,16 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const { getDiscordToken, UPLOAD_DIR } = require('./config');
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
+
+// ★ 绕过 SSL 证书验证问题（Windows 环境自签名证书链问题）
+// ⚠️ 仅限开发环境使用，生产环境应修复根证书
+const sslBypassAgent = new https.Agent({
+  rejectUnauthorized: false,  // 禁用 SSL 证书验证
+});
 
 /**
  * 获取频道消息列表
@@ -43,7 +50,7 @@ async function fetchMessages(channelId, server = 'TC', limit = 100) {
         url += `&before=${before}`;
       }
 
-      const response = await axios.get(url, axiosConfig);
+      const response = await axios.get(url, { ...axiosConfig, httpsAgent: sslBypassAgent });
 
       if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
         break; // 没有更多消息
@@ -93,6 +100,7 @@ async function downloadImageBuffer(url) {
     responseType: 'arraybuffer',
     timeout: 15000,
     headers: { 'User-Agent': 'Mozilla/5.0' },
+    httpsAgent: sslBypassAgent,
   });
   return Buffer.from(resp.data);
 }
@@ -211,7 +219,7 @@ async function sendMessage(channelId, server = 'TC', content = '', options = {})
     const response = await axios.post(
       `${DISCORD_API_BASE}/channels/${channelId}/messages`,
       apiBody,
-      axiosOpts
+      { ...axiosOpts, httpsAgent: sslBypassAgent }
     );
 
     if (response.data?.id) {
@@ -246,6 +254,7 @@ async function deleteMessage(channelId, server = 'TC', messageId) {
           'Authorization': `Bot ${token}`,
         },
         timeout: 30000,
+        httpsAgent: sslBypassAgent,
       }
     );
     return { ok: true };
@@ -269,6 +278,7 @@ async function fetchMessage(channelId, server = 'TC', messageId) {
       {
         headers: { 'Authorization': `Bot ${token}` },
         timeout: 15000,
+        httpsAgent: sslBypassAgent,
       }
     );
     return response.data || { error: '未获取到消息' };
@@ -292,6 +302,7 @@ async function fetchChannel(channelId, server = 'TC') {
       {
         headers: { 'Authorization': `Bot ${token}` },
         timeout: 15000,
+        httpsAgent: sslBypassAgent,
       }
     );
     return response.data || { error: '未获取到频道信息' };
@@ -332,7 +343,7 @@ async function fetchMessagesAfter(channelId, server = 'TC', afterMessageId, maxL
       const batchSize = Math.min(maxLimit - allMessages.length, 100);
       const url = `${DISCORD_API_BASE}/channels/${channelId}/messages?limit=${batchSize}&after=${after}`;
 
-      const response = await axios.get(url, axiosConfig);
+      const response = await axios.get(url, { ...axiosConfig, httpsAgent: sslBypassAgent });
 
       if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
         break;
