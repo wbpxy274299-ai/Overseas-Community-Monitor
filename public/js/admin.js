@@ -58,9 +58,13 @@ function renderUserTable(users) {
   if (cntEl) cntEl.textContent = users.length + ' 人';
 
   const currentUser = getCurrentUser();
+  const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+
+  // 🎯 关键过滤：非超管看不到 super_admin 用户（完全隐藏，不是置灰）
+  const filteredUsers = isSuperAdmin ? users : users.filter(u => u.role !== 'super_admin');
 
   let html = '';
-  for (const user of users) {
+  for (const user of filteredUsers) {
     const role = user.role || 'operator';
     const roleInfo = ROLE_LABELS[role] || ROLE_LABELS.operator;
     const roleBadgeClass = {
@@ -74,7 +78,6 @@ function renderUserTable(users) {
 
     // 构建角色选择器（排除当前角色）
     const isSelf = currentUser && user.username === currentUser.name;
-    const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
     const roleSelector = buildRoleSelector(user.username, role, isSelf);
     const deleteBtn = isSuperAdmin && !isSelf
       ? `<button class="btn btn-op danger btn-sm" style="margin-top:4px;" onclick="deleteUser('${escapeHtml(user.username)}')">🗑️ 删除</button>`
@@ -97,6 +100,18 @@ function renderUserTable(users) {
         <td>${roleSelector}<br>${deleteBtn}</td>
       </tr>`;
   }
+  
+  // 提示：如果是非超管且被过滤掉了 super_admin，显示说明
+  const hiddenCount = isSuperAdmin ? 0 : users.filter(u => u.role === 'super_admin').length;
+  if (hiddenCount > 0) {
+    html = `
+      <tr>
+        <td colspan="6" style="text-align:center;padding:20px;background:var(--panel-2);border-radius:8px;color:var(--mut);">
+          🔒 有 ${hiddenCount} 个超级管理员不在列表中（为保障安全，仅其他超级管理员可见）
+        </td>
+      </tr>` + html;
+  }
+  
   tbody.innerHTML = html;
 }
 
