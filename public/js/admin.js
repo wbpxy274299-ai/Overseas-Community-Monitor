@@ -8,9 +8,9 @@ const API_BASE = '/api/admin';
 const ROLE_LABELS = {
   pending:     { icon: '⏳', name: '待审批', desc: '无权限，等待管理员审批' },
   viewer:      { icon: '👁️', name: '查看者', desc: '只能查看舆情、术语、反馈' },
-  operator:    { icon: '⚙️', name: '运营员', desc: 'DC发布 + 舆情/周报/历史(只读)' },
-  admin:       { icon: '👑', name: '管理员', desc: '全部权限（除玩家洞察/删用户）' },
-  super_admin: { icon: '🌟', name: '超级管理员', desc: '最高权限，含删用户/玩家洞察' },
+  operator:    { icon: '⚙️', name: '运营员', desc: 'DC发布 + 舆情/周报/历史管理' },
+  admin:       { icon: '👑', name: '管理员', desc: '拥有平台管理全功能' },
+  super_admin: { icon: '🌟', name: '超级管理员', desc: '最高权限，含系统高级管理' },
 };
 
 // 获取当前用户
