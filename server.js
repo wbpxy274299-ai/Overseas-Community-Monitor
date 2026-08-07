@@ -2,6 +2,10 @@
  * DC 发布系统 — Express 服务器入口 (Node.js 版)
  * 路由已拆分至 routes/ 目录，中间件在 middleware/ 目录
  */
+// ★ 统一时区为 UTC+8（与数据库 datetime('now','+8 hours') 一致）
+// 这样 new Date() / getHours() 等方法直接返回北京时间，不再需要手动偏移
+process.env.TZ = 'Asia/Shanghai';
+
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const express = require('express');

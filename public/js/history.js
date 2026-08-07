@@ -8,11 +8,10 @@ let currentFilters = {};
 
 // 初始化日期（默认最近7天）
 function initDates() {
-  // ★ 使用 UTC+8 时间（与数据库一致）
-  const now = new Date(Date.now() + 8 * 60 * 60 * 1000);
-  const endDate = new Date(now);
-  const startDate = new Date(now);
-  startDate.setUTCDate(startDate.getUTCDate() - 7);
+  // 使用用户本地时间（浏览器自动处理时区）
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 7);
   document.getElementById('endDate').value = formatDateInput(endDate);
   document.getElementById('startDate').value = formatDateInput(startDate);
   document.getElementById('platformFilter').value = '';
@@ -74,9 +73,9 @@ function formatPostTime(timeStr) {
 }
 
 function formatDateInput(date) {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -615,11 +614,10 @@ const loungePageSize = 20;
 let loungeTotal = 0;
 
 function initLoungeDates() {
-  // ★ 使用 UTC+8 时间（与数据库一致）
-  const now = new Date(Date.now() + 8 * 60 * 60 * 1000);
-  const endDate = new Date(now);
-  const startDate = new Date(now);
-  startDate.setUTCDate(startDate.getUTCDate() - 7);
+  // 使用用户本地时间（浏览器自动处理时区）
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 7);
   document.getElementById('loungeEndDate').value = formatDateInput(endDate);
   document.getElementById('loungeStartDate').value = formatDateInput(startDate);
 }
