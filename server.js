@@ -138,6 +138,40 @@ app.use((req, res, next) => {
   next();
 });
 
+// 📊 访问记录中间件（记录所有 HTML/API 请求）
+app.use((req, res, next) => {
+  // 忽略静态资源（CSS/JS/图片等）
+  if (req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff2?)$/i)) {
+    return next();
+  }
+  
+  try {
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    const user_agent = req.headers['user-agent'] || '';
+    const path = req.path;
+    const method = req.method;
+    
+    // 获取登录用户名（如果有）
+    let username = null;
+    const cookie = req.cookies && req.cookies['session_token'];
+    if (cookie) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-me-in-production';
+        const decoded = jwt.verify(cookie, JWT_SECRET);
+        username = decoded.username || null;
+      } catch (e) {}
+    }
+    
+    // 异步记录（不阻塞响应）
+    db.logAccess({ ip, user_agent, username, path, method });
+  } catch (e) {
+    console.error('❌ [访问记录失败]', e.message);
+  }
+  
+  next();
+});
+
 // 确保上传目录存在
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 

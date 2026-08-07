@@ -178,99 +178,6 @@ async function deleteUser(username) {
 }
 
 // ===== Tab 切换 =====
-
-// ===== 扩展权限控件 =====
-const REGION_LABELS = { JP: '🇯🇵 日服', TC: '🇹🇼 繁中', SEA: '🌏 东南亚', KR: '🇰🇷 韩服' };
-
-function buildPermissionsCell(user) {
-  const role = user.role || 'operator';
-  // admin/super_admin 默认全权限，不显示控件
-  if (role === 'admin' || role === 'super_admin') {
-    return '<small style="color:#888;">默认全权限</small>';
-  }
-  // pending/viewer 不显示扩展权限
-  if (role === 'pending' || role === 'viewer') {
-    return '<small style="color:#ccc;">—</small>';
-  }
-
-  // operator：解析权限
-  let perms = {};
-  try { perms = user.user_permissions ? JSON.parse(user.user_permissions) : {}; } catch (_) {}
-  const hasUpload = !!perms.upload;
-  const hasPostAssistant = perms.postAssistant !== false; // 默认 true
-  const regions = perms.regions || ['JP', 'TC', 'SEA', 'KR']; // null = 全地区
-  const username = escapeHtml(user.username);
-
-  // 上传开关
-  const uploadToggle = `
-    <label class="perm-toggle" title="是否允许上传舆情数据">
-      <input type="checkbox" ${hasUpload ? 'checked' : ''} onchange="togglePerm('${username}', 'upload', this.checked)">
-      <span>📤 上传数据</span>
-    </label>`;
-
-  // 贴文助手开关
-  const postAssistantToggle = `
-    <label class="perm-toggle" title="是否允许访问贴文助手（外包运营可关闭）">
-      <input type="checkbox" ${hasPostAssistant ? 'checked' : ''} onchange="togglePerm('${username}', 'postAssistant', this.checked)">
-      <span>✍️ 贴文助手</span>
-    </label>`;
-
-  // 地区复选框
-  const regionChecks = Object.entries(REGION_LABELS).map(([key, label]) => {
-    const checked = regions.includes(key) ? 'checked' : '';
-    return `<label class="region-check">
-      <input type="checkbox" ${checked} onchange="togglePerm('${username}', 'region_${key}', this.checked)">
-      <span>${label}</span>
-    </label>`;
-  }).join('');
-
-  return `<div class="perm-cell">${uploadToggle}${postAssistantToggle}<div class="region-row">${regionChecks}</div></div>`;
-}
-
-// 切换权限
-async function togglePerm(username, type, value) {
-  try {
-    // 先获取当前权限
-    const res = await fetch(`/api/admin/users/${encodeURIComponent(username)}/permissions`, { credentials: 'same-origin' });
-    const data = await res.json();
-    if (!data.ok) { Toast.error('获取权限失败'); return; }
-
-    const perms = data.data;
-    if (type === 'upload') {
-      perms.upload = value;
-    } else if (type === 'postAssistant') {
-      perms.postAssistant = value;
-    } else if (type.startsWith('region_')) {
-      const region = type.replace('region_', '');
-      if (value) {
-        if (!perms.regions.includes(region)) perms.regions.push(region);
-      } else {
-        perms.regions = perms.regions.filter(r => r !== region);
-      }
-    }
-
-    // 保存
-    const saveRes = await fetch(`/api/admin/users/${encodeURIComponent(username)}/permissions`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(perms),
-      credentials: 'same-origin',
-    });
-    const saveData = await saveRes.json();
-    if (saveData.ok) {
-      const label = type === 'upload' ? '上传权限' : type === 'postAssistant' ? '贴文助手' : type.replace('region_', '') + ' 地区';
-      Toast.success(`✅ ${username} 的 ${label} 已${value ? '开通' : '关闭'}`);
-    } else {
-      Toast.error('❌ 保存失败: ' + saveData.error);
-      loadUsers(); // 回滚 UI
-    }
-  } catch (e) {
-    Toast.error('❌ 网络错误');
-    loadUsers();
-  }
-}
-
-// ===== Tab 切换 =====
 function switchTab(tab) {
   document.querySelectorAll('.tab-card').forEach(t => t.classList.remove('on'));
   document.querySelectorAll('.adm-pane').forEach(c => c.classList.remove('on'));
@@ -283,6 +190,78 @@ function switchTab(tab) {
   if (tab === 'feedback') loadFeedback();
   if (tab === 'database') loadDbOverview();
   if (tab === 'publish') { loadTokens(); }
+  if (tab === 'monitoring') loadMonitoringData();
+}
+
+// ===== 浏览监控 =====
+async function loadMonitoringData() {
+  const user = getCurrentUser();
+  if (!user || user.role !== 'super_admin') {
+    document.getElementById('monitoringTableBody').innerHTML = '<tr><td colspan="5" class="loading">🔒 仅超级管理员可访问</td></tr>';
+    return;
+  }
+  
+  try {
+    const res = await fetch('/api/admin/monitoring?days=30', { credentials: 'same-origin' });
+    if (res.status === 403) {
+      document.getElementById('monitoringTableBody').innerHTML = '<tr><td colspan="5" class="loading">🔒 权限不足</td></tr>';
+      return;
+    }
+    
+    const data = await res.json();
+    if (data.ok && data.data.length > 0) {
+      renderMonitoringTable(data.data);
+      calculateMonitoringStats(data.data);
+    } else {
+      document.getElementById('monitoringTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--mut)">暂无数据，请在几天后查看</td></tr>';
+    }
+  } catch (e) {
+    console.error('加载浏览监控失败:', e);
+    document.getElementById('monitoringTableBody').innerHTML = '<tr><td colspan="5" class="loading">加载失败</td></tr>';
+  }
+}
+
+function renderMonitoringTable(stats) {
+  const tbody = document.getElementById('monitoringTableBody');
+  let html = '';
+  
+  // 倒序显示（最新的在前）
+  const reversed = [...stats].reverse();
+  
+  for (const stat of reversed) {
+    const date = stat.date;
+    const pv = stat.pv || 0;
+    const uv = stat.uv || 0;
+    const ips = stat.unique_ips || 0;
+    const topPath = stat.top_path || '-';
+    
+    html += `<tr>
+      <td>${date}</td>
+      <td><strong>${pv}</strong></td>
+      <td><strong>${uv}</strong></td>
+      <td>${ips}</td>
+      <td style="font-size:12px;color:var(--mut)">${topPath}</td>
+    </tr>`;
+  }
+  
+  tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:var(--mut)">暂无数据</td></tr>';
+}
+
+function calculateMonitoringStats(stats) {
+  let totalPv = 0;
+  let totalUv = 0;
+  
+  for (const stat of stats) {
+    totalPv += (stat.pv || 0);
+    totalUv += (stat.uv || 0);
+  }
+  
+  const days = stats.length || 1;
+  const avgDaily = Math.round(totalPv / days);
+  
+  document.getElementById('totalPv').textContent = totalPv.toLocaleString();
+  document.getElementById('totalUv').textContent = totalUv.toLocaleString();
+  document.getElementById('avgDaily').textContent = avgDaily.toLocaleString();
 }
 
 // ===== Token 管理 =====
@@ -850,6 +829,17 @@ window.addEventListener('DOMContentLoaded', () => {
     const fbBtn = document.getElementById('feedbackTabBtn');
     if (fbBtn) fbBtn.style.display = '';
   }
+  // 仅超管显示浏览监控 Tab
+  if (user.role === 'super_admin') {
+    const monitorCard = document.querySelector('.tab-card[onclick*="monitoring"]');
+    if (monitorCard) {
+      monitorCard.style.display = '';
+      document.getElementById('cntMonitoring').textContent = '📊';
+    }
+  } else {
+    const monitorCard = document.querySelector('.tab-card[onclick*="monitoring"]');
+    if (monitorCard) monitorCard.style.display = 'none';
+  }
   // 如果 URL hash 是 #database，自动切换到数据库管理 Tab
   if (location.hash === '#database') {
     const dbTabBtn = document.querySelector('.admin-tab[onclick*="database"]');
@@ -861,4 +851,5 @@ window.addEventListener('DOMContentLoaded', () => {
       loadDbOverview();
     }
   }
+});
 });

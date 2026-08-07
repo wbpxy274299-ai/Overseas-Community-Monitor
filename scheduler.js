@@ -31,6 +31,7 @@ const taskRunLog = {
   loungeCrawl: { lastRun: null, success: false, message: '' },
   loungeCrawlMorning: { lastRun: null, success: false, message: '' },
   loungeWatchdog: { lastRun: null, success: false, message: '' },
+  accessStats: { lastRun: null, success: false, message: '' }, // 访问统计
 };
 
 // 从文件读取状态（重启后恢复）
@@ -44,7 +45,7 @@ function loadState() {
   } catch (e) {
     console.warn('⚠️ 调度器状态文件读取失败，使用默认值');
   }
-  return { dailyAnalysis: null, dailySnapshot: null, midnightCollect: null, afternoonBackup: null, loungeCrawl: null, loungeCrawlMorning: null, loungeCrawlEvening: null, loungeWatchdogCheck: null };
+  return { dailyAnalysis: null, dailySnapshot: null, midnightCollect: null, afternoonBackup: null, loungeCrawl: null, loungeCrawlMorning: null, loungeCrawlEvening: null, loungeWatchdogCheck: null, accessStats: null };
 }
 
 // 状态写入文件（持久化）
@@ -295,6 +296,21 @@ function startScheduler() {
 
   // ★ 启动时立即做一次健康自检
   startupHealthCheck();
+  
+  // ★ 启动时立即执行一次访问统计汇总（如果前一天没做）
+  try {
+    const result = db.aggregateYesterdayStats();
+    taskRunLog.accessStats.lastRun = fmtCST8(new Date());
+    taskRunLog.accessStats.success = !!result;
+    taskRunLog.accessStats.message = result ? `已汇总: PV=${result.pv}, UV=${result.uv}` : '失败';
+    console.log(`📊 [启动] 访问统计汇总完成:`, result);
+  } catch (e) {
+    taskRunLog.accessStats.lastRun = fmtCST8(new Date());
+    taskRunLog.accessStats.success = false;
+    taskRunLog.accessStats.message = e.message;
+    console.error('❌ [启动] 访问统计汇总失败:', e.message);
+  }
+  saveState();
   
   // 立即检查一次定时发送任务
   checkAndExecuteTasks();

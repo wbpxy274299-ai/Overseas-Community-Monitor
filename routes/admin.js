@@ -803,4 +803,19 @@ router.delete('/api/admin/insights/:id', requireRole('super_admin'), (req, res) 
   }
 });
 
+// ===== 浏览监控（仅 super_admin）=====
+
+// 获取最近 N 天的访问统计数据
+router.get('/api/admin/monitoring', requireRole('super_admin'), (req, res) => {
+  const days = parseInt(req.query.days) || 30;
+  
+  try {
+    const stats = db.getDailyAccessStats(days);
+    res.json({ ok: true, data: stats });
+  } catch (e) {
+    console.error('[浏览监控 API 错误]', e.message);
+    res.status(500).json({ error: '获取统计数据失败: ' + e.message });
+  }
+});
+
 module.exports = router;

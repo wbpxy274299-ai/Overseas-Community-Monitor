@@ -164,6 +164,33 @@ async function initDb() {
     )
   `);
 
+  // 访问日志表（浏览监控用）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS access_logs (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      ip              TEXT,                     -- 客户端 IP
+      user_agent      TEXT,                     -- 浏览器信息
+      username        TEXT,                     -- 登录用户（可选）
+      path            TEXT,                     -- 访问路径
+      method          TEXT,                     -- GET/POST
+      created_at      TEXT NOT NULL DEFAULT (datetime('now','+8 hours'))
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_access_logs_created ON access_logs(created_at DESC)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_access_logs_ip ON access_logs(ip)');
+  
+  // 每日访问统计表（定时任务汇总用）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS daily_access_stats (
+      date            TEXT PRIMARY KEY,         -- 日期 (YYYY-MM-DD)
+      pv              INTEGER DEFAULT 0,        -- 页面总访问量
+      uv              INTEGER DEFAULT 0,        -- 独立访客数（去重 IP）
+      unique_ips      INTEGER DEFAULT 0,        -- 唯一 IP 数
+      top_path        TEXT,                     -- 最受欢迎的页面
+      created_at      TEXT NOT NULL DEFAULT (datetime('now','+8 hours'))
+    )
+  `);
+
   saveDb();
   console.log('✅ 数据库初始化完成');
 }
@@ -504,6 +531,85 @@ function updateCollectionCursor(channelId, server, channelName, messageId, total
   saveDb();
 }
 
+// ===== 访问日志：记录请求 =====
+function logAccess(data) {
+  const { ip, user_agent, username, path, method } = data;
+  db.run(
+    'INSERT INTO access_logs (ip, user_agent, username, path, method) VALUES (?, ?, ?, ?, ?)',
+    [ip, user_agent, username || null, path, method]
+  );
+  saveDb();
+}
+
+// ===== 访问统计：获取最近 N 天的数据 =====
+function getDailyAccessStats(days = 30) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days + 1);
+  const startStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+  
+  const sql = `
+    SELECT 
+      date,
+      pv,
+      uv,
+      unique_ips,
+      top_path,
+      created_at
+    FROM daily_access_stats
+    WHERE date >= ?
+    ORDER BY date ASC
+  `;
+  
+  return queryAll(sql, [startStr]);
+}
+
+// ===== 访问统计：汇总前一天的数据 =====
+function aggregateYesterdayStats() {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const dateStr = yesterday.toISOString().split('T')[0]; // YYYY-MM-DD
+  
+  // 检查是否已经汇总过
+  const existing = queryOne('SELECT date FROM daily_access_stats WHERE date = ?', [dateStr]);
+  if (existing) {
+    console.log(`📊 [${dateStr}] 访问统计已存在，跳过`);
+    return existing;
+  }
+  
+  // 计算 PV（总访问量）
+  const pvRow = queryOne(
+    "SELECT COUNT(*) AS cnt FROM access_logs WHERE date(created_at) = ?",
+    [dateStr]
+  );
+  const pv = pvRow ? pvRow.cnt : 0;
+  
+  // 计算 UV（独立 IP 数）
+  const uvRow = queryOne(
+    "SELECT COUNT(DISTINCT ip) AS cnt FROM access_logs WHERE date(created_at) = ? AND ip IS NOT NULL",
+    [dateStr]
+  );
+  const uv = uvRow ? uvRow.cnt : 0;
+  
+  // 最受欢迎的页面
+  const topPathRow = queryOne(
+    "SELECT path FROM access_logs WHERE date(created_at) = ? GROUP BY path ORDER BY COUNT(*) DESC LIMIT 1",
+    [dateStr]
+  );
+  const top_path = topPathRow ? topPathRow.path : null;
+  
+  // 插入统计表
+  db.run(
+    `INSERT INTO daily_access_stats (date, pv, uv, unique_ips, top_path) VALUES (?, ?, ?, ?, ?)`,
+    [dateStr, pv, uv, uv, top_path]
+  );
+  
+  console.log(`📊 [${dateStr}] 访问统计: PV=${pv}, UV=${uv}, Top=${top_path || 'N/A'}`);
+  
+  saveDb();
+  
+  return { date: dateStr, pv, uv, unique_ips: uv, top_path };
+}
+
 module.exports = {
   initDb, saveDb, queryAll, queryOne,
   createUser, verifyUser, userExists,
@@ -515,6 +621,8 @@ module.exports = {
   createTask, updateTask, getTask, listTasks,
   getPendingTasks, countTasks,
   getDb, nowStr,
-  execute, // 添加 execute 方法
+  execute,
   getCollectionCursor, updateCollectionCursor,
+  // 访问监控
+  logAccess, getDailyAccessStats, aggregateYesterdayStats,
 };
