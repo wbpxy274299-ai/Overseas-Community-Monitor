@@ -543,10 +543,13 @@ async function crawlLounge(options = {}) {
         updateProgress('detail', '抓取详情', `[${i + 1}/${postsToOpen.length}] ${post.title.substring(0, 40)}...`, { currentStep: 3 + i, postsCrawled: i });
 
         // 决定是否翻评论：2天内的新帖子 或 评论数增加了的旧帖子
+        // ★ 一次性回填：2026-04-30 至今的帖子全部抓评论（回填完后删除此条件）
         const existing = existingMap[post.id];
         const isRecent = isRecentPost(post.time);
         const commentIncreased = existing && post.commentCount > existing.commentCount;
-        const shouldFetchComments = isRecent || commentIncreased || !existing;
+        const postDate = post.post_date || (post.time && post.time.substring(0, 10)) || '';
+        const isBackfill = postDate >= '2026-04-30';
+        const shouldFetchComments = isRecent || commentIncreased || !existing || isBackfill;
 
         // 对于列表里已有 JSON contents 的帖子，先尝试直接解析
         let detail;
