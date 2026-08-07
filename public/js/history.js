@@ -18,15 +18,24 @@ function initDates() {
   document.getElementById('platformFilter').value = '';
 }
 
-// 格式化韩国评论时间 "20260404192948" -> "04-04 19:29"
+// 格式化韩国评论时间（兼容两种格式）
+// 标准格式 "2026-04-04 19:29:48" -> "04-04 19:29"
+// 紧凑格式 "20260404192948" -> "04-04 19:29"
 function formatKrTime(timeStr) {
-  if (!timeStr || typeof timeStr !== 'string' || timeStr.length < 12) return '';
-  const y = timeStr.substring(0, 4);
-  const m = timeStr.substring(4, 6);
-  const d = timeStr.substring(6, 8);
-  const h = timeStr.substring(8, 10);
-  const min = timeStr.substring(10, 12);
-  return `${m}-${d} ${h}:${min}`;
+  if (!timeStr || typeof timeStr !== 'string') return '';
+  // 标准格式: YYYY-MM-DD HH:MM:SS
+  if (timeStr.includes('-') && timeStr.length >= 16) {
+    return timeStr.substring(5, 16); // "MM-DD HH:MM"
+  }
+  // 紧凑格式: YYYYMMDDHHmmss
+  if (timeStr.length >= 12) {
+    const m = timeStr.substring(4, 6);
+    const d = timeStr.substring(6, 8);
+    const h = timeStr.substring(8, 10);
+    const min = timeStr.substring(10, 12);
+    return `${m}-${d} ${h}:${min}`;
+  }
+  return '';
 }
 
 // 解析数据库中的时间字符串（UTC+8，无时区标记）→ 正确的 Date 对象
