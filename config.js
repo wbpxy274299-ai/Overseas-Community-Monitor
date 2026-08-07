@@ -12,38 +12,7 @@ const CHANNELS_JSON = path.join(ROOT, 'dc-publish-channels.json');
 const ENV_PATH = path.join(ROOT, '.env');
 
 // ===== Discord Bot =====
-// 只在 .env 里设了 HTTP_PROXY 才走代理（本地开发有，线上服务器没有）
-const PROXY_URL = process.env.HTTP_PROXY || '';
-const PROXIES = PROXY_URL ? { https: PROXY_URL, http: PROXY_URL } : undefined;
 const DISCORD_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
-/**
- * 获取代理配置对象（用于 axios）
- * @returns {Object|undefined} axios proxy 配置
- */
-function getProxyConfig() {
-  if (!PROXY_URL) return undefined;
-  
-  try {
-    const url = new URL(PROXY_URL);
-    const config = {
-      protocol: url.protocol.replace(':', '') || 'http',
-      host: url.hostname,
-      port: parseInt(url.port),
-    };
-    // 如果代理地址带了用户名密码，自动加上认证信息
-    if (url.username) {
-      config.auth = {
-        username: decodeURIComponent(url.username),
-        password: decodeURIComponent(url.password || ''),
-      };
-    }
-    return config;
-  } catch (e) {
-    console.warn('⚠️ 代理 URL 格式错误:', e.message);
-    return undefined;
-  }
-}
 
 // ===== 扫描间隔 =====
 const SCAN_INTERVAL = 1;                  // 扫描间隔（分钟）
@@ -129,7 +98,7 @@ function getDiscordToken(server) {
 
 module.exports = {
   ROOT, DB_PATH, UPLOAD_DIR, ENV_PATH,
-  PROXY_URL, PROXIES, DISCORD_UA, getProxyConfig,
+  DISCORD_UA,
   SCAN_INTERVAL, SEND_IMMEDIATE_WINDOW_MIN,
   CHANNELS, CHANNELS_FALLBACK,
   SERVER_SENDER, STATUS,

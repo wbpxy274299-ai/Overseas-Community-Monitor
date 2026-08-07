@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  PROXY_URL, CHANNELS,
+  CHANNELS,
   SCAN_INTERVAL, SEND_IMMEDIATE_WINDOW_MIN,
   getDiscordToken, UPLOAD_DIR, STATUS,
 } = require('./config');

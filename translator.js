@@ -8,7 +8,6 @@
 
 const axios = require('axios');
 const crypto = require('crypto');
-const { getProxyConfig } = require('./config');
 const terminology = require('./terminology');
 
 // 翻译缓存：避免重复翻译相同内容（省 API 调用费）
@@ -124,7 +123,6 @@ async function translateJapaneseToChinese(text) {
           'Content-Type': 'application/json'
         },
         timeout: 20000,
-        proxy: getProxyConfig()
       }
     );
 
@@ -260,7 +258,6 @@ async function translateKoreanToChinese(text) {
           'Content-Type': 'application/json',
         },
         timeout: 60000,
-        proxy: getProxyConfig(),
       }
     );
 

@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { getDiscordToken, getProxyConfig } = require('./config');
+const { getDiscordToken } = require('./config');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const db = require('./db');
 const log = require('./logger');
@@ -882,7 +882,6 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
   const crypto = require('crypto');
   
   const baseUrl = 'https://search.yahoo.co.jp/realtime/search';
-  const proxyConfig = getProxyConfig();
   
   const axiosInstance = axios.create({
     timeout: 30000,
@@ -891,7 +890,6 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
     },
-    proxy: proxyConfig,
     responseType: 'arraybuffer'  // 获取原始字节，手动解码编码
   });
   
@@ -1074,7 +1072,6 @@ async function collectFromDiscord() {
             const axiosConfig = {
               headers: { 'Authorization': `Bot ${getDiscordToken(DISCORD_SERVER)}`, 'Content-Type': 'application/json' },
               timeout: 30000,
-              proxy: getProxyConfig(),
             };
             const resp = await axios.get(url, axiosConfig);
             if (Array.isArray(resp.data) && resp.data.length > 0) {

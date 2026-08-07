@@ -6,7 +6,7 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { getDiscordToken, getProxyConfig, UPLOAD_DIR } = require('./config');
+const { getDiscordToken, UPLOAD_DIR } = require('./config');
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 
@@ -24,14 +24,12 @@ async function fetchMessages(channelId, server = 'TC', limit = 100) {
     return [];
   }
 
-  const proxyConfig = getProxyConfig();
   const axiosConfig = {
     headers: {
       'Authorization': `Bot ${token}`,
       'Content-Type': 'application/json',
     },
     timeout: 30000,
-    proxy: proxyConfig,
   };
 
   const allMessages = [];
@@ -141,8 +139,6 @@ async function sendMessage(channelId, server = 'TC', content = '', options = {})
   }
 
   try {
-    const proxyConfig = getProxyConfig();
-
     // 收集所有文件附件
     const files = [];
     let fileIdx = 0;
@@ -184,7 +180,6 @@ async function sendMessage(channelId, server = 'TC', content = '', options = {})
 
     const axiosOpts = {
       timeout: 30000,
-      proxy: proxyConfig,
       headers: { 'Authorization': `Bot ${token}` },
     };
 
@@ -237,7 +232,6 @@ async function deleteMessage(channelId, server = 'TC', messageId) {
   }
 
   try {
-    const proxyConfig = getProxyConfig();
     await axios.delete(
       `${DISCORD_API_BASE}/channels/${channelId}/messages/${messageId}`,
       {
@@ -245,7 +239,6 @@ async function deleteMessage(channelId, server = 'TC', messageId) {
           'Authorization': `Bot ${token}`,
         },
         timeout: 30000,
-        proxy: proxyConfig,
       }
     );
     return { ok: true };
@@ -264,13 +257,11 @@ async function fetchMessage(channelId, server = 'TC', messageId) {
   }
 
   try {
-    const proxyConfig = getProxyConfig();
     const response = await axios.get(
       `${DISCORD_API_BASE}/channels/${channelId}/messages/${messageId}`,
       {
         headers: { 'Authorization': `Bot ${token}` },
         timeout: 15000,
-        proxy: proxyConfig,
       }
     );
     return response.data || { error: '未获取到消息' };
@@ -289,13 +280,11 @@ async function fetchChannel(channelId, server = 'TC') {
   }
 
   try {
-    const proxyConfig = getProxyConfig();
     const response = await axios.get(
       `${DISCORD_API_BASE}/channels/${channelId}`,
       {
         headers: { 'Authorization': `Bot ${token}` },
         timeout: 15000,
-        proxy: proxyConfig,
       }
     );
     return response.data || { error: '未获取到频道信息' };
@@ -320,14 +309,12 @@ async function fetchMessagesAfter(channelId, server = 'TC', afterMessageId, maxL
     return [];
   }
 
-  const proxyConfig = getProxyConfig();
   const axiosConfig = {
     headers: {
       'Authorization': `Bot ${token}`,
       'Content-Type': 'application/json',
     },
     timeout: 30000,
-    proxy: proxyConfig,
   };
 
   const allMessages = [];

@@ -10,7 +10,7 @@ const axios = require('axios');
 const db = require('../db');
 const log = require('../logger');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { getDiscordToken, getProxyConfig, ENV_PATH, loadChannels } = require('../config');
+const { getDiscordToken, ENV_PATH, loadChannels } = require('../config');
 const sentiment = require('../sentiment');
 
 // Discord 服务器列表
@@ -174,13 +174,11 @@ router.post('/api/admin/tokens/test', requireRole('admin', 'super_admin'), async
   const token = getDiscordToken(server);
   if (!token) return res.json({ ok: false, status: 'empty', message: 'Token 未配置' });
 
-  const proxy = getProxyConfig();
   try {
     // 1. 验证 Bot 身份
     const me = await axios.get('https://discord.com/api/v10/users/@me', {
       headers: { 'Authorization': 'Bot ' + token },
       timeout: 30000,
-      proxy,
     });
     const botName = me.data.username;
     // 2. 简单发一条测试消息到测试频道并撤回
@@ -192,7 +190,7 @@ router.post('/api/admin/tokens/test', requireRole('admin', 'super_admin'), async
       const sendRes = await axios.post(
         `https://discord.com/api/v10/channels/${chId}/messages`,
         { content: `[Health Check] ${new Date().toISOString()}` },
-        { headers: { 'Authorization': 'Bot ' + token, 'Content-Type': 'application/json' }, timeout: 30000, proxy }
+        { headers: { 'Authorization': 'Bot ' + token, 'Content-Type': 'application/json' }, timeout: 30000 }
       );
       sendOk = true;
       msgId = sendRes.data?.id;
@@ -201,7 +199,7 @@ router.post('/api/admin/tokens/test', requireRole('admin', 'super_admin'), async
     if (msgId) {
       try {
         await axios.delete(`https://discord.com/api/v10/channels/${chId}/messages/${msgId}`, {
-          headers: { 'Authorization': 'Bot ' + token }, timeout: 15000, proxy,
+          headers: { 'Authorization': 'Bot ' + token }, timeout: 15000,
         });
       } catch (_) {}
     }
@@ -461,7 +459,6 @@ router.post('/api/admin/insights/analyze', requireRole('super_admin'), async (re
         }, {
           headers: { 'Authorization': 'Bearer ' + deepseekKey, 'Content-Type': 'application/json' },
           timeout: 90000,
-          proxy: getProxyConfig(),
         });
         report = r.data?.choices?.[0]?.message?.content || null;
       } catch (aiErr) {

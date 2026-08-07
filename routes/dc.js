@@ -53,7 +53,6 @@ router.get('/api/token-status', requireAuth, requireRole('admin'), (req, res) =>
   res.json({
     envFileExists: envExists,
     nodeEnv: process.env.NODE_ENV || '(未设置)',
-    proxy: process.env.HTTP_PROXY || '(无代理)',
     tokens: status,
   });
 });

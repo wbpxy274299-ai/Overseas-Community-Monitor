@@ -5,7 +5,6 @@
  */
 
 const axios = require('axios');
-const { getProxyConfig } = require('./config');
 
 // ===== DeepSeek AI 配置 =====
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
@@ -50,7 +49,6 @@ async function callDeepSeekAPI(prompt, content, options = {}) {
           'Content-Type': 'application/json'
         },
         timeout: 60000,
-        proxy: getProxyConfig()
       }
     );
     

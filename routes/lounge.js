@@ -13,7 +13,6 @@ const { ensureLoggedIn } = require('../middleware/auth');
 const db = require('../db');
 const { crawlLounge, getCrawlStatus, getCrawlProgress, LOUNGE_CONFIG, parseKoreanTime } = require('../lounge_crawler');
 const translator = require('../translator');
-const { getProxyConfig } = require('../config');
 
 /**
  * 从韩文时间字符串提取实际发布日期
@@ -77,7 +76,6 @@ async function callDeepSeek(prompt, userContent, options = {}) {
         'Content-Type': 'application/json',
       },
       timeout: 60000,
-      proxy: getProxyConfig(),
     });
     return response.data?.choices?.[0]?.message?.content || '';
   } catch (err) {

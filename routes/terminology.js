@@ -5,7 +5,6 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const terminology = require('../terminology');
-const { getProxyConfig } = require('../config');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 
@@ -77,7 +76,6 @@ router.post('/api/terminology/ai', requireAuth, async (req, res) => {
       {
         headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         timeout: 60000,
-        proxy: getProxyConfig(),
       }
     );
     const content = resp.data?.choices?.[0]?.message?.content || '';
@@ -132,7 +130,7 @@ router.post('/api/terminology/gemini', async (req, res) => {
 
     const resp = await axios.post(apiUrl,
       { contents: [{ parts }] },
-      { headers: { 'Content-Type': 'application/json' }, timeout: 90000, proxy: getProxyConfig() }
+      { headers: { 'Content-Type': 'application/json' }, timeout: 90000 }
     );
     const content = resp.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     res.json({ ok: true, data: { content } });
