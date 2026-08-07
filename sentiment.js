@@ -163,7 +163,9 @@ async function initSentimentTable() {
         db.saveDb();
         console.log(`✅ Twitter region 自动修正: ${twWrong.cnt} 条 tc→jp`);
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn('⚠️ Twitter region 修正失败:', e.message);
+    }
     
     // 启动时自动修正非标准时间格式（如“2026年07月27日 10:49:57” → “2026-07-27 10:49:57”）
     try {

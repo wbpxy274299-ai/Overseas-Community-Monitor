@@ -67,6 +67,21 @@ app.use('/', require('./routes/feedback'));
 app.use('/', require('./routes/terminology'));  // 术语搜索/校对 API
 app.use('/', require('./routes/lounge'));  // 韩国社区监控
 
+// ===== 健康检查接口（供外部监控使用）=====
+app.get('/api/health', (req, res) => {
+  const uptime = process.uptime();
+  const memoryUsage = process.memoryUsage();
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(uptime / 3600) + 'h ' + Math.floor((uptime % 3600) / 60) + 'm',
+    memory: {
+      rss: Math.round(memoryUsage.rss / 1024 / 1024) + 'MB',
+      heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // 初始化术语模块（后台加载10万条术语，供翻译功能使用）
 const terminology = require('./terminology');
 

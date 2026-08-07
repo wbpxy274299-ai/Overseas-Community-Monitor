@@ -14,6 +14,7 @@ const DEEPSEEK_MODEL = 'deepseek-chat';
 /**
  * 调用 DeepSeek API
  * OpenAI 兼容格式，中日文理解能力强
+ * 带重试机制：限流(429)和网络错误自动重试
  */
 async function callDeepSeekAPI(prompt, content, options = {}) {
   const { maxTokens = 500, jsonMode = false } = options;
@@ -22,49 +23,63 @@ async function callDeepSeekAPI(prompt, content, options = {}) {
     return null;
   }
   
-  try {
-    // 截断超长内容，避免请求体过大
-    const truncatedContent = content.length > 6000 ? content.substring(0, 6000) + '\n...(内容已截断)' : content;
-    
-    const requestBody = {
-      model: DEEPSEEK_MODEL,
-      messages: [
-        { role: 'system', content: prompt },
-        { role: 'user', content: truncatedContent }
-      ],
-      temperature: 0.1,
-      max_tokens: maxTokens,
-    };
-    
-    if (jsonMode) {
-      requestBody.response_format = { type: 'json_object' };
-    }
-    
-    const response = await axios.post(
-      DEEPSEEK_API_URL,
-      requestBody,
-      {
-        headers: {
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 60000,
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // 截断超长内容，避免请求体过大
+      const truncatedContent = content.length > 6000 ? content.substring(0, 6000) + '\n...(内容已截断)' : content;
+      
+      const requestBody = {
+        model: DEEPSEEK_MODEL,
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: truncatedContent }
+        ],
+        temperature: 0.1,
+        max_tokens: maxTokens,
+      };
+      
+      if (jsonMode) {
+        requestBody.response_format = { type: 'json_object' };
       }
-    );
-    
-    if (response.data?.choices?.[0]) {
-      return response.data.choices[0].message.content;
-    }
-    
-    return null;
-  } catch (e) {
-    if (e.response?.status === 429) {
-      console.log('    DeepSeek API 频率限制');
+      
+      const response = await axios.post(
+        DEEPSEEK_API_URL,
+        requestBody,
+        {
+          headers: {
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 60000,
+        }
+      );
+      
+      if (response.data?.choices?.[0]) {
+        return response.data.choices[0].message.content;
+      }
+      
+      return null;
+    } catch (e) {
+      // 429 限流：等待后重试
+      if (e.response?.status === 429 && attempt < maxRetries) {
+        const retryAfter = e.response.data?.retry_after || 5;
+        console.log(`    ⏳ DeepSeek 限流，${retryAfter}秒后重试 (${attempt}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        continue;
+      }
+      // 网络错误：短暂等待后重试
+      if ((e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT') && attempt < maxRetries) {
+        console.log(`    ⏳ DeepSeek 网络错误，3秒后重试 (${attempt}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      // 其他错误或已达最大重试次数
+      console.error(`❌ DeepSeek API 调用失败 (尝试${attempt}次): ${e.response?.data?.error?.message || e.message}`);
       return null;
     }
-    console.error('❌ DeepSeek API 调用失败:', e.response?.data?.error?.message || e.message);
-    return null;
   }
+  return null;
 }
 
 /**

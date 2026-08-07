@@ -61,27 +61,46 @@ async function callDeepSeek(prompt, userContent, options = {}) {
     console.warn('⚠️ DeepSeek API Key 未配置');
     return '';
   }
-  try {
-    const response = await axios.post(DEEPSEEK_API_URL, {
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: prompt },
-        { role: 'user', content: userContent },
-      ],
-      temperature: options.temperature || 0.3,
-      max_tokens: options.maxTokens || 1000,
-    }, {
-      headers: {
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: 60000,
-    });
-    return response.data?.choices?.[0]?.message?.content || '';
-  } catch (err) {
-    console.error('❌ DeepSeek 调用失败:', err.message);
-    return '';
+  
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.post(DEEPSEEK_API_URL, {
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: userContent },
+        ],
+        temperature: options.temperature || 0.3,
+        max_tokens: options.maxTokens || 1000,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 60000,
+      });
+      return response.data?.choices?.[0]?.message?.content || '';
+    } catch (err) {
+      // 429 限流：等待后重试
+      if (err.response?.status === 429 && attempt < maxRetries) {
+        const retryAfter = err.response.data?.retry_after || 5;
+        console.warn(`⏳ DeepSeek 限流，${retryAfter}秒后重试 (${attempt}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        continue;
+      }
+      // 网络错误：短暂等待后重试
+      if ((err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') && attempt < maxRetries) {
+        console.warn(`⏳ DeepSeek 网络错误，3秒后重试 (${attempt}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      // 其他错误或已达最大重试次数
+      console.error(`❌ DeepSeek 调用失败 (尝试${attempt}次): ${err.message}`);
+      return '';
+    }
   }
+  return '';
 }
 
 // ===== 数据库表初始化 =====
@@ -416,7 +435,9 @@ async function translateAndAnalyze(limit = 100) {
       const zh = await translator.translateKoreanToChinese(comment.content);
       db.getDb().run(`UPDATE lounge_comments SET content_zh = ? WHERE id = ?`, [zh, comment.id]);
       await new Promise(r => setTimeout(r, 300));
-    } catch (_) {}
+    } catch (e) {
+      console.warn(`  ⚠️ 评论翻译失败 #${comment.id}: ${e.message}`);
+    }
   }
 
   db.saveDb();
@@ -519,7 +540,9 @@ ${postSummary}
       const cleaned = topicRaw.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
       hotTopics = JSON.parse(cleaned);
     }
-  } catch (_) {}
+  } catch (e) {
+    console.warn(`  ⚠️ 热门话题提取失败: ${e.message}`);
+  }
 
   // 存入报告表
   try {
