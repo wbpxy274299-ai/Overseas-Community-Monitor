@@ -183,4 +183,39 @@ router.get('/api/terminology/stats', (req, res) => {
   res.json({ ok: true, total: stats.total, version: stats.version, languages: terminology.LANG_KEYS });
 });
 
+// ===== 添加到术语库（需要登录） =====
+router.post('/api/terminology/add', requireAuth, (req, res) => {
+  const { cn, jp, en, kr, tw, vn, id, th } = req.body;
+  
+  // 参数校验
+  if (!cn || !cn.trim()) {
+    return res.status(400).json({ error: '中文术语不能为空' });
+  }
+  
+  try {
+    // 调用术语库添加逻辑
+    const result = terminology.addTerm({
+      zh: cn,
+      jp: jp || '',
+      en: en || '',
+      kr: kr || '',
+      tw: tw || '',
+      vn: vn || '',
+      id: id || '',
+      th: th || ''
+    });
+    
+    console.log(`[术语添加] 用户 ${req.user.username} 添加了术语: ${cn}`);
+    
+    res.json({ 
+      ok: true, 
+      data: result,
+      message: '已添加到术语库'
+    });
+  } catch (e) {
+    console.error(`[术语添加失败] 用户 ${req.user.username}:`, e.message);
+    res.status(500).json({ error: '添加失败: ' + e.message });
+  }
+});
+
 module.exports = router;

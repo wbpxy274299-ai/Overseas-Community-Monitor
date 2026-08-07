@@ -257,12 +257,24 @@ async function addToTerminologyLibrary(termText) {
     
     const data = await res.json();
     if (data.ok) {
-      Toast.success(`已将 "${termText}" 添加到术语库（待补充外语翻译）`);
+      Toast.success(`✅ 已将 "${termText}" 添加到术语库（待补充外语翻译）`);
+      // 重新加载术语报告（刷新列表）
+      setTimeout(() => {
+        const editor = document.getElementById('pa-editor');
+        if (editor && editor.value.trim()) {
+          _paTranslate(); // 重新翻译以刷新术语报告
+        }
+      }, 500);
     } else {
-      Toast.error(data.error || '添加失败');
+      if (res.status === 401) {
+        Toast.error('请先登录后再添加术语');
+      } else {
+        Toast.error(data.error || '添加失败');
+      }
     }
   } catch (err) {
-    Toast.error('网络错误');
+    console.error('[添加到术语库失败]', err);
+    Toast.error('网络错误，请稍后重试');
   }
 }
 

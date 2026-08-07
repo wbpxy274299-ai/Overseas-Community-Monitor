@@ -330,12 +330,64 @@ function getStats() {
   };
 }
 
+// ===== 添加到术语库（手动新增） =====
+function addTerm(termData) {
+  const { zh, jp, en, kr, tw, vn, id, th } = termData;
+  
+  // 查重：检查中文是否已存在
+  for (let i = 0; i < TERMS.length; i++) {
+    if (TERMS[i][0] && TERMS[i][0].trim().toLowerCase() === zh.trim().toLowerCase()) {
+      throw new Error(`术语 "${zh}" 已存在于第 ${i + 1} 行`);
+    }
+  }
+  
+  // 添加到数组末尾
+  const newIndex = TERMS.length;
+  TERMS.push([zh, jp || '', en || '', kr || '', tw || '', vn || '', id || '', th || '', '待分类', '', '']);
+  
+  // 更新版本信息
+  try {
+    VERSION_INFO = {
+      version: `${TERMS.length}条-${new Date().toISOString().split('T')[0]}`,
+      lastUpdate: new Date().toISOString(),
+      addedBy: termData._addedBy || 'unknown'
+    };
+    fs.writeFileSync(VERSION_FILE, JSON.stringify(VERSION_INFO, null, 2));
+  } catch (e) {
+    console.error('[版本信息写入失败]', e.message);
+  }
+  
+  // 重新建索引（增量加，不需要全量重建）
+  addIdx(zh, newIndex, true);
+  
+  // 保存文件（防止丢失）
+  saveTermsToFile();
+  
+  console.log(`✅ 已添加术语: "${zh}" → #${newIndex + 1}`);
+  
+  return {
+    index: newIndex,
+    term: [zh, jp, en, kr, tw, vn, id, th]
+  };
+}
+
+// 保存到文件
+function saveTermsToFile() {
+  try {
+    fs.writeFileSync(TERMS_FILE, JSON.stringify(TERMS, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[保存术语库失败]', e.message);
+    throw e;
+  }
+}
+
 module.exports = {
   init,
   searchTerms,
   findTermsInText,
   batchCheck,
   mergeTerms,
+  addTerm,
   getStats,
   LANG_KEYS,
   LANG_LABELS,
