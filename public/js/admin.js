@@ -106,45 +106,57 @@ function renderUserTable(users) {
 
 // ===== 构建权限单元格（operator 显示权限开关，admin/super_admin 显示全权限）=====
 function buildPermissionsCell(user) {
-  const currentUser = getCurrentUser();
-  const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
-  
-  // admin 和 super_admin 默认有所有权限，显示“默认全权限”
-  if (user.role === 'admin' || user.role === 'super_admin') {
-    return '<span style="color:var(--mut);font-size:12px;">默认全权限</span>';
+  const role = user.role || 'operator';
+  // admin/super_admin 默认全权限，不显示控件
+  if (role === 'admin' || role === 'super_admin') {
+    return '<small style="color:#888;">默认全权限</small>';
+  }
+  // pending/viewer 不显示扩展权限
+  if (role === 'pending' || role === 'viewer') {
+    return '<small style="color:#ccc;">-</small>';
   }
   
-  // operator/viewer/pending 用户显示权限开关
-  const perms = JSON.parse(user.user_permissions || '{}');
-  const canUpload = perms.upload || false;
-  const regions = perms.regions || [];
+  // operator：解析权限
+  let perms = {};
+  try { perms = user.user_permissions ? JSON.parse(user.user_permissions) : {}; } catch (_) {}
+  const hasUpload = !!perms.upload;
+  const hasPostAssistant = perms.postAssistant !== false; // 默认 true
+  const regions = perms.regions || ['JP', 'TC', 'SEA', 'KR']; // null = 全地区
+  const username = escapeHtml(user.username);
   
-  if (!isSuperAdmin) {
-    return '<span style="color:var(--mut);font-size:12px;">非管理员</span>';
-  }
+  // 上传开关
+  const uploadToggle = `
+    <label class="perm-toggle" title="是否允许上传舆情数据">
+      <input type="checkbox" ${hasUpload ? 'checked' : ''} onchange="togglePerm('${username}', 'upload', this.checked)" />
+      <span>📤 上传数据</span>
+    </label>`;
   
-  // 超管可以编辑其他角色的权限
-  return `
-    <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
-      <label>
-        <input type="checkbox" ${canUpload ? 'checked' : ''} onchange="toggleUploadPermission('${user.username}', this.checked)" />
-        DC 上传
-      </label>
-      <label>
-        <input type="checkbox" checked="${hasRegionAccess(regions)}" onchange="toggleRegionPermission('${user.username}', this.checked)" />
-        地区访问
-      </label>
-    </div>
-  `;
+  // 贴文助手开关
+  const postAssistantToggle = `
+    <label class="perm-toggle" title="是否允许访问贴文助手（外包运营可关闭）">
+      <input type="checkbox" ${hasPostAssistant ? 'checked' : ''} onchange="togglePerm('${username}', 'postAssistant', this.checked)" />
+      <span>✍️ 贴文助手</span>
+    </label>`;
+  
+  // 地区复选框
+  const regionChecks = Object.entries(REGION_LABELS).map(([key, label]) => {
+    const checked = regions.includes(key) ? 'checked' : '';
+    return `<label class="region-check">
+      <input type="checkbox" ${checked} onchange="togglePerm('${username}', 'region_${key}', this.checked)" />
+      <span>${label}</span>
+    </label>`;
+  }).join('');
+  
+  return `<div class="perm-cell">${uploadToggle}${postAssistantToggle}<div class="region-row">${regionChecks}</div></div>`;
 }
 
-// 切换 DC 上传权限
-async function toggleUploadPermission(username, value) {
+// 切换权限
+async function togglePerm(username, type, value) {
   try {
     const resp = await fetch(`/api/admin/users/${username}/permissions`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ upload: value }),
+      body: JSON.stringify({ [type]: value }),
       credentials: 'same-origin'
     });
     const data = await resp.json();
@@ -152,26 +164,6 @@ async function toggleUploadPermission(username, value) {
   } catch (e) {
     Toast.error('网络错误');
   }
-}
-
-// 切换地区访问权限
-async function toggleRegionPermission(username, value) {
-  try {
-    const resp = await fetch(`/api/admin/users/${username}/permissions`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ regions: value ? ['TC', 'JP', 'SEA', 'KR'] : [] }),
-      credentials: 'same-origin'
-    });
-    const data = await resp.json();
-    if (data.ok) Toast.success('权限已更新');
-  } catch (e) {
-    Toast.error('网络错误');
-  }
-}
-
-function hasRegionAccess(permissions) {
-  return permissions.length === Object.keys(permissions).length;
 }
 
 // 构建角色选择下拉框
