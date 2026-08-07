@@ -776,7 +776,7 @@ async function openLoungePost(postId, gameCode) {
       html += `<div class="lounge-post-meta">
         <span class="lounge-sent-badge">${sentLabel(post.sentiment)}</span>
         ${post.ai_category ? `<span class="lounge-cat-badge">${catLabel(post.ai_category)}</span>` : ''}
-        <span class="lounge-post-author"> ${escapeHtml(post.author||'匿名')} ·  ${post.view_count||0} · 💬 ${post.comment_count||0}</span>
+        <span class="lounge-post-author"> ${escapeHtml(post.author||'匿名')} ·  ${post.view_count||0} · 💬 ${post._comment_count||0}</span>
       </div>`;
       if (post.title_zh && post.title && post.title_zh !== post.title) {
         html += `<div class="lounge-post-korean-title">原标题: ${escapeHtml(post.title)}</div>`;

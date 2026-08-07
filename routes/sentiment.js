@@ -257,6 +257,10 @@ router.get('/api/sentiment/lounge-comments/:postId', (req, res) => {
        FROM lounge_comments WHERE post_id = ? ORDER BY comment_time ASC`,
       [postId]
     );
+    // ★ 用实际评论数覆盖 comment_count 字段
+    if (post) {
+      post._comment_count = comments.length;
+    }
     res.json({ success: true, data: comments, post: post || null });
   } catch (e) {
     res.status(500).json({ error: e.message });
