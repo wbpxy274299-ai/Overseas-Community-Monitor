@@ -178,11 +178,18 @@ function initLoungeTables() {
 
   // ★ 数据修复：评论时间也可能存了 ISO 格式
   try {
-    const fixCommentTime = rawDb.run(
+    const fixCommentISO = rawDb.run(
       `UPDATE lounge_comments SET comment_time = REPLACE(REPLACE(SUBSTR(comment_time, 1, 19), 'T', ' '), 'Z', '') WHERE comment_time LIKE '%T%'`
     );
-    if (fixCommentTime.changes > 0) {
-      console.log(`✅ 修复 comment_time 格式: ${fixCommentTime.changes} 条 (ISO→标准)`);
+    if (fixCommentISO.changes > 0) {
+      console.log(`✅ 修复 comment_time 格式: ${fixCommentISO.changes} 条 (ISO→标准)`);
+    }
+    // 紧凑格式 "20260404192948" → 标准格式 "2026-04-04 19:29:48"
+    const fixCommentCompact = rawDb.run(
+      `UPDATE lounge_comments SET comment_time = SUBSTR(comment_time,1,4)||'-'||SUBSTR(comment_time,5,2)||'-'||SUBSTR(comment_time,7,2)||' '||SUBSTR(comment_time,9,2)||':'||SUBSTR(comment_time,11,2)||':'||SUBSTR(comment_time,13,2) WHERE comment_time NOT LIKE '%-%' AND LENGTH(comment_time) = 14`
+    );
+    if (fixCommentCompact.changes > 0) {
+      console.log(`✅ 修复 comment_time 格式: ${fixCommentCompact.changes} 条 (紧凑→标准)`);
     }
   } catch (e) { console.warn('⚠️ 修复 comment_time 格式失败:', e.message); }
 
