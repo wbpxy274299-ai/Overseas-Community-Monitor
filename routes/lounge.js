@@ -159,6 +159,33 @@ function initLoungeTables() {
     }
   } catch (_) { /* 忽略 */ }
 
+  // ★ 数据修复：旧代码用 toISOString() 存了 ISO 格式（含 T 和 Z），统一为标准格式
+  // ISO 格式: "2026-08-07T02:00:00.000Z" → 标准格式: "2026-08-07 02:00:00"
+  try {
+    const fixCrawledAt = rawDb.run(
+      `UPDATE lounge_posts SET crawled_at = REPLACE(REPLACE(SUBSTR(crawled_at, 1, 19), 'T', ' '), 'Z', '') WHERE crawled_at LIKE '%T%'`
+    );
+    if (fixCrawledAt.changes > 0) {
+      console.log(`✅ 修复 crawled_at 格式: ${fixCrawledAt.changes} 条 (ISO→标准)`);
+    }
+    const fixPostTime = rawDb.run(
+      `UPDATE lounge_posts SET post_time = REPLACE(REPLACE(SUBSTR(post_time, 1, 19), 'T', ' '), 'Z', '') WHERE post_time LIKE '%T%'`
+    );
+    if (fixPostTime.changes > 0) {
+      console.log(`✅ 修复 post_time 格式: ${fixPostTime.changes} 条 (ISO→标准)`);
+    }
+  } catch (e) { console.warn('⚠️ 修复日期格式失败:', e.message); }
+
+  // ★ 数据修复：评论时间也可能存了 ISO 格式
+  try {
+    const fixCommentTime = rawDb.run(
+      `UPDATE lounge_comments SET comment_time = REPLACE(REPLACE(SUBSTR(comment_time, 1, 19), 'T', ' '), 'Z', '') WHERE comment_time LIKE '%T%'`
+    );
+    if (fixCommentTime.changes > 0) {
+      console.log(`✅ 修复 comment_time 格式: ${fixCommentTime.changes} 条 (ISO→标准)`);
+    }
+  } catch (e) { console.warn('⚠️ 修复 comment_time 格式失败:', e.message); }
+
   // 评论表
   rawDb.run(`
     CREATE TABLE IF NOT EXISTS lounge_comments (

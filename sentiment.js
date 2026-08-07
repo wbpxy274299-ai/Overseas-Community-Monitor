@@ -2874,7 +2874,7 @@ async function getWeeklyHotTopics() {
                   p.url as post_url
            FROM lounge_comments c
            LEFT JOIN lounge_posts p ON c.post_id = p.post_id
-           WHERE substr(c.comment_time, 1, 8) >= ? AND substr(c.comment_time, 1, 8) <= ?
+           WHERE replace(substr(c.comment_time, 1, 10), '-', '') >= ? AND replace(substr(c.comment_time, 1, 10), '-', '') <= ?
              AND c.content IS NOT NULL AND c.content != ''
            ORDER BY c.likes DESC LIMIT 50`,
           [datePrefixStart, datePrefixEnd]
