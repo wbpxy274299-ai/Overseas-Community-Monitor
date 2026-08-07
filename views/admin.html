@@ -161,36 +161,51 @@
       <div class="card-sub mb20">🔒 仅超级管理员可见 · 自动汇总每日 PV/UV 数据</div>
       
       <!-- 统计概览 -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px">
-        <div style="background:#ecfdf5;border:1px solid #10b981;border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:28px;font-weight:700;color:#065f46" id="totalPv">0</div>
-          <div style="font-size:13px;color:#047857;margin-top:4px">总 PV（30天）</div>
+      <div class="dcards c3 mb32">
+        <div class="dcard" style="border-left:3px solid var(--ok)">
+          <div class="badge" style="background:var(--ok)"></div>
+          <div class="big" id="totalPv" style="color:var(--ok);font-variant-numeric:tabular-nums">0</div>
+          <h4>总 PV（30天）</h4>
+          <p>累计页面访问量</p>
         </div>
-        <div style="background:#eff6ff;border:1px solid #3b82f6;border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:28px;font-weight:700;color:#1e40af" id="totalUv">0</div>
-          <div style="font-size:13px;color:#1d4ed8;margin-top:4px">总 UV（30天）</div>
+        <div class="dcard" style="border-left:3px solid #4A9EDA">
+          <div class="badge" style="background:#4A9EDA"></div>
+          <div class="big" id="totalUv" style="color:#4A9EDA;font-variant-numeric:tabular-nums">0</div>
+          <h4>总 UV（30天）</h4>
+          <p>独立访客数（去重 IP）</p>
         </div>
-        <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:28px;font-weight:700;color:#92400e" id="avgDaily">0</div>
-          <div style="font-size:13px;color:#b45309;margin-top:4px">日均 PV</div>
+        <div class="dcard" style="border-left:3px solid var(--warn)">
+          <div class="badge" style="background:var(--warn)"></div>
+          <div class="big" id="avgDaily" style="color:var(--warn);font-variant-numeric:tabular-nums">0</div>
+          <h4>日均 PV</h4>
+          <p>每日平均页面访问量</p>
         </div>
       </div>
       
       <!-- 明细表格 -->
-      <table>
-        <thead>
-          <tr>
-            <th>日期</th>
-            <th>PV</th>
-            <th>UV</th>
-            <th>唯一 IP</th>
-            <th>最热页面</th>
-          </tr>
-        </thead>
-        <tbody id="monitoringTableBody">
-          <tr><td colspan="5" class="loading">加载中...</td></tr>
-        </tbody>
-      </table>
+      <div class="card card-pad mb32">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px">
+          <div>
+            <div class="micro" style="margin-bottom:6px">ACCESS LOGS</div>
+            <div class="card-title" style="font-size:15px">访问明细</div>
+          </div>
+          <span class="micro" style="letter-spacing:.15em">最近 30 天 · 自动汇总</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>DATE</th>
+              <th>PV</th>
+              <th>UV</th>
+              <th>UNIQUE IPS</th>
+              <th>TOP PAGE</th>
+            </tr>
+          </thead>
+          <tbody id="monitoringTableBody">
+            <tr><td colspan="5" class="loading">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 

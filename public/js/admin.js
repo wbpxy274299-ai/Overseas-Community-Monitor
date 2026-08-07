@@ -300,11 +300,11 @@ function renderMonitoringTable(stats) {
     const topPath = stat.top_path || '-';
     
     html += `<tr>
-      <td>${date}</td>
-      <td><strong>${pv}</strong></td>
-      <td><strong>${uv}</strong></td>
-      <td>${ips}</td>
-      <td style="font-size:12px;color:var(--mut)">${topPath}</td>
+      <td class="mono">${date}</td>
+      <td class="mono"><strong>${pv}</strong></td>
+      <td class="mono"><strong>${uv}</strong></td>
+      <td class="mono">${ips}</td>
+      <td style="font-size:12px;color:var(--mut);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${topPath}">${topPath}</td>
     </tr>`;
   }
   
