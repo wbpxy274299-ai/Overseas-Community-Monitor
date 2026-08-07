@@ -699,9 +699,7 @@ async function loadLoungeStats() {
       }
     }
     if (el('statProgressFill')) el('statProgressFill').style.width = pct + '%';
-    // 更新 Tab 计数角标
-    const krCnt = el('tabCntKr');
-    if (krCnt) krCnt.textContent = `${total} 条`;
+    // ★ Tab 计数角标由 loadLoungePosts 更新（显示查询结果数），此处不覆盖
   } catch (_) { /* 静默失败 */ }
 }
 
