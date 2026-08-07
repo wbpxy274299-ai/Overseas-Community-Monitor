@@ -120,9 +120,9 @@
         </div>
         <div class="db-toolbar" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
           <input type="text" id="dbSearchInput" class="sel" placeholder="搜索关键词..." onkeydown="if(event.key==='Enter')doDbSearch()">
-          <button class="btn btn-ghost btn-sm" onclick="doDbSearch()">🔍 搜索</button>
-          <button class="btn btn-ghost btn-sm" onclick="refreshDbTable()">↻ 刷新</button>
-          <button class="btn btn-op danger" id="btnBatchDel" onclick="batchDeleteSelected()" style="display:none;">🗑️ 批量删除 (<span id="batchCount">0</span>)</button>
+          <button class="btn btn-ghost btn-sm" onclick="doDbSearch()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:14px;height:14px;vertical-align:-3px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> 搜索</button>
+          <button class="btn btn-ghost btn-sm" onclick="refreshDbTable()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:14px;height:14px;vertical-align:-3px"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> 刷新</button>
+          <button class="btn btn-op danger" id="btnBatchDel" onclick="batchDeleteSelected()" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:14px;height:14px;vertical-align:-3px"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> 批量删除 (<span id="batchCount">0</span>)</button>
         </div>
         <div class="card mb32" style="overflow-x:auto">
           <table class="db-data-table" style="width:100%">

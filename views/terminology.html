@@ -23,9 +23,9 @@
     <div class="card mb32">
       <div class="card-pad" style="padding-bottom:0">
       <div class="seg-bar" id="termSeg">
-          <button class="on" onclick="switchTermTab('search')">🔍 搜索</button>
-          <button onclick="switchTermTab('check')">📝 校对</button>
-          <button onclick="switchTermTab('batch')">📦 批量校对</button>
+          <button class="on" onclick="switchTermTab('search')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:14px;height:14px;vertical-align:-3px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> 搜索</button>
+          <button onclick="switchTermTab('check')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:14px;height:14px;vertical-align:-3px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> 校对</button>
+          <button onclick="switchTermTab('batch')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:14px;height:14px;vertical-align:-3px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg> 批量校对</button>
         </div>
       </div>
 
@@ -64,7 +64,7 @@
           <span class="perm-chip" data-lang="th" onclick="setBatchLang(this)">🇹🇭 泰语</span>
         </div>
         <div class="batch-upload-zone drop" id="batchDropZone" onclick="document.getElementById('batchFileInput').click()">
-          <div class="ico">⬆</div>
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:30px;height:30px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
           <div class="t1">点击或拖拽上传文件</div>
           <div class="t2">支持 .txt / .json / .csv（每行一条文案）</div>
         </div>
@@ -81,8 +81,8 @@
         <p class="desc">支持单语言更新或 7 种语言批量合并导入</p>
       </div>
       <div class="seg-bar" id="updSeg" style="margin-bottom:18px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.1)">
-        <button class="on" id="updateModeBatch" onclick="setUpdateMode('batch')" style="background:rgba(255,255,255,.14);color:#F2F2F0;border-color:transparent;box-shadow:none">📦 批量导入（多语言 Excel）</button>
-        <button id="updateModeSingle" onclick="setUpdateMode('single')" style="background:transparent;color:#C9CBD1;border-color:transparent">📝 单语言更新</button>
+        <button class="on" id="updateModeBatch" onclick="setUpdateMode('batch')" style="background:rgba(255,255,255,.14);color:#F2F2F0;border-color:transparent;box-shadow:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:14px;height:14px;vertical-align:-3px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg> 批量导入（多语言 Excel）</button>
+        <button id="updateModeSingle" onclick="setUpdateMode('single')" style="background:transparent;color:#C9CBD1;border-color:transparent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:14px;height:14px;vertical-align:-3px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> 单语言更新</button>
       </div>
 
       <!-- 批量模式 -->
