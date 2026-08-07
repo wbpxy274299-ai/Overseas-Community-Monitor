@@ -942,24 +942,25 @@ router.post('/api/weekly-report/generate', requireRole('admin'), async (req, res
     if (!result.success) {
       return res.status(400).json({ ok: false, error: result.message || '生成失败' });
     }
-    const now = formatCst(nowCst());
+    const { fmtCST8, fmtCST8Date } = require('../config');
     const title = `舆情周报 - ${result.stats.dateRange.start.substring(0, 10)}`;
     const riskMap = { '🔴 高': 'high', '🟡 中': 'medium', '🟢 低': 'low' };
     const riskLevel = riskMap[result.stats.riskLevel] || (result.stats.riskLevel.includes('高') ? 'high' : result.stats.riskLevel.includes('中') ? 'medium' : 'low');
     
-    // 去重：同标题已存在则更新
+    // ★ 如果标题已存在则更新（不修改 created_at，只更新时间戳）
     const existingReport = db.queryOne('SELECT id FROM weekly_reports WHERE title = ?', [title]);
     if (existingReport) {
       db.getDb().run(`
-        UPDATE weekly_reports SET content=?, risk_level=?, twitter_count=?, discord_count=?, summary=?, created_at=?
+        UPDATE weekly_reports SET content=?, risk_level=?, twitter_count=?, discord_count=?, summary=?, updated_at=?
         WHERE id=?
-      `, [result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.summary ? result.summary.substring(0, 200) : '', now, existingReport.id]);
+      `, [result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.summary ? result.summary.substring(0, 200) : '', fmtCST8(new Date()), existingReport.id]);
       console.log('✅ 周报已更新（同标题已存在）');
     } else {
+      // ★ INSERT 不使用手动 created_at，用数据库 DEFAULT (datetime('now','+8 hours'))
       db.getDb().run(`
-        INSERT INTO weekly_reports (title, content, risk_level, twitter_count, discord_count, summary, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [title, result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.summary ? result.summary.substring(0, 200) : '', now]);
+        INSERT INTO weekly_reports (title, content, risk_level, twitter_count, discord_count, summary)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [title, result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.summary ? result.summary.substring(0, 200) : '']);
       console.log('✅ 周报生成成功！');
     }
     db.saveDb();

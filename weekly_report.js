@@ -7,21 +7,12 @@
 
 const db = require('./db');
 const aiAnalyzer = require('./ai_analyzer');
+const { fmtCST8 } = require('./config');
 
-// ===== 日期工具 =====
-
-// 本地时间字符串格式化（避免 toISOString 的 UTC 偏移问题）
-function toLocalStr(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  const h = String(date.getHours()).padStart(2, '0');
-  const min = String(date.getMinutes()).padStart(2, '0');
-  const s = String(date.getSeconds()).padStart(2, '0');
-  return `${y}-${m}-${d} ${h}:${min}:${s}`;
-}
+// ★ 日期格式统一使用 config.js 的 fmtCST8（不再重复定义 toLocalStr）
 
 function getLastWeekRange() {
+  // ★ 服务器已设 TZ=Asia/Shanghai，直接用本地方法
   const today = new Date();
   const dayOfWeek = today.getDay();
   const daysSinceMonday = (dayOfWeek + 6) % 7;
@@ -32,8 +23,8 @@ function getLastWeekRange() {
   lastSunday.setDate(lastMonday.getDate() + 6);
   lastSunday.setHours(23, 59, 59, 999);
   return {
-    start: toLocalStr(lastMonday),
-    end: toLocalStr(lastSunday),
+    start: fmtCST8(lastMonday),
+    end: fmtCST8(lastSunday),
     startDate: lastMonday,
     endDate: lastSunday
   };
