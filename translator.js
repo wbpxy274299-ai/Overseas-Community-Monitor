@@ -103,62 +103,80 @@ async function translateJapaneseToChinese(text) {
     return text;
   }
 
-  try {
-    const systemPrompt = buildSystemPrompt(textToTranslate);
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const systemPrompt = buildSystemPrompt(textToTranslate);
 
-    const response = await axios.post(
-      DEEPSEEK_API_URL,
-      {
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: textToTranslate }
-        ],
-        temperature: 0.3,
-        max_tokens: 1200
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-          'Content-Type': 'application/json'
+      const response = await axios.post(
+        DEEPSEEK_API_URL,
+        {
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: textToTranslate }
+          ],
+          temperature: 0.3,
+          max_tokens: 1200
         },
-        timeout: 20000,
+        {
+          headers: {
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 20000,
+        }
+      );
+
+      if (response.data?.choices?.length > 0) {
+        let translatedText = response.data.choices[0].message.content.trim();
+
+        // 还原游戏名称
+        translatedText = restoreGameNames(translatedText);
+
+        // 清理推文格式噪音（START/END 是 Twitter 嵌入游戏标签的原始格式）
+        translatedText = translatedText
+          .replace(/START\s*ツリネバ\s*END/g, '')
+          .replace(/START\s*TOSN\s*END/g, '')
+          .replace(/#\s*START.*?END\s*/g, '')
+          .replace(/START\s+END/g, '')
+          .replace(/\t+/g, ' ')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
+        // 存入缓存（限制缓存大小防止内存泄漏）
+        if (translationCache.size >= MAX_CACHE_SIZE) {
+          const firstKey = translationCache.keys().next().value;
+          translationCache.delete(firstKey);
+        }
+        translationCache.set(cacheKey, translatedText);
+
+        console.log(`   ✅ DeepSeek 翻译成功`);
+        return translatedText;
       }
-    );
 
-    if (response.data?.choices?.length > 0) {
-      let translatedText = response.data.choices[0].message.content.trim();
-
-      // 还原游戏名称
-      translatedText = restoreGameNames(translatedText);
-
-      // 清理推文格式噪音（START/END 是 Twitter 嵌入游戏标签的原始格式）
-      translatedText = translatedText
-        .replace(/START\s*ツリネバ\s*END/g, '')
-        .replace(/START\s*TOSN\s*END/g, '')
-        .replace(/#\s*START.*?END\s*/g, '')
-        .replace(/START\s+END/g, '')
-        .replace(/\t+/g, ' ')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-
-      // 存入缓存（限制缓存大小防止内存泄漏）
-      if (translationCache.size >= MAX_CACHE_SIZE) {
-        const firstKey = translationCache.keys().next().value;
-        translationCache.delete(firstKey);
+      return text;
+    } catch (e) {
+      // 429 限流：等待后重试
+      if (e.response?.status === 429 && attempt < maxRetries) {
+        const retryAfter = e.response.data?.retry_after || 5;
+        console.warn(`   ⏳ DeepSeek 限流，${retryAfter}秒后重试 (${attempt}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        continue;
       }
-      translationCache.set(cacheKey, translatedText);
-
-      console.log(`   ✅ DeepSeek 翻译成功`);
-      return translatedText;
+      // 网络错误：短暂等待后重试
+      if ((e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT') && attempt < maxRetries) {
+        console.warn(`   ⏳ DeepSeek 网络错误，3秒后重试 (${attempt}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      // 其他错误或已达最大重试次数
+      const errMsg = e.response?.data?.error?.message || e.message;
+      console.error(`   ❌ DeepSeek 翻译失败 (尝试${attempt}次): ${errMsg}`);
+      return text;
     }
-
-    return text;
-  } catch (e) {
-    const errMsg = e.response?.data?.error?.message || e.message;
-    console.error('   ❌ DeepSeek 翻译失败:', errMsg);
-    return text;
   }
+  return text;
 }
 
 /**
@@ -215,70 +233,84 @@ async function translateKoreanToChinese(text) {
     return '';
   }
 
-  try {
-    const protectedText = protectKrGameNames(text);
-    const truncated = protectedText.length > 4000
-      ? protectedText.substring(0, 4000) + '\n...(截断)'
-      : protectedText;
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const protectedText = protectKrGameNames(text);
+      const truncated = protectedText.length > 4000
+        ? protectedText.substring(0, 4000) + '\n...(截断)'
+        : protectedText;
 
-    let systemPrompt = [
-      '你是一个专业的韩语到中文翻译助手，专门翻译游戏社区内容。',
-      '规则：',
-      '1. 将韩语翻译成简体中文，保持原意不变',
-      '2. 口语化/网络用语保持口语风格，不要翻译得太书面',
-      '3. 游戏术语尽量用中文游戏圈常用的说法',
-      '4. 只返回翻译结果，不要添加任何解释或注释',
-      '5. __KRGAME1__、__KRGAME2__、__KRGAME3__ 是游戏名称占位符，必须原样保留',
-      '6. 韩语网络缩写要还原意思再翻译（如 ㄹㅇ=真的, ㄷㄷ=震惊, ㅈㄱ=标题即内容）',
-    ].join('\n');
+      let systemPrompt = [
+        '你是一个专业的韩语到中文翻译助手，专门翻译游戏社区内容。',
+        '规则：',
+        '1. 将韩语翻译成简体中文，保持原意不变',
+        '2. 口语化/网络用语保持口语风格，不要翻译得太书面',
+        '3. 游戏术语尽量用中文游戏圈常用的说法',
+        '4. 只返回翻译结果，不要添加任何解释或注释',
+        '5. __KRGAME1__、__KRGAME2__、__KRGAME3__ 是游戏名称占位符，必须原样保留',
+        '6. 韩语网络缩写要还原意思再翻译（如 ㄹㅇ=真的, ㄷㄷ=震惊, ㅈㄱ=标题即内容）',
+      ].join('\n');
 
-    // 从术语库提取命中的韩文术语（和日文翻译一样的机制）
-    const matchedTerms = terminology.findTermsInText(text, 20, 'kr');
-    if (matchedTerms.length > 0) {
-      systemPrompt += '\n\n以下是本文中包含的游戏术语，请严格按对照表翻译：\n';
-      for (const term of matchedTerms) {
-        systemPrompt += `- ${term.kr} → ${term.zh}\n`;
+      // 从术语库提取命中的韩文术语（和日文翻译一样的机制）
+      const matchedTerms = terminology.findTermsInText(text, 20, 'kr');
+      if (matchedTerms.length > 0) {
+        systemPrompt += '\n\n以下是本文中包含的游戏术语，请严格按对照表翻译：\n';
+        for (const term of matchedTerms) {
+          systemPrompt += `- ${term.kr} → ${term.zh}\n`;
+        }
       }
-    }
 
-    const response = await axios.post(
-      DEEPSEEK_API_URL,
-      {
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: truncated },
-        ],
-        temperature: 0.1,
-        max_tokens: 2000,
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-          'Content-Type': 'application/json',
+      const response = await axios.post(
+        DEEPSEEK_API_URL,
+        {
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: truncated },
+          ],
+          temperature: 0.1,
+          max_tokens: 2000,
         },
-        timeout: 60000,
+        {
+          headers: {
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 60000,
+        }
+      );
+
+      let result = response.data?.choices?.[0]?.message?.content || '';
+      result = restoreKrGameNames(result);
+
+      if (translationCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = translationCache.keys().next().value;
+        translationCache.delete(firstKey);
       }
-    );
+      translationCache.set(cacheKey, result);
 
-    let result = response.data?.choices?.[0]?.message?.content || '';
-    result = restoreKrGameNames(result);
-
-    if (translationCache.size >= MAX_CACHE_SIZE) {
-      const firstKey = translationCache.keys().next().value;
-      translationCache.delete(firstKey);
+      return result;
+    } catch (err) {
+      // 429 限流：等待后重试
+      if (err.response?.status === 429 && attempt < maxRetries) {
+        const retryAfter = err.response.data?.retry_after || 5;
+        console.warn(`⏳ DeepSeek 限流，${retryAfter}秒后重试 (${attempt}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        continue;
+      }
+      // 网络错误：短暂等待后重试
+      if ((err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') && attempt < maxRetries) {
+        console.warn(`⏳ DeepSeek 网络错误，3秒后重试 (${attempt}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      // 其他错误或已达最大重试次数
+      console.error(`❌ 韩文翻译失败 (尝试${attempt}次): ${err.message}`);
+      return '';
     }
-    translationCache.set(cacheKey, result);
-
-    return result;
-  } catch (err) {
-    if (err.response?.status === 429) {
-      console.log('⚠️ DeepSeek 频率限制，韩文翻译跳过');
-    } else {
-      console.error('❌ 韩文翻译失败:', err.message);
-    }
-    return '';
   }
+  return '';
 }
 
 // ===== 全量术语校对机制 =====

@@ -72,6 +72,13 @@ async function fetchMessages(channelId, server = 'TC', limit = 100) {
       await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
       return fetchMessages(channelId, server, limit); // 递归重试
     }
+    // 网络错误：短暂等待后重试（最多1次）
+    if ((e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT') && !e._retried) {
+      console.log(`   ⏳ Discord 网络错误，3秒后重试...`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      e._retried = true;
+      return fetchMessages(channelId, server, limit);
+    }
     console.error(`   ❌ Discord API 请求失败 (channel=${channelId}, server=${server}): ${e.message}`);
     if (e.response?.data) {
       console.error(`      响应: ${JSON.stringify(e.response.data)}`);
