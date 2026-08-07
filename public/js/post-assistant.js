@@ -164,7 +164,11 @@ ${termRefs ? '\n## 术语对照表（必须严格使用以下翻译）\n' + term
     _paSaveCache(text, translations);
     window._paTranslations = translations;
     renderTranslations(translations, out);
-    status.textContent = '✅ 翻译完成，结果已缓存（今日有效）';
+    
+    // 显示术语匹配提示
+    const termCount = termData.results?.length || 0;
+    const termHint = termCount > 0 ? ` 📚 已匹配 ${termCount} 个术语` : '';
+    status.textContent = `✅ 翻译完成，结果已缓存（今日有效）${termHint}`;
     paSwitchTab('translate');
   } catch (err) {
     out.innerHTML = `<div class="error">❌ ${err.message}</div>`;
