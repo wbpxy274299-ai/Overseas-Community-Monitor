@@ -101,17 +101,6 @@ function renderUserTable(users) {
       </tr>`;
   }
   
-  // 提示：如果是非超管且被过滤掉了 super_admin，显示说明
-  const hiddenCount = isSuperAdmin ? 0 : users.filter(u => u.role === 'super_admin').length;
-  if (hiddenCount > 0) {
-    html = `
-      <tr>
-        <td colspan="6" style="text-align:center;padding:20px;background:var(--panel-2);border-radius:8px;color:var(--mut);">
-          🔒 有 ${hiddenCount} 个超级管理员不在列表中（为保障安全，仅其他超级管理员可见）
-        </td>
-      </tr>` + html;
-  }
-  
   tbody.innerHTML = html;
 }
 
