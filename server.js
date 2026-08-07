@@ -47,6 +47,95 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/static', express.static(path.join(__dirname, 'public')));
 app.use('/api/', globalLimiter);
 
+// 🚫 Pending 用户拦截：只针对页面路由（HTML 请求），API 请求返回 403 JSON
+app.use((req, res, next) => {
+  // 只拦截 HTML 页面请求（不接受 application/json 的请求头）
+  if (req.headers.accept && req.headers.accept.includes('text/html')) {
+    const cookie = req.cookies && req.cookies['session_token'];
+    if (cookie) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-me-in-production';
+        const decoded = jwt.verify(cookie, JWT_SECRET);
+        
+        // 🔴 如果是 pending 用户，直接返回 403 错误（不渲染任何页面）
+        if (decoded.role === 'pending') {
+          return res.status(403).send(`
+            <!DOCTYPE html>
+            <html lang="zh">
+            <head>
+              <meta charset="UTF-8">
+              <title>403 禁止访问</title>
+              <style>
+                body {
+                  margin: 0;
+                  padding: 0;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 100vh;
+                  background: #f8f9fa;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                }
+                .error-container {
+                  text-align: center;
+                  padding: 40px;
+                }
+                .error-code {
+                  font-size: 120px;
+                  font-weight: 700;
+                  color: #6c757d;
+                  margin: 0;
+                }
+                .error-title {
+                  font-size: 24px;
+                  font-weight: 600;
+                  color: #333;
+                  margin: 20px 0;
+                }
+                .error-desc {
+                  font-size: 16px;
+                  color: #666;
+                  line-height: 1.6;
+                  max-width: 400px;
+                  margin: 0 auto 30px;
+                }
+                .error-info {
+                  background: #fff3cd;
+                  border: 1px solid #ffc107;
+                  border-radius: 8px;
+                  padding: 16px;
+                  max-width: 400px;
+                  margin: 0 auto;
+                  font-size: 14px;
+                  color: #856404;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="error-container">
+                <h1 class="error-code">403</h1>
+                <p class="error-title">账号待审批 · 暂时无法访问</p>
+                <p class="error-desc">
+                  您的账号尚未通过管理员审批，系统已限制访问权限。
+                  <br>请联系管理员完成权限开通后再试。
+                </p>
+                <div class="error-info">
+                  ⚠️ 此为系统安全保护机制，请勿尝试绕过限制。
+                </div>
+              </div>
+            </body>
+            </html>
+          `);
+        }
+      } catch (e) {
+        // JWT 验证失败，继续正常流程（可能未登录）
+      }
+    }
+  }
+  next();
+});
+
 // 确保上传目录存在
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
