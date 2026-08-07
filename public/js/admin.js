@@ -105,6 +105,8 @@ function renderUserTable(users) {
 }
 
 // ===== 构建权限单元格（operator 显示权限开关，admin/super_admin 显示全权限）=====
+const REGION_LABELS = { JP: '🇯🇵 日服', TC: '🇹🇼 繁中', SEA: '🌏 东南亚', KR: '🇰🇷 韩服' };
+
 function buildPermissionsCell(user) {
   const role = user.role || 'operator';
   // admin/super_admin 默认全权限，不显示控件
