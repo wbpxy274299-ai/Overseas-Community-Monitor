@@ -79,8 +79,46 @@ function paClear() {
   document.getElementById('pa-status').textContent = '';
   document.getElementById('pa-output').innerHTML = '<div class="pa-empty-hint">翻译结果会显示在这里 ✨</div>';
   document.getElementById('pa-proof-output').innerHTML = '<div class="pa-empty-hint">校对结果会显示在这里 📝</div>';
+  document.getElementById('pa-term-report').style.display = 'none';
   window._paTranslations = null;
+  window._paTermCache = null; // 清除术语缓存
   paSwitchTab('translate');
+}
+
+// ===== 第一阶段：显示术语使用报告 =====
+function _paShowTermReport(results) {
+  const reportEl = document.getElementById('pa-term-report');
+  const listEl = document.getElementById('pa-term-list');
+  
+  if (!results || results.length === 0) {
+    reportEl.style.display = 'none';
+    return;
+  }
+  
+  // 统计精确匹配 vs 模糊匹配
+  const exactMatch = results.filter(r => !r.matchType || r.matchType === 'exact');
+  const fuzzyMatch = results.filter(r => r.matchType === 'fuzzy');
+  
+  let html = `<div style="margin-bottom:6px;font-size:11px;color:var(--mut)">`;
+  html += `共匹配 <strong style="color:var(--ink)">${results.length}</strong> 个游戏术语`;
+  html += `（<span style="color:#10b981">✅ 精确 ${exactMatch.length}</span>`;
+  html += `, <span style="color:#f59e0b">🔍 模糊 ${fuzzyMatch.length}</span>）`;
+  html += `</div>`;
+  
+  // 显示前 10 个术语
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">';
+  results.slice(0, 10).forEach(r => {
+    const badgeColor = r.matchType === 'exact' ? '#10b981' : '#f59e0b';
+    const typeLabel = r.matchType === 'exact' ? '✅' : '🔍';
+    html += `<span style="display:inline-block;padding:2px 8px;background:var(--panel-3);border-radius:4px;font-size:11px;border-left:2px solid ${badgeColor}">${typeLabel} ${esc(r.matched)}</span>`;
+  });
+  if (results.length > 10) {
+    html += `<span style="font-size:11px;color:var(--mut)">...还有 ${results.length - 10} 个</span>`;
+  }
+  html += '</div>';
+  
+  listEl.innerHTML = html;
+  reportEl.style.display = 'block';
 }
 
 // ===== 翻译 7 语言（DeepSeek + 术语注入） =====
@@ -106,10 +144,16 @@ async function paTranslate() {
   status.textContent = '⏳ 正在翻译为 7 种语言...';
 
   try {
-    // 先查术语作为翻译参考（多查一些，覆盖面更广）
+    // 第一阶段：规则匹配（术语使用报告）
     const termRes = await fetch(`/api/terminology/search?text=${encodeURIComponent(text)}&lang=auto&limit=50`);
     const termData = await termRes.json();
-    const termRefs = (termData.results || []).map(r =>
+    
+    // 显示术语使用报告
+    _paShowTermReport(termData.results || []);
+    
+    // 只注入实际匹配到的术语（不是全部 50 个）
+    const matchedTerms = (termData.results || []).slice(0, 10); // 最多 10 个
+    const termRefs = matchedTerms.map(r =>
       `${r.zh} → jp:${r.jp||''}, en:${r.en||''}, kr:${r.kr||''}, tw:${r.tw||''}, vn:${r.vn||''}, id:${r.id||''}, th:${r.th||''}`
     ).join('\n');
 
@@ -163,6 +207,7 @@ ${termRefs ? '\n## 术语对照表（必须严格使用以下翻译）\n' + term
     // 保存缓存
     _paSaveCache(text, translations);
     window._paTranslations = translations;
+    window._paTermCache = termData.results; // 保存术语缓存给校对用
     renderTranslations(translations, out);
     
     // 显示术语匹配提示
@@ -193,11 +238,17 @@ function renderTranslations(t, container) {
   container.innerHTML = html;
 }
 
-// ===== 校对翻译（DeepSeek） =====
+// ===== 校对翻译（DeepSeek + 两阶段） =====
 async function paProofread() {
   const text = document.getElementById('pa-editor').value.trim();
   const t = window._paTranslations;
-  if (!t) return Toast.warning('请先点击"翻译成 7 语言"');
+  if (!t) return Toast.warning('请先点击“翻译成 7 语言”');
+  
+  // 检查是否有术语缓存
+  if (!window._paTermCache || window._paTermCache.length === 0) {
+    return Toast.warning('没有检测到术语数据，请先重新翻译');
+  }
+  
   const proofOut = document.getElementById('pa-proof-output');
   const btn = document.getElementById('pa-proof-btn');
   const status = document.getElementById('pa-status');
@@ -205,28 +256,38 @@ async function paProofread() {
   status.textContent = '⏳ 正在校对翻译...';
 
   try {
-    let allTermRefs = '';
-    for (const lang of Object.keys(LANG_LABELS)) {
-      const termRes = await fetch(`/api/terminology/search?text=${encodeURIComponent(text)}&lang=${lang}&limit=20`);
-      const termData = await termRes.json();
-      if (termData.results && termData.results.length) {
-        allTermRefs += `\n【${LANG_LABELS[lang]}术语对照】\n`;
-        allTermRefs += termData.results.map(r => `${r.zh} → ${r[lang] || '(无)'}`).join('\n');
-      }
-    }
+    // ⚠️ 不再调用 7 次 API，直接使用缓存的术语数据
+    const matchedTerms = window._paTermCache.slice(0, 10); // 最多 10 个相关术语
+    const allTermRefs = matchedTerms.map(r => `${r.zh} → jp:${r.jp||''}, en:${r.en||''}, kr:${r.kr||''}, tw:${r.tw||''}, vn:${r.vn||''}, id:${r.id||''}, th:${r.th||''}`).join('\n');
 
-    const system = `你是游戏翻译校对专家。请检查以下7种语言的翻译是否准确，特别关注游戏术语的使用。
+    const system = `你是游戏本地化质检专家。请检查以下 7 种语言的翻译质量。
+
+## 已匹配的游戏术语（在原文中使用了这些）
 ${allTermRefs}
 
-请逐一检查每种语言的翻译，重点检查：
-1. 游戏术语是否使用了正确的翻译（参照上方术语对照表）
-2. 翻译是否地道自然，不像机器翻译
-3. 是否保留了原文的段落结构和换行
+## 校对要求
 
-如果全部正确，请回复"✅ 所有翻译术语使用正确，翻译质量良好"。
+请按以下格式逐项列出问题：
 
-输出格式：
-每种语言一段，有问题的标注 ❌ 和修改建议，没问题的标注 ✅`;
+=== ISSUE START ===
+类型: 术语不一致 | 语法错误 | 语气不当
+严重度: 高 | 中 | 低
+语言: jp/en/kr/tw/vn/id/th
+原文: [原文片段]
+建议: [修改建议]
+原因: [详细解释]
+=== ISSUE END ===
+
+最后提供完整校对后的文本：
+=== CORRECTED TEXT START ===
+jp:[日语校对后文本]
+en:[英语校对后文本]
+kr:[韩语校对后文本]
+tw:[繁中校对后文本]
+vn:[越南语校对后文本]
+id:[印尼语校对后文本]
+th:[泰语校对后文本]
+=== CORRECTED TEXT END ===`;
 
     const transText = Object.entries(LANG_LABELS).map(([k, v]) =>
       `${v}：${t[k] || '(无翻译)'}`
@@ -235,7 +296,7 @@ ${allTermRefs}
     const res = await fetch('/api/terminology/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ system, question: `原文（中文）：${text}\n\n翻译：\n${transText}`, source: 'post-assistant' }),
+      body: JSON.stringify({ system, question: `原文（中文）：${text}\n\n当前翻译：\n${transText}`, source: 'post-assistant' }),
     });
     if (res.status === 429) {
       const errData = await res.json();
