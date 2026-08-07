@@ -263,13 +263,11 @@ function onSendModeChange() {
   });
   if (mode === 'schedule') {
     timeGroup.style.display = 'block';
-    submitBtnText.textContent = '定时发送';
-    $('submitBtn').querySelector('.btn-icon').textContent = '📅';
+    submitBtnText.textContent = '定时发送 📅';
     $('sendTime').value = '';
   } else {
     timeGroup.style.display = 'none';
-    submitBtnText.textContent = '立即发送';
-    $('submitBtn').querySelector('.btn-icon').textContent = '⚡';
+    submitBtnText.textContent = '立即发送 ⚡';
   }
 }
 
