@@ -318,6 +318,12 @@ function applyNavPermissions() {
   const role = getUserRole();
   const roleLevel = ROLE_LEVEL[role] || 0;
   
+  // 🚫 Pending 用户：显示遮罩（双重保护，配合后端 403）
+  if (role === 'pending') {
+    showPendingOverlay();
+    return;
+  }
+  
   if (!isAdminUser()) {
     document.querySelectorAll('.admin-only').forEach(el => {
       el.style.display = 'none';
@@ -347,43 +353,94 @@ function applyReadOnlyMode() {
 
 // ===== Pending 用户待审批遮罩 =====
 function showPendingOverlay() {
-  // 🚫 完全禁用页面：只显示锁定提示，隐藏所有内容（双重保护，防止后端拦截失效）
+  // 🚫 Pending 用户遮罩：在现有页面上覆盖遮罩（提升用户体验）
   
-  // 1. 隐藏整个 body 内容（防止前端脚本渲染内容后暴露）
-  document.body.innerHTML = '';
-  
-  // 2. 创建全屏锁定页面（极简风格，类似浏览器错误页）
-  const lockPage = document.createElement('div');
-  lockPage.id = 'pending-lock-page';
-  lockPage.innerHTML = `
-    <div style="
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      background: #f8f9fa;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      padding: 20px;
-    ">
-      <h1 style="font-size: 48px; color: #6c757d; margin: 0;">403</h1>
-      <p style="font-size: 20px; color: #333; margin: 16px 0;">账号待审批 · 暂时无法访问</p>
-      <p style="font-size: 14px; color: #666; max-width: 360px; text-align: center; line-height: 1.6;">
-        您的账号尚未通过管理员审批，系统已限制访问权限。
-      </p>
-      <div style="
+  // 1. 创建全屏遮罩层
+  const overlay = document.createElement('div');
+  overlay.id = 'pending-overlay';
+  overlay.innerHTML = `
+    <style>
+      #pending-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(10px);
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: fadeIn 0.3s ease-in;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      
+      .pending-card {
+        text-align: center;
+        padding: 40px;
+        max-width: 400px;
+      }
+      
+      .pending-card h1 {
+        font-size: 72px;
+        color: #6c757d;
+        margin: 0;
+        font-weight: 700;
+      }
+      
+      .pending-card p {
+        font-size: 18px;
+        color: #333;
+        margin: 16px 0;
+        font-weight: 600;
+      }
+      
+      .pending-card .desc {
+        font-size: 14px;
+        color: #666;
+        line-height: 1.6;
+        margin-bottom: 24px;
+      }
+      
+      .pending-card .warning {
         background: #fff3cd;
         border: 1px solid #ffc107;
         border-radius: 8px;
         padding: 12px 16px;
-        margin-top: 24px;
         font-size: 13px;
         color: #856404;
-      ">⚠️ 此为系统安全保护机制，请勿尝试绕过限制。</div>
+      }
+    </style>
+    
+    <div class="pending-card">
+      <h1>403</h1>
+      <p>账号待审批 · 暂时无法访问</p>
+      <p class="desc">您的账号尚未通过管理员审批，系统已限制访问权限。</p>
+      <div class="warning">⚠️ 此为系统安全保护机制，请稍候联系管理员完成权限开通。</div>
     </div>
   `;
   
-  document.body.appendChild(lockPage);
+  document.body.appendChild(overlay);
+  
+  // 2. 禁用页面交互（防止用户点击按钮或链接）
+  overlay.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  });
+  
+  // 3. 禁用键盘操作
+  document.addEventListener('keydown', function(e) {
+    if (overlay.style.display !== 'none') {
+      e.preventDefault();
+      return false;
+    }
+  }, true);
 }
 
 // ===== 公共工具函数 =====
