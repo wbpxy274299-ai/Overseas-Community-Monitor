@@ -11,6 +11,7 @@ const router = express.Router();
 const axios = require('axios');
 const { ensureLoggedIn } = require('../middleware/auth');
 const db = require('../db');
+const { fmtCST8Date } = require('../config');
 const { crawlLounge, getCrawlStatus, getCrawlProgress, LOUNGE_CONFIG, parseKoreanTime } = require('../lounge_crawler');
 const translator = require('../translator');
 
@@ -45,7 +46,7 @@ function extractPostDate(koreanTime, crawledAt) {
   if (crawledAt) {
     const d = new Date(crawledAt);
     if (!isNaN(d.getTime())) {
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      return fmtCST8Date(d);
     }
   }
   
@@ -487,7 +488,7 @@ async function translateAndAnalyze(limit = 100) {
 async function generateDailyReport(gameCode) {
   // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
   const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const today = fmtCST8Date(new Date());
 
   const posts = db.queryAll(
     `SELECT * FROM lounge_posts WHERE game_code = ? AND DATE(crawled_at) = ?`,

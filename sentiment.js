@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { getDiscordToken } = require('./config');
+const { getDiscordToken, fmtCST8 } = require('./config');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const db = require('./db');
 const log = require('./logger');
@@ -31,7 +31,7 @@ const collectionStatus = {
 };
 
 function recordError(source, message) {
-  const entry = { time: fmtLocalDate(new Date()), source, message: String(message).substring(0, 200) };
+  const entry = { time: fmtCST8(new Date()), source, message: String(message).substring(0, 200) };
   systemErrors.unshift(entry);
   if (systemErrors.length > 50) systemErrors.length = 50;
   console.error(`❌ [${source}] ${message}`);
@@ -40,13 +40,7 @@ function recordError(source, message) {
 function getSystemErrors() { return systemErrors; }
 function getCollectionStatus() { return collectionStatus; }
 
-// 时间格式化（服务器已设 TZ=Asia/Shanghai，直接用本地时间方法）
-function fmtLocalDate(d) {
-  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'),
-        day = String(d.getDate()).padStart(2,'0'), h = String(d.getHours()).padStart(2,'0'),
-        min = String(d.getMinutes()).padStart(2,'0'), sec = String(d.getSeconds()).padStart(2,'0');
-  return `${y}-${m}-${day} ${h}:${min}:${sec}`;
-}
+// ★ 日期格式化统一使用 config.js 的 fmtCST8（不再重复定义）
 
 // ===== 时间格式统一规范化 =====
 // 比喻：就像所有入库的货物都要统一贴标准标签，不管原来贴的是什么格式
@@ -287,7 +281,7 @@ function getTodayPeriod() {
     : today830;
   const end = new Date(start.getTime() + 86400000);
   
-  const fmt = (d) => fmtLocalDate(d);
+  const fmt = (d) => fmtCST8(d);
   return {
     startDate: fmt(start),
     endDate: fmt(end),
@@ -834,7 +828,7 @@ async function backfillAISentiment() {
 // 注意：Yahoo 实时搜索不提供原始发帖时间，只能使用采集时间
 function parseYahooTimeFromText(timeText) {
   // 直接返回当前采集时间（ISO 格式）
-  return fmtLocalDate(new Date());
+  return fmtCST8(new Date());
 }
 
 // ===== Twitter 数据采集（日服）=====
@@ -849,13 +843,13 @@ async function collectFromTwitter(isFullCollect = false) {
   try {
     const result = await collectFromYahooApi(searchQuery, isFullCollect);
     // 记录采集状态
-    collectionStatus.twitter.lastRun = fmtLocalDate(new Date());
+    collectionStatus.twitter.lastRun = fmtCST8(new Date());
     collectionStatus.twitter.lastCount = result.length;
     collectionStatus.twitter.lastError = null;
     return result;
   } catch (error) {
     recordError('Twitter采集', error.message);
-    collectionStatus.twitter.lastRun = fmtLocalDate(new Date());
+    collectionStatus.twitter.lastRun = fmtCST8(new Date());
     collectionStatus.twitter.lastError = error.message;
     return [];
   }
@@ -970,7 +964,7 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
       const hasMedia = !!(entry.mediaUrls && entry.mediaUrls.length > 0);
       
       // 生成唯一ID
-      const today = fmtLocalDate(new Date()).substring(0, 10);
+      const today = fmtCST8(new Date()).substring(0, 10);
       const contentHash = crypto.createHash('md5').update(content).digest('hex').substring(0, 16);
       
       allRecords.push({
@@ -1196,7 +1190,7 @@ async function collectFromDiscord() {
     channel_name: item.channels.join(', ')
   }));
   
-  collectionStatus.discord.lastRun = fmtLocalDate(new Date());
+  collectionStatus.discord.lastRun = fmtCST8(new Date());
   collectionStatus.discord.lastCount = collected.length;
   if (collected.length === 0) {
     collectionStatus.discord.lastError = '采集结果为0条，可能存在问题';
@@ -1537,8 +1531,8 @@ function getStatistics(period = 'week') {
     endOfLastSunday.setDate(startOfLastMonday.getDate() + 6);
     endOfLastSunday.setHours(23, 59, 59, 999);
     
-    startDate = fmtLocalDate(startOfLastMonday);
-    endDate = fmtLocalDate(endOfLastSunday);
+    startDate = fmtCST8(startOfLastMonday);
+    endDate = fmtCST8(endOfLastSunday);
     periodLabel = `${startOfLastMonday.getFullYear()}/${startOfLastMonday.getMonth()+1}/${startOfLastMonday.getDate()} ~ ${endOfLastSunday.getFullYear()}/${endOfLastSunday.getMonth()+1}/${endOfLastSunday.getDate()}`;
   }
   
@@ -1779,7 +1773,7 @@ function getSentimentTrendAnalysis(platform = null, days = 7) {
   const startDate = new Date(now);
   startDate.setDate(now.getDate() - days);
   startDate.setHours(0, 0, 0, 0);
-  const startStr = fmtLocalDate(startDate);
+  const startStr = fmtCST8(startDate);
   
   // 基础统计
   const baseConditions = ['is_noise = 0', 'created_at >= ?'];
@@ -1925,7 +1919,7 @@ function getRealtimeFeedback(limit = 1000, filters = {}) {
 // ===== 保存话题历史（带去重保护：同天同平台同话题只存一份）=====
 function saveTopicHistory(topics, platform, skipDedup = false) {
   try {
-    const now = fmtLocalDate(new Date());
+    const now = fmtCST8(new Date());
     const todayStr = now.substring(0, 10);
     
     // ★ 如果调用方已保证数据去重（如从 hot-topics API 来的），跳过内部去重逻辑
@@ -2251,7 +2245,7 @@ function getTopicTrend(platform, days = 7) {
   try {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    const startDateStr = fmtLocalDate(startDate);
+    const startDateStr = fmtCST8(startDate);
     
     const trends = db.queryAll(`
       SELECT 
@@ -2302,13 +2296,13 @@ async function saveDailySnapshot(dateStr = null) {
       targetDate.setDate(targetDate.getDate() - 1); // 默认昨天
     }
     
-    const dateKey = fmtLocalDate(targetDate).substring(0, 10); // YYYY-MM-DD
+    const dateKey = fmtCST8(targetDate).substring(0, 10); // YYYY-MM-DD
     
     // 使用 8:30 时间窗口（与一日舆情一致）：dateKey 8:30 ~ dateKey+1天 8:30
     const windowStart = `${dateKey} 08:30:00`;
     const nextDay = new Date(targetDate);
     nextDay.setDate(nextDay.getDate() + 1);
-    const nextDateKey = fmtLocalDate(nextDay).substring(0, 10);
+    const nextDateKey = fmtCST8(nextDay).substring(0, 10);
     const windowEnd = `${nextDateKey} 08:30:00`;
     
     console.log(`\n📊 开始保存每日舆情快照: ${dateKey} (窗口: ${windowStart} ~ ${windowEnd})`);
