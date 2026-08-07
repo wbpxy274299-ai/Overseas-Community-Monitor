@@ -15,7 +15,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 
 // DC 发布相关 API 需要登录 + operator 以上角色
 // ⚠️ 注意：不能用 router.use('/api', ...) 否则会拦截 sentiment 等其他模块的 API
-const dcAuth = [requireAuth, requireRole('operator', 'admin')];
+const dcAuth = [requireAuth, requireRole('operator', 'admin', 'super_admin')];
 
 // ===== 频道 / 发送人 =====
 
