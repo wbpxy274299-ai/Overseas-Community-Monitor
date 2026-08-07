@@ -54,9 +54,12 @@ function ensureInsightsTable() {
   }
 }
 
-// 获取有效角色列表
+// 获取有效角色列表（仅超管能看到 super_admin）
 router.get('/api/admin/roles', requireRole('admin', 'super_admin'), (req, res) => {
-  res.json({ ok: true, data: db.VALID_ROLES });
+  const isSuperAdmin = req.user.role === 'super_admin';
+  // 🎯 非超管不能看到 super_admin 选项
+  const roles = isSuperAdmin ? db.VALID_ROLES : db.VALID_ROLES.filter(r => r !== 'super_admin');
+  res.json({ ok: true, data: roles });
 });
 
 // 获取所有用户列表（仅管理员）
