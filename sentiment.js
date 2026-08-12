@@ -1516,66 +1516,59 @@ function getStatistics(period = 'week') {
   const twitterCount = db.queryOne(
     `SELECT COUNT(*) as cnt FROM sentiment_records 
      WHERE platform = 'twitter' AND is_noise = 0
-     AND created_at >= ? AND created_at <= ?`,
-    [startDate, endDate]
+     AND created_at >= '${startDate}' AND created_at <= '${endDate}'`
   );
   
   const twitterSentiment = db.queryAll(
     `SELECT COALESCE(ai_sentiment, sentiment) as sentiment, COUNT(*) as cnt FROM sentiment_records 
      WHERE platform = 'twitter' AND is_noise = 0
-     AND created_at >= ? AND created_at <= ?
-     GROUP BY COALESCE(ai_sentiment, sentiment)`,
-    [startDate, endDate]
+     AND created_at >= '${startDate}' AND created_at <= '${endDate}'
+     GROUP BY COALESCE(ai_sentiment, sentiment)`
   );
   
   // Discord 数据统计（AI 情感优先，规则情感兆底，过滤噪音）
   const discordCount = db.queryOne(
     `SELECT COUNT(*) as cnt FROM sentiment_records 
      WHERE platform = 'discord' AND is_noise = 0
-     AND created_at >= ? AND created_at <= ?`,
-    [startDate, endDate]
+     AND created_at >= '${startDate}' AND created_at <= '${endDate}'`
   );
   
   const discordSentiment = db.queryAll(
     `SELECT COALESCE(ai_sentiment, sentiment) as sentiment, COUNT(*) as cnt FROM sentiment_records 
      WHERE platform = 'discord' AND is_noise = 0
-     AND created_at >= ? AND created_at <= ?
-     GROUP BY COALESCE(ai_sentiment, sentiment)`,
-    [startDate, endDate]
+     AND created_at >= '${startDate}' AND created_at <= '${endDate}'
+     GROUP BY COALESCE(ai_sentiment, sentiment)`
   );
   
   // 按区域统计（过滤噪音）
   const regionStats = db.queryAll(
     `SELECT region, COUNT(*) as cnt FROM sentiment_records 
      WHERE is_noise = 0
-     AND created_at >= ? AND created_at <= ?
+     AND created_at >= '${startDate}' AND created_at <= '${endDate}'
      AND region IS NOT NULL
      GROUP BY region
-     ORDER BY cnt DESC`,
-    [startDate, endDate]
+     ORDER BY cnt DESC`
   );
   
   // 提取热门话题（按 topic_tag 分组，比 keywords 更准确）
   const twitterTopics = db.queryAll(
     `SELECT topic_tag, COUNT(*) as cnt FROM sentiment_records 
      WHERE platform = 'twitter' AND is_noise = 0
-     AND created_at >= ? AND created_at <= ?
+     AND created_at >= '${startDate}' AND created_at <= '${endDate}'
      AND topic_tag IS NOT NULL AND topic_tag != 'general'
      GROUP BY topic_tag
      ORDER BY cnt DESC
-     LIMIT 8`,
-    [startDate, endDate]
+     LIMIT 8`
   );
   
   const discordTopics = db.queryAll(
     `SELECT topic_tag, COUNT(*) as cnt FROM sentiment_records 
      WHERE platform = 'discord' AND is_noise = 0
-     AND created_at >= ? AND created_at <= ?
+     AND created_at >= '${startDate}' AND created_at <= '${endDate}'
      AND topic_tag IS NOT NULL AND topic_tag != 'general'
      GROUP BY topic_tag
      ORDER BY cnt DESC
-     LIMIT 8`,
-    [startDate, endDate]
+     LIMIT 8`
   );
   
   // ===== 韩国社区数据 =====
@@ -1583,13 +1576,11 @@ function getStatistics(period = 'week') {
   let loungeSentiment = { positive: 0, neutral: 0, negative: 0 };
   try {
     const loungeRow = db.queryOne(
-      `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ?`,
-      [startDate, endDate]
+      `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}'`
     );
     loungeCount = loungeRow?.cnt || 0;
     const loungeSentRows = db.queryAll(
-      `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at <= ? GROUP BY sentiment`,
-      [startDate, endDate]
+      `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' GROUP BY sentiment`
     );
     loungeSentRows.forEach(r => { if (loungeSentiment[r.sentiment] !== undefined) loungeSentiment[r.sentiment] = r.cnt; });
   } catch (_) { /* lounge表可能不存在 */ }
