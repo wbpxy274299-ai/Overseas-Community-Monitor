@@ -2131,12 +2131,10 @@ async function runDailyHotTopicsAnalysis() {
     // 诊断日志：为什么没有数据？
     try {
       const totalInRange = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM sentiment_records WHERE created_at >= ? AND created_at <= ? AND is_noise = 0`,
-        [startDate, endDate]
+        `SELECT COUNT(*) as cnt FROM sentiment_records WHERE created_at >= '${startDate}' AND created_at <= '${endDate}' AND is_noise = 0`
       );
       const totalQuality = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM sentiment_records WHERE created_at >= ? AND created_at <= ? AND is_noise = 0 AND content_quality >= 2`,
-        [startDate, endDate]
+        `SELECT COUNT(*) as cnt FROM sentiment_records WHERE created_at >= '${startDate}' AND created_at <= '${endDate}' AND is_noise = 0 AND content_quality >= 2`
       );
       console.log(`   📋 诊断: 时间窗口内共 ${totalInRange?.cnt || 0} 条(is_noise=0), 其中 quality≥2 的 ${totalQuality?.cnt || 0} 条`);
       if ((totalInRange?.cnt || 0) > 0 && (totalQuality?.cnt || 0) === 0) {
@@ -2219,10 +2217,10 @@ function getTopicTrend(platform, days = 7) {
         COUNT(*) as mention_count,
         GROUP_CONCAT(DISTINCT sentiment) as sentiments
       FROM topic_history
-      WHERE platform = ? AND created_at >= ?
+      WHERE platform = '${platform}' AND created_at >= '${startDateStr}'
       GROUP BY topic_title, DATE(created_at)
       ORDER BY date DESC
-    `, [platform, startDateStr]);
+    `);
     
     // 按话题分组
     const grouped = {};
@@ -2520,16 +2518,13 @@ function getWeeklyOverview() {
     const end = dateStr + ' 23:59:59';
     
     const twCount = db.queryOne(
-      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='twitter' AND is_noise=0 AND created_at >= ? AND created_at <= ?`,
-      [start, end]
+      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='twitter' AND is_noise=0 AND created_at >= '${start}' AND created_at <= '${end}'`
     );
     const dcCount = db.queryOne(
-      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='discord' AND is_noise=0 AND created_at >= ? AND created_at <= ?`,
-      [start, end]
+      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='discord' AND is_noise=0 AND created_at >= '${start}' AND created_at <= '${end}'`
     );
     const sentiments = db.queryAll(
-      `SELECT COALESCE(ai_sentiment, sentiment) as sentiment, COUNT(*) as cnt FROM sentiment_records WHERE is_noise=0 AND created_at >= ? AND created_at <= ? GROUP BY COALESCE(ai_sentiment, sentiment)`,
-      [start, end]
+      `SELECT COALESCE(ai_sentiment, sentiment) as sentiment, COUNT(*) as cnt FROM sentiment_records WHERE is_noise=0 AND created_at >= '${start}' AND created_at <= '${end}' GROUP BY COALESCE(ai_sentiment, sentiment)`
     );
     const sMap = { positive: 0, neutral: 0, negative: 0 };
     sentiments.forEach(s => { sMap[s.sentiment] = s.cnt; });
@@ -3009,10 +3004,9 @@ async function getDailyOverview() {
               COALESCE(ai_sentiment, sentiment) as sentiment,
               created_at, content_quality
        FROM sentiment_records
-       WHERE platform = ? AND is_noise = 0 AND created_at >= ? AND created_at <= ?
+       WHERE platform = '${platform}' AND is_noise = 0 AND created_at >= '${startDate}' AND created_at <= '${endDate}'
        ORDER BY content_quality DESC
-       LIMIT 30`,
-      [platform, startDate, endDate]
+       LIMIT 30`
     );
     
     if (!records || records.length === 0) {
