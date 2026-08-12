@@ -549,8 +549,10 @@ function classifyGameTopic(text) {
   return 'general';
 }
 
-// ===== 获取高质量反馈（用于 AI 分析）=====
-function getQualityFeedback(limit = 30, platform = null, startDate = null, endDate = null) {
+// ===== 获取反馈数据（用于 AI 分析）=====  
+// ★ 核心原则：只用 is_noise=0 过滤，不做 quality 限制
+// 所有非噪音数据都平等对待，不能因为"质量低"就把用户的发言扔进垃圾桶！
+function getQualityFeedback(limit = 50, platform = null, startDate = null, endDate = null) {
   const conditions = ['is_noise = 0'];
   const params = [];
   
@@ -569,44 +571,16 @@ function getQualityFeedback(limit = 30, platform = null, startDate = null, endDa
     params.push(endDate);
   }
   
-  // 优先取 quality >= 2
-  conditions.push('content_quality >= 2');
-  
   const whereClause = `WHERE ${conditions.join(' AND ')}`;
   params.push(limit);
   
+  // 直接取所有非噪音数据，按时间倒序（最新的优先）
   let rows = db.queryAll(`
     SELECT * FROM sentiment_records 
     ${whereClause}
-    ORDER BY content_quality DESC, created_at DESC 
+    ORDER BY created_at DESC 
     LIMIT ?
   `, params);
-  
-  // 不足 10 条时降级取 quality >= 1（保留时间过滤）
-  if (rows.length < 10) {
-    const fallbackConditions = ['is_noise = 0', 'content_quality >= 1'];
-    const fallbackParams = [];
-    if (platform) {
-      fallbackConditions.push('platform = ?');
-      fallbackParams.push(platform);
-    }
-    if (startDate) {
-      fallbackConditions.push('created_at >= ?');
-      fallbackParams.push(startDate);
-    }
-    if (endDate) {
-      fallbackConditions.push('created_at <= ?');
-      fallbackParams.push(endDate);
-    }
-    fallbackParams.push(limit);
-    
-    rows = db.queryAll(`
-      SELECT * FROM sentiment_records 
-      WHERE ${fallbackConditions.join(' AND ')}
-      ORDER BY content_quality DESC, created_at DESC 
-      LIMIT ?
-    `, fallbackParams);
-  }
   
   return rows.map(row => ({
     ...row,
@@ -2684,7 +2658,7 @@ async function getWeeklyHotTopics() {
        FROM sentiment_records
        WHERE platform = ? AND is_noise = 0
        AND created_at >= ? AND created_at <= ?
-       ORDER BY content_quality DESC
+       ORDER BY created_at DESC
        LIMIT 50`,
       [platform, wStart, wEnd]
     );
