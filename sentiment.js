@@ -1702,12 +1702,11 @@ function getDailySentiment(limit = 200, platform = null) {
   
   console.log(`📅 一日内舆情周期: ${startDate} ~ ${endDate}`);
   
-  const conditions = ['created_at >= ?', 'created_at <= ?', 'is_noise = 0'];
-  const params = [startDate, endDate];
+  let whereClause = `created_at >= '${startDate}' AND created_at <= '${endDate}' AND is_noise = 0`;
+  let params = [];
   
   if (platform) {
-    conditions.push('platform = ?');
-    params.push(platform);
+    whereClause += ` AND platform = '${platform}'`;
   }
   
   params.push(limit);
@@ -1720,7 +1719,7 @@ function getDailySentiment(limit = 200, platform = null) {
            keywords, category, priority, created_at,
            is_noise, content_quality, topic_tag, time_text, url, has_media
     FROM sentiment_records 
-    WHERE ${conditions.join(' AND ')}
+    WHERE ${whereClause}
     ORDER BY priority DESC, created_at DESC 
     LIMIT ?
   `, params);
