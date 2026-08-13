@@ -2625,9 +2625,9 @@ async function getWeeklyHotTopics() {
   // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
   const now = new Date();
   const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 6);
+  sevenDaysAgo.setDate(now.getDate() - 7);  // ★ L2628: 从 7 天前开始，去掉当天
   const wStart = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')} 00:00:00`;
-  const wEnd = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} 23:59:59`;
+  const yesterdayDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()-1).padStart(2,'0')} 23:59:59`;
 
   const tagLabels = {
     bug_report: 'Bug', gacha: '抽卡', knight_order: '骑士团',
@@ -2663,10 +2663,10 @@ async function getWeeklyHotTopics() {
               created_at, topic_tag, content_quality
        FROM sentiment_records
        WHERE platform = ? AND is_noise = 0
-       AND created_at >= ? AND created_at <= ?
+       AND created_at >= '${wStart}' AND created_at <= '${yesterdayDate}'
        ORDER BY created_at DESC
        LIMIT 50`,
-      [platform, wStart, wEnd]
+      [platform]
     );
     
     if (!records || records.length === 0) return [];
@@ -2688,7 +2688,7 @@ async function getWeeklyHotTopics() {
     
     if (!aiTopics || aiTopics.length === 0) {
       // AI 失败时兑底：按 topic_tag 分组（旧逻辑）
-      return buildPlatformTopicsFallback(platform, wStart, wEnd);
+      return buildPlatformTopicsFallback(platform, wStart, yesterdayDate);
     }
     
     // 转换为七日话题展示格式
@@ -2766,23 +2766,21 @@ async function getWeeklyHotTopics() {
               SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'positive' THEN 1 ELSE 0 END) as pos_cnt,
               SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'neutral' THEN 1 ELSE 0 END) as neu_cnt
        FROM sentiment_records
-       WHERE platform = ? AND is_noise = 0
+       WHERE platform = '${platform}' AND is_noise = 0
        AND topic_tag IS NOT NULL AND topic_tag != 'general'
-       AND created_at >= ? AND created_at <= ?
+       AND created_at >= '${wStart}' AND created_at <= '${wEnd}'
        GROUP BY topic_tag
        ORDER BY cnt DESC
-       LIMIT 8`,
-      [platform, wStart, wEnd]
+       LIMIT 8`
     );
     
     return rows.map(r => {
       const samples = db.queryAll(
         `SELECT content, translated_content, url, author, COALESCE(ai_sentiment, sentiment) as sentiment
          FROM sentiment_records
-         WHERE platform = ? AND is_noise = 0 AND topic_tag = ?
-         AND created_at >= ? AND created_at <= ?
-         ORDER BY content_quality DESC LIMIT 5`,
-        [platform, r.topic_tag, wStart, wEnd]
+         WHERE platform = '${platform}' AND is_noise = 0 AND topic_tag = '${r.topic_tag}'
+         AND created_at >= '${wStart}' AND created_at <= '${wEnd}'
+         ORDER BY content_quality DESC LIMIT 5`
       );
       
       const dominant = r.neg_cnt > r.pos_cnt ? 'negative' : r.pos_cnt > r.neg_cnt ? 'positive' : 'neutral';
@@ -2817,9 +2815,8 @@ async function getWeeklyHotTopics() {
       const posts = db.queryAll(
         `SELECT content_zh, title_zh, content, title, author, url, sentiment, crawled_at, post_time, post_id, comment_count, view_count, post_date
          FROM lounge_posts
-         WHERE post_date >= ? AND post_date <= ?
-         ORDER BY (comment_count + view_count) DESC LIMIT 30`,
-        [wStart.split(' ')[0], wEnd.split(' ')[0]]
+         WHERE post_date >= '${wStart.split(' ')[0]}' AND post_date <= '${yesterdayDate.split(' ')[0]}'
+         ORDER BY (comment_count + view_count) DESC LIMIT 30`
       );
       if (!posts || posts.length === 0) return [];
 
@@ -2842,16 +2839,15 @@ async function getWeeklyHotTopics() {
       // ★ 查询评论数据（标记 type='comment'，按 comment_time 过滤）
       try {
         const datePrefixStart = wStart.split(' ')[0].replace(/-/g, ''); // "2026-07-29" -> "20260729"
-        const datePrefixEnd = wEnd.split(' ')[0].replace(/-/g, '');
+        const datePrefixEnd = yesterdayDate.split(' ')[0].replace(/-/g, '');
         const comments = db.queryAll(
           `SELECT c.content_zh, c.content, c.author, c.sentiment, c.crawled_at, c.comment_time, c.likes,
                   p.url as post_url
            FROM lounge_comments c
            LEFT JOIN lounge_posts p ON c.post_id = p.post_id
-           WHERE replace(substr(c.comment_time, 1, 10), '-', '') >= ? AND replace(substr(c.comment_time, 1, 10), '-', '') <= ?
+           WHERE replace(substr(c.comment_time, 1, 10), '-', '') >= '${datePrefixStart}' AND replace(substr(c.comment_time, 1, 10), '-', '') <= '${datePrefixEnd}'
              AND c.content IS NOT NULL AND c.content != ''
-           ORDER BY c.likes DESC LIMIT 50`,
-          [datePrefixStart, datePrefixEnd]
+           ORDER BY c.likes DESC LIMIT 50`
         );
         if (comments && comments.length > 0) {
           for (const c of comments) {
@@ -2885,7 +2881,7 @@ async function getWeeklyHotTopics() {
 
       if (!aiTopics || aiTopics.length === 0) {
         // AI 失败时兑底：用 ai_category 分组（旧逻辑）
-        return buildLoungeTopicsFallback(wStart.split(' ')[0], wEnd.split(' ')[0]);
+        return buildLoungeTopicsFallback(wStart.split(' ')[0], yesterdayDate.split(' ')[0]);
       }
 
       // 转换为七日话题展示格式
@@ -2971,16 +2967,14 @@ async function getWeeklyHotTopics() {
                 SUM(CASE WHEN sentiment = 'neutral' THEN 1 ELSE 0 END) as neu_cnt
          FROM lounge_posts
          WHERE ai_category IS NOT NULL AND ai_category != 'other'
-         AND post_date >= ? AND post_date <= ?
-         GROUP BY ai_category ORDER BY cnt DESC LIMIT 8`,
-        [startDate, endDate]
+         AND post_date >= '${startDate}' AND post_date <= '${endDate}'
+         GROUP BY ai_category ORDER BY cnt DESC LIMIT 8`
       );
       return rows.map(r => {
         const samples = db.queryAll(
           `SELECT content_zh, title_zh, content, title, author, url, sentiment
-           FROM lounge_posts WHERE ai_category = ?
-           AND post_date >= ? AND post_date <= ? ORDER BY comment_count DESC LIMIT 5`,
-          [r.ai_category, startDate, endDate]
+           FROM lounge_posts WHERE ai_category = '${r.ai_category}'
+           AND post_date >= '${startDate}' AND post_date <= '${endDate}' ORDER BY comment_count DESC LIMIT 5`
         );
         const dominant = r.neg_cnt > r.pos_cnt ? 'negative' : r.pos_cnt > r.neg_cnt ? 'positive' : 'neutral';
         const heat = Math.min(10, Math.max(1, Math.round((r.cnt / 7) * 2) + (dominant === 'negative' ? 2 : 0)));
