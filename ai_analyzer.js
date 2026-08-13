@@ -17,7 +17,7 @@ const DEEPSEEK_MODEL = 'deepseek-chat';
  * 带重试机制：限流(429)和网络错误自动重试
  */
 async function callDeepSeekAPI(prompt, content, options = {}) {
-  const { maxTokens = 500, jsonMode = false } = options;
+  const { maxTokens = 500, jsonMode = false, timeout = 60000 } = options;
   
   if (!DEEPSEEK_API_KEY) {
     return null;
@@ -51,7 +51,7 @@ async function callDeepSeekAPI(prompt, content, options = {}) {
             'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
             'Content-Type': 'application/json'
           },
-          timeout: 60000,
+          timeout,
         }
       );
       
@@ -68,9 +68,10 @@ async function callDeepSeekAPI(prompt, content, options = {}) {
         await new Promise(r => setTimeout(r, retryAfter * 1000));
         continue;
       }
-      // 网络错误：短暂等待后重试
-      if ((e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT') && attempt < maxRetries) {
-        console.log(`    ⏳ DeepSeek 网络错误，3秒后重试 (${attempt}/${maxRetries})...`);
+      // 网络错误/超时：短暂等待后重试（★ ECONNABORTED 是 axios 超时错误码，
+      //   之前漏了它——话题分析输出长、生成慢，60秒超时被砍后不重试直接走兜底）
+      if ((e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT' || e.code === 'ECONNABORTED') && attempt < maxRetries) {
+        console.log(`    ⏳ DeepSeek 网络错误/超时，3秒后重试 (${attempt}/${maxRetries})...`);
         await new Promise(r => setTimeout(r, 3000));
         continue;
       }
@@ -447,10 +448,9 @@ ${gameContext}
    ❌ 間違いの例："プレイヤーがガチャ問題を抱怨している"
    ✅ 正しい例："複数のプレイヤーがSSRドロップ率が低すぎると言っている、100ガチャでゼロSSRの人がいる、保証メカニズムが透明でないと思われている"
 
-2. **detail フィールド**：3-5文で分析を展開する：
+2. **detail フィールド**：2-3文で分析を展開する：
    - 具体なことが起きた（イベントの説明）
    - プレイヤーのコアな感情と要求
-   - 影響範囲（どのプレイヤー、どのプレイ）
    - 潜在的なリスク（発酵する可能性、課金に関連しているかどうか）
 
 3. **representative_quotes 必須ある**：1-2文のプレイヤーの原語を直接引用（偽造しない）
@@ -459,7 +459,7 @@ ${gameContext}
 
 4. **urls 必須ある**：元データの url フィールドから抽出し、各トピックには少なくとも1つの代表的な発言のリンク（文字列配列）
 
-5. **1件以上の議論があるタグごとにトピックを生成**、1件しかない場合は「その他」に分類する
+5. **話題は最多6件まで**：議論量が多い順に、最もホットな上位6件のみ出力し、似通った話題は統合、1件しかない細かい話題は general に統合する
 
 6. **感情判断**：positive(称賛/期待) / neutral(ディスカッション/質問) / negative(抱怨/批評)
 
@@ -502,7 +502,8 @@ ${gameContext}
 
   // ★ maxTokens 2000→4000：日服7日58条能出8~10个话题，完整JSON约4200 token，
   //   2000会把JSON拦腰截断导致解析失败走兜底（繁中/韩服数据少所以没暴露）
-  const result = await callAI(prompt, content, { maxTokens: 4000, jsonMode: true });
+  // ★ timeout 180秒：4000 token输出要生成70~100秒，默认60秒会在AI写到一半时掐断连接
+  const result = await callAI(prompt, content, { maxTokens: 4000, jsonMode: true, timeout: 180000 });
   
   if (!result) return fallbackTopicExtraction(records);
   
@@ -768,10 +769,9 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords, loungeRe
    ❌ 間違いの例："プレイヤーがガチャ問題を抱怨している"
    ✅ 正しい例："複数のプレイヤーがSSRドロップ率が低すぎると言っている、100ガチャでゼロSSRの人がいる、保証メカニズムが透明でないと思われている"
 
-2. **detail フィールド**：3-5文で分析を展開する：
+2. **detail フィールド**：2-3文で分析を展開する：
    - 具体なことが起きた（イベントの説明）
    - プレイヤーのコアな感情と要求
-   - 影響範囲（どのプレイヤー、どのプレイ）
    - 潜在的なリスク（発酵する可能性、課金に関連しているかどうか）
 
 3. **representative_quotes 必須ある**：1-2文のプレイヤーの原語を直接引用（偽造しない）
@@ -780,7 +780,7 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords, loungeRe
 
 4. **urls 必須ある**：元データの url フィールドから抽出し、各トピックには少なくとも1つの代表的な発言のリンク（文字列配列）
 
-5. **1件以上の議論があるタグごとにトピックを生成**、1件しかない場合は「その他」に分類する
+5. **話題は最多6件まで**：議論量が多い順に、最もホットな上位6件のみ出力し、似通った話題は統合、1件しかない細かい話題は general に統合する
 
 6. **感情判断**：positive(称賛/期待) / neutral(ディスカッション/質問) / negative(抱怨/批評)
 
