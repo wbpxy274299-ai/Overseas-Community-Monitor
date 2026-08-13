@@ -2527,10 +2527,10 @@ function getWeeklyOverview() {
   const now = new Date();
   const days = [];
   
-  // ★ L2530: 只查最近 6 天（去掉当天，因为数据不完整）
-  for (let i = 1; i <= 6; i++) {
+  // ★ L2530: 查最近 7 天（去掉当天，从 7 天前开始，保证从左到右时间顺序）
+  for (let i = 7; i >= 1; i--) {
     const d = new Date(now);
-    d.setDate(now.getDate() - i);  // 昨天、前天、...、7天前
+    d.setDate(now.getDate() - i);  // 7天前、6天前、...、昨天
     const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const start = dateStr + ' 00:00:00';
     const end = dateStr + ' 23:59:59';
@@ -2581,13 +2581,13 @@ function getWeeklyOverview() {
   const totalDiscord = days.reduce((s, d) => s + d.discord, 0);
   const totalLounge = days.reduce((s, d) => s + (d.lounge || 0), 0);
   const totalAll = totalTwitter + totalDiscord + totalLounge;
-  const today = days[days.length - 1];  // ★ L2584: 现在是最末一天（今天的前一天）
+  const today = days[days.length - 1];  // ★ L2584: 现在是最末一天（昨天）
   const yesterday = days.length >= 2 ? days[days.length - 2] : null;
   const trendChange = yesterday ? today.total - yesterday.total : 0;
   
-  // ★ L2588: 7日时间范围（去掉当天）
+  // ★ L2588: 7日时间范围（从 7 天前到昨天，去掉当天）
   const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 6);
+  sevenDaysAgo.setDate(now.getDate() - 7);
   const wStart = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')} 00:00:00`;
   const yesterdayDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()-1).padStart(2,'0')} 23:59:59`;
   
