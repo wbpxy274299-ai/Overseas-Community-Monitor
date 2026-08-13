@@ -269,23 +269,17 @@ async function initTopicHistoryTable() {
 function getTodayPeriod() {
   // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
   const now = new Date();
-  const h = now.getHours(), m = now.getMinutes();
   
-  // 今天 8:30
-  const today830 = new Date(now);
-  today830.setHours(8, 30, 0, 0);
-  
-  // 如果当前不到 8:30，则“今日周期”从昨天 8:30 开始
-  const start = (h < 8 || (h === 8 && m < 30))
-    ? new Date(today830.getTime() - 86400000)
-    : today830;
-  const end = new Date(start.getTime() + 86400000);
+  // ★ 改用自然日：今天的 00:00 ~ 明天 00:00
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today.getTime() + 86400000);
   
   const fmt = (d) => fmtCST8(d);
   return {
-    startDate: fmt(start),
-    endDate: fmt(end),
-    periodLabel: `${fmt(start).substring(0,10)} 8:30 ~ ${fmt(end).substring(0,10)} 8:30`
+    startDate: fmt(today),
+    endDate: fmt(tomorrow),
+    periodLabel: `${fmt(today).substring(0,10)} 00:00 ~ ${fmt(tomorrow).substring(0,10)} 00:00`
   };
 }
 
