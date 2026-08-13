@@ -26,8 +26,8 @@ async function callDeepSeekAPI(prompt, content, options = {}) {
   const maxRetries = 2;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      // 截断超长内容，避免请求体过大
-      const truncatedContent = content.length > 6000 ? content.substring(0, 6000) + '\n...(内容已截断)' : content;
+      // 截断超长内容，避免请求体过大（★ 6000→20000：全量喂给AI后，6000会把大半数据截掉）
+      const truncatedContent = content.length > 20000 ? content.substring(0, 20000) + '\n...(内容已截断)' : content;
       
       const requestBody = {
         model: DEEPSEEK_MODEL,

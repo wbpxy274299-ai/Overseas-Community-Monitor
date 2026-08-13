@@ -2632,7 +2632,19 @@ function getWeeklyOverview() {
 }
 
 // ===== 七日热门话题（从 sentiment_records 聚合7日数据 + AI概述） =====
+// ★ 七日话题缓存：AI 计算约10秒/地区，避免每次刷新都让页面干等
+// 分级：AI成功结果存1小时；兜底结果只存5分钟（防止失败结果长期霸屏）
+let weeklyTopicsCache = { data: null, at: 0, ttl: 0 };
+const WEEKLY_TOPICS_CACHE_GOOD = 60 * 60 * 1000;
+const WEEKLY_TOPICS_CACHE_BAD = 5 * 60 * 1000;
+
 async function getWeeklyHotTopics() {
+  // 命中缓存直接返回
+  if (weeklyTopicsCache.data && (Date.now() - weeklyTopicsCache.at) < weeklyTopicsCache.ttl) {
+    console.log('📦 使用七日话题缓存');
+    return weeklyTopicsCache.data;
+  }
+
   // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
   const now = new Date();
   const sevenDaysAgo = new Date(now);
@@ -3012,11 +3024,18 @@ async function getWeeklyHotTopics() {
     buildLoungeTopics(),
   ]);
 
-  return {
+  const result = {
     twitter_topics: twitterTopics,
     discord_topics: discordTopics,
     lounge_topics: loungeTopics,
   };
+  // 判断是否为 AI 真结果：兜底话题的 overview 是「N条关于XX的讨论」模板，AI 结果是具体描述
+  const allTopics = [...twitterTopics, ...discordTopics, ...loungeTopics];
+  const isAIQuality = allTopics.some(t => t.overview && !/条关于/.test(t.overview));
+  if (allTopics.length > 0) {
+    weeklyTopicsCache = { data: result, at: Date.now(), ttl: isAIQuality ? WEEKLY_TOPICS_CACHE_GOOD : WEEKLY_TOPICS_CACHE_BAD };
+  }
+  return result;
 }
 
 // ===== 每日舆情概述（AI 话题识别 + 总结，与七日热门话题统一） =====

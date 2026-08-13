@@ -255,6 +255,12 @@ function renderWeeklySentimentTrack(days) {
 
 // ===== 七日热门话题 =====
 async function loadWeeklyHotTopics() {
+  // ★ 首次计算需 AI 分析约10~30秒，先显示加载提示（有缓存时秒回）
+  const loadingHtml = '<div class="loading">AI 正在分析 7 日发言，首次加载约需 10~30 秒...</div>';
+  ['weeklyTwitterTopics', 'weeklyDiscordTopics', 'weeklyLoungeTopics'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.dataset.loaded) el.innerHTML = loadingHtml;
+  });
   try {
     const res = await fetch(`${API_BASE}/weekly-hot-topics`);
     const result = await res.json();
@@ -262,6 +268,10 @@ async function loadWeeklyHotTopics() {
       renderWeeklyTopicColumn('weeklyTwitterTopics', result.data.twitter_topics || [], 'tw');
       renderWeeklyTopicColumn('weeklyDiscordTopics', result.data.discord_topics || [], 'dc');
       renderWeeklyTopicColumn('weeklyLoungeTopics', result.data.lounge_topics || [], 'kr');
+      ['weeklyTwitterTopics', 'weeklyDiscordTopics', 'weeklyLoungeTopics'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.dataset.loaded = '1';
+      });
     }
   } catch (e) {
     console.error('加载七日热门话题失败:', e);
