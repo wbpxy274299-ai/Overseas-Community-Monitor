@@ -2664,8 +2664,7 @@ async function getWeeklyHotTopics() {
        FROM sentiment_records
        WHERE platform = ? AND is_noise = 0
        AND created_at >= '${wStart}' AND created_at <= '${yesterdayDate}'
-       ORDER BY created_at DESC
-       LIMIT 50`,
+       ORDER BY created_at DESC`,
       [platform]
     );
     
@@ -2816,7 +2815,7 @@ async function getWeeklyHotTopics() {
         `SELECT content_zh, title_zh, content, title, author, url, sentiment, crawled_at, post_time, post_id, comment_count, view_count, post_date
          FROM lounge_posts
          WHERE post_date >= '${wStart.split(' ')[0]}' AND post_date <= '${yesterdayDate.split(' ')[0]}'
-         ORDER BY (comment_count + view_count) DESC LIMIT 30`
+         ORDER BY (comment_count + view_count) DESC`
       );
       if (!posts || posts.length === 0) return [];
 
@@ -2847,7 +2846,7 @@ async function getWeeklyHotTopics() {
            LEFT JOIN lounge_posts p ON c.post_id = p.post_id
            WHERE replace(substr(c.comment_time, 1, 10), '-', '') >= '${datePrefixStart}' AND replace(substr(c.comment_time, 1, 10), '-', '') <= '${datePrefixEnd}'
              AND c.content IS NOT NULL AND c.content != ''
-           ORDER BY c.likes DESC LIMIT 50`
+           ORDER BY c.likes DESC`
         );
         if (comments && comments.length > 0) {
           for (const c of comments) {

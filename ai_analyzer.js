@@ -423,9 +423,12 @@ async function aiSummarizeHotTopics(records) {
     return [];
   }
   
-  console.log(`🤖 AI 分析 ${records.length} 条高质量记录...`);
+  console.log(`🤖 AI 分析 ${records.length} 条记录（7日全量）...`);
   
-  const content = groupRecordsByTag(records.slice(0, 15), '', false);
+  // ★ 全量数据喂给 AI（不再只取15条），每条截断100字控制 token；超300条保险丝截断
+  const inputRecords = records.length > 300 ? records.slice(0, 300) : records;
+  if (records.length > 300) console.log(`⚠️ ${records.length} 条超过300条上限，截取热度最高的前300条`);
+  const content = groupRecordsByTag(inputRecords, '', true);
   const src = records[0]?.source || '';
   const platform = src === 'twitter' ? 'Twitter（日服）' : src === 'lounge' ? 'Naver Lounge（韓国服）' : 'Discord（繁中服）';
   const gameContext = src === 'lounge'
@@ -497,7 +500,7 @@ ${gameContext}
 
 重要：実際のディスカッション内容に基づいて生成し、テンプレート化した表現を避ける！`;
 
-  const result = await callAI(prompt, content, { maxTokens: 1500, jsonMode: true });
+  const result = await callAI(prompt, content, { maxTokens: 2000, jsonMode: true });
   
   if (!result) return fallbackTopicExtraction(records);
   
