@@ -2526,9 +2526,11 @@ function getWeeklyOverview() {
   // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
   const now = new Date();
   const days = [];
-  for (let i = 6; i >= 0; i--) {
+  
+  // ★ L2530: 只查最近 6 天（去掉当天，因为数据不完整）
+  for (let i = 1; i <= 6; i--) {
     const d = new Date(now);
-    d.setDate(now.getDate() - i);
+    d.setDate(now.getDate() - i);  // 昨天、前天、...、7天前
     const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const start = dateStr + ' 00:00:00';
     const end = dateStr + ' 23:59:59';
@@ -2548,18 +2550,16 @@ function getWeeklyOverview() {
     // 韩国社区（帖子 + 评论，使用实际发布日期）
     let loungeCnt = 0;
     try {
-      // 帖子数（post_date 是 YYYY-MM-DD 格式）
+      // ★ L2551: 字符串拼接替代参数化查询
       const lRow = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE post_date = ?`,
-        [dateStr]
+        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE post_date = '${dateStr}'`
       );
       const postCnt = lRow?.cnt || 0;
       
       // 评论数（comment_time 是 "YYYY-MM-DD HH:mm:ss" 格式，取前10位再去掉横线比较）
       const datePrefix = dateStr.replace(/-/g, ''); // "2026-07-29" -> "20260729"
       const cRow = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM lounge_comments WHERE replace(substr(comment_time, 1, 10), '-', '') = ?`,
-        [datePrefix]
+        `SELECT COUNT(*) as cnt FROM lounge_comments WHERE replace(substr(comment_time, 1, 10), '-', '') = '${datePrefix}'`
       );
       const commentCnt = cRow?.cnt || 0;
       
@@ -2581,25 +2581,29 @@ function getWeeklyOverview() {
   const totalDiscord = days.reduce((s, d) => s + d.discord, 0);
   const totalLounge = days.reduce((s, d) => s + (d.lounge || 0), 0);
   const totalAll = totalTwitter + totalDiscord + totalLounge;
-  const today = days[days.length - 1];
+  const today = days[days.length - 1];  // ★ L2584: 现在是最末一天（今天的前一天）
   const yesterday = days.length >= 2 ? days[days.length - 2] : null;
   const trendChange = yesterday ? today.total - yesterday.total : 0;
   
-  // 7日时间范围
+  // ★ L2588: 7日时间范围（去掉当天）
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(now.getDate() - 6);
   const wStart = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')} 00:00:00`;
-  const wEnd = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} 23:59:59`;
+  const yesterdayDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()-1).padStart(2,'0')} 23:59:59`;
   
   // 7日负面舆情统计
   const negCount = db.queryOne(
     `SELECT COUNT(*) as cnt FROM sentiment_records
      WHERE is_noise=0 AND COALESCE(ai_sentiment, sentiment) = 'negative'
-     AND created_at >= ? AND created_at <= ?`,
-    [wStart, wEnd]
+     AND created_at >= '${wStart}' AND created_at <= '${yesterdayDate}'`
   );
   const negCnt = negCount?.cnt || 0;
   const negRatio = totalAll > 0 ? Math.round(negCnt / totalAll * 100) : 0;
+  
+  // ★ L2604: 时间范围标签（昨天~今天的前一天，00:00~23:59）
+  const startDate = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')}`;
+  const endDate = days.length > 0 ? days[days.length - 1].date : '';
+  const timeRangeLabel = `${startDate} ~ ${endDate} 00:00~23:59`;
   
   return {
     days,
@@ -2612,8 +2616,8 @@ function getWeeklyOverview() {
     today,
     negCount: negCnt,
     negRatio,
+    time_range_label: timeRangeLabel, // ★ L2617: 返回时间范围标签
   };
-}
 
 // ===== 七日热门话题（从 sentiment_records 聚合7日数据 + AI概述） =====
 async function getWeeklyHotTopics() {
