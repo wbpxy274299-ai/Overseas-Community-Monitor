@@ -1573,6 +1573,7 @@ function getStatistics(period = 'week') {
   // ===== 韩国社区数据 =====
   let loungeCount = 0;
   let loungeSentiment = { positive: 0, neutral: 0, negative: 0 };
+  let loungeTopics = []; // ★ L1574: 韩服话题列表
   try {
     const loungeRow = db.queryOne(
       `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}'`
@@ -1582,6 +1583,21 @@ function getStatistics(period = 'week') {
       `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' GROUP BY sentiment`
     );
     loungeSentRows.forEach(r => { if (loungeSentiment[r.sentiment] !== undefined) loungeSentiment[r.sentiment] = r.cnt; });
+    
+    // ★ L1578: 查询 Naver Lounge 话题标签（按 game_code 分组）
+    const loungeTopicRows = db.queryAll(
+      `SELECT game_code, COUNT(*) as cnt FROM lounge_posts 
+       WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' 
+       AND game_code IS NOT NULL AND game_code != ''
+       GROUP BY game_code
+       ORDER BY cnt DESC
+       LIMIT 8`
+    );
+    loungeTopics = loungeTopicRows.map(r => ({
+      name: r.game_code,
+      tag: r.game_code,
+      count: r.cnt
+    }));
   } catch (_) { /* lounge表可能不存在 */ }
 
   // 计算风险等级（Twitter + Discord + Lounge 综合负面比例）
@@ -1633,7 +1649,8 @@ function getStatistics(period = 'week') {
       name: getTopicTagLabel(r.topic_tag),
       tag: r.topic_tag,
       count: r.cnt
-    }))
+    })),
+    lounge_topics: loungeTopics // ★ L1639: 返回韩服话题
   };
 }
 
@@ -3125,27 +3142,25 @@ async function getDailyOverview() {
     // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-    const lwStart = today + 'T00:00:00';
-    const lwEnd = today + 'T23:59:59';
     try {
+      // ★ L3149: 字符串拼接替代参数化查询
       const posts = db.queryAll(
         `SELECT title_zh, title, content_zh, content, author, url, sentiment, crawled_at, post_time, post_date, comment_count, view_count
          FROM lounge_posts
-         WHERE post_date = ?
-         ORDER BY (comment_count + view_count) DESC LIMIT 20`,
-        [today]
+         WHERE post_date = '${today}'
+         ORDER BY (comment_count + view_count) DESC LIMIT 20`
       );
       // 同时查询评论数据
       const datePrefix = today.replace(/-/g, '');
+      // ★ L3161: 字符串拼接替代参数化查询
       const comments = db.queryAll(
         `SELECT c.author, c.sentiment, c.content_zh, c.content, c.likes, c.comment_time,
                 p.url as post_url
          FROM lounge_comments c
          LEFT JOIN lounge_posts p ON c.post_id = p.post_id
-         WHERE replace(substr(c.comment_time, 1, 10), '-', '') = ?
+         WHERE replace(substr(c.comment_time, 1, 10), '-', '') = '${datePrefix}'
            AND c.content IS NOT NULL AND c.content != ''
-         ORDER BY c.likes DESC LIMIT 20`,
-        [datePrefix]
+         ORDER BY c.likes DESC LIMIT 20`
       ) || [];
 
       const allRecords = [
