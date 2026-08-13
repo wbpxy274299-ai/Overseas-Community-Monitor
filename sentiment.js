@@ -2704,7 +2704,7 @@ async function getWeeklyHotTopics() {
               (r.translated_content || r.content || '').includes(q.text.substring(0, 20))
             );
             voiceTexts.push({
-              text: q.text,
+              text: q.text.substring(0, 100), // ★ 原声统一截断100字，与韩服一致
               url: matched?.url || '',
               author: matched?.author || '匿名',
               time: matched?.created_at || '',
@@ -2740,9 +2740,9 @@ async function getWeeklyHotTopics() {
         heat: t.heat || 1,
         sentiment: t.sentiment || 'neutral',
         neg: 0, pos: 0, neu: 0,
-        overview: t.summary || '',
+        overview: t.summary || t.detail || `${t.count || 0}条关于「${t.title || tagLabels[t.tag] || t.tag}」的讨论`, // ★ AI概括缺失时兜底
         voices: voiceTexts.slice(0, 3).map(v => ({
-          text: v.text || '',
+          text: (v.text || '').substring(0, 100), // ★ 统一截断100字
           url: v.url || '',
           author: v.author || '匿名',
           time: v.time ? (v.time.substring(5, 16) || '') : '',
@@ -2896,7 +2896,7 @@ async function getWeeklyHotTopics() {
               // 尝试从 records 中匹配作者和时间
               const matched = records.find(r => r.content.includes(q.text.substring(0, 20)));
               voiceTexts.push({
-                text: q.text,
+                text: q.text.substring(0, 100), // ★ 原声统一截断100字，避免长文霸屏
                 url: matched?.url || '',
                 author: matched?.author || '匿名',
                 time: matched?.created_at || '',
@@ -2914,7 +2914,7 @@ async function getWeeklyHotTopics() {
             const text = p.content_zh || p.title_zh || '';
             if (text && !voiceTexts.some(v => v.text === text)) {
               voiceTexts.push({
-                text: cleanLoungeContent(text).substring(0, 120),
+                text: cleanLoungeContent(text).substring(0, 100),
                 url: p.url || '',
                 author: p.author || '匿名',
                 time: p.post_time || p.crawled_at || '',
@@ -2932,9 +2932,9 @@ async function getWeeklyHotTopics() {
           heat: t.heat || 1,
           sentiment: t.sentiment || 'neutral',
           neg: 0, pos: 0, neu: 0,
-          overview: t.summary || '',
+          overview: t.summary || t.detail || `${t.count || 0}条关于「${t.title || tagLabels[t.tag] || t.tag}」的讨论`, // ★ AI概括缺失时兜底
           voices: voiceTexts.slice(0, 3).map(v => ({
-            text: v.text || '',
+            text: (v.text || '').substring(0, 100), // ★ 统一截断100字
             url: v.url || '',
             author: v.author || '匿名',
             time: v.time ? (v.time.substring(5, 16) || '') : '',
@@ -2983,7 +2983,7 @@ async function getWeeklyHotTopics() {
           neg: r.neg_cnt, pos: r.pos_cnt, neu: r.neu_cnt || 0,
           overview: `${r.cnt}条关于「${catLabels[r.ai_category] || r.ai_category}」的讨论`,
           voices: samples.slice(0, 3).map(s => ({
-            text: s.content_zh || s.title_zh || s.content || s.title || '',
+            text: (s.content_zh || s.title_zh || s.content || s.title || '').substring(0, 100), // ★ 统一截断100字
             url: s.url || '', author: s.author || '匿名', sentiment: s.sentiment || 'neutral',
           })),
           daily_avg: Math.round(r.cnt / 7 * 10) / 10,
