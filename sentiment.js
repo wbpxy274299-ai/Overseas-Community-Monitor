@@ -1321,8 +1321,17 @@ async function saveSentimentRecord(record, enableAI = false) {
 const OFFICIAL_AUTHORS = [
   { platform: 'discord', author: '小梅' },
   { platform: 'twitter', author: 'ツリーオブセイヴァー：ネバーランド' },
+  { platform: 'lounge', author: 'GM 티메이' },
+  { platform: 'lounge', author: 'GM티메이' },
 ];
 const OFFICIAL_KEYWORDS = ['运营公告', '官方公告', 'GM公告', '维护通知', '官方通知', '运营通知'];
+
+// ★ 报告统计 SQL 过滤片段：官方账号不计入今日/七日等报告数据（存量历史数据也会被过滤）
+// 日服：ツリーオブセイヴァー：ネバーランド；繁中：小梅；韩服：GM 티메이/GM티메이
+const OFFICIAL_SQL_TWDC = "AND author NOT IN ('小梅', 'ツリーオブセイヴァー：ネバーランド')";
+const OFFICIAL_SQL_LOUNGE = "AND author NOT IN ('GM 티메이', 'GM티메이')";
+// join 查询中 lounge_comments 带 c. 前缀的版本
+const OFFICIAL_SQL_LOUNGE_C = "AND c.author NOT IN ('GM 티메이', 'GM티메이')";
 
 function filterOfficialRecords(records) {
   const official = [];
@@ -1514,13 +1523,13 @@ function getStatistics(period = 'week') {
   // Twitter 数据统计（AI 情感优先，规则情感兆底，过滤噪音）
   const twitterCount = db.queryOne(
     `SELECT COUNT(*) as cnt FROM sentiment_records 
-     WHERE platform = 'twitter' AND is_noise = 0
+     WHERE platform = 'twitter' AND is_noise = 0 ${OFFICIAL_SQL_TWDC}
      AND created_at >= '${startDate}' AND created_at <= '${endDate}'`
   );
   
   const twitterSentiment = db.queryAll(
     `SELECT COALESCE(ai_sentiment, sentiment) as sentiment, COUNT(*) as cnt FROM sentiment_records 
-     WHERE platform = 'twitter' AND is_noise = 0
+     WHERE platform = 'twitter' AND is_noise = 0 ${OFFICIAL_SQL_TWDC}
      AND created_at >= '${startDate}' AND created_at <= '${endDate}'
      GROUP BY COALESCE(ai_sentiment, sentiment)`
   );
@@ -1528,13 +1537,13 @@ function getStatistics(period = 'week') {
   // Discord 数据统计（AI 情感优先，规则情感兆底，过滤噪音）
   const discordCount = db.queryOne(
     `SELECT COUNT(*) as cnt FROM sentiment_records 
-     WHERE platform = 'discord' AND is_noise = 0
+     WHERE platform = 'discord' AND is_noise = 0 ${OFFICIAL_SQL_TWDC}
      AND created_at >= '${startDate}' AND created_at <= '${endDate}'`
   );
   
   const discordSentiment = db.queryAll(
     `SELECT COALESCE(ai_sentiment, sentiment) as sentiment, COUNT(*) as cnt FROM sentiment_records 
-     WHERE platform = 'discord' AND is_noise = 0
+     WHERE platform = 'discord' AND is_noise = 0 ${OFFICIAL_SQL_TWDC}
      AND created_at >= '${startDate}' AND created_at <= '${endDate}'
      GROUP BY COALESCE(ai_sentiment, sentiment)`
   );
@@ -1542,7 +1551,7 @@ function getStatistics(period = 'week') {
   // 按区域统计（过滤噪音）
   const regionStats = db.queryAll(
     `SELECT region, COUNT(*) as cnt FROM sentiment_records 
-     WHERE is_noise = 0
+     WHERE is_noise = 0 ${OFFICIAL_SQL_TWDC}
      AND created_at >= '${startDate}' AND created_at <= '${endDate}'
      AND region IS NOT NULL
      GROUP BY region
@@ -1552,7 +1561,7 @@ function getStatistics(period = 'week') {
   // 提取热门话题（按 topic_tag 分组，比 keywords 更准确）
   const twitterTopics = db.queryAll(
     `SELECT topic_tag, COUNT(*) as cnt FROM sentiment_records 
-     WHERE platform = 'twitter' AND is_noise = 0
+     WHERE platform = 'twitter' AND is_noise = 0 ${OFFICIAL_SQL_TWDC}
      AND created_at >= '${startDate}' AND created_at <= '${endDate}'
      AND topic_tag IS NOT NULL AND topic_tag != 'general'
      GROUP BY topic_tag
@@ -1562,7 +1571,7 @@ function getStatistics(period = 'week') {
   
   const discordTopics = db.queryAll(
     `SELECT topic_tag, COUNT(*) as cnt FROM sentiment_records 
-     WHERE platform = 'discord' AND is_noise = 0
+     WHERE platform = 'discord' AND is_noise = 0 ${OFFICIAL_SQL_TWDC}
      AND created_at >= '${startDate}' AND created_at <= '${endDate}'
      AND topic_tag IS NOT NULL AND topic_tag != 'general'
      GROUP BY topic_tag
@@ -1576,18 +1585,18 @@ function getStatistics(period = 'week') {
   let loungeTopics = []; // ★ L1574: 韩服话题列表
   try {
     const loungeRow = db.queryOne(
-      `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}'`
+      `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' ${OFFICIAL_SQL_LOUNGE}`
     );
     loungeCount = loungeRow?.cnt || 0;
     const loungeSentRows = db.queryAll(
-      `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' GROUP BY sentiment`
+      `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' ${OFFICIAL_SQL_LOUNGE} GROUP BY sentiment`
     );
     loungeSentRows.forEach(r => { if (loungeSentiment[r.sentiment] !== undefined) loungeSentiment[r.sentiment] = r.cnt; });
     
     // ★ L1578: 查询 Naver Lounge 话题标签（按 game_code 分组）
     const loungeTopicRows = db.queryAll(
       `SELECT game_code, COUNT(*) as cnt FROM lounge_posts 
-       WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' 
+       WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' ${OFFICIAL_SQL_LOUNGE}
        AND game_code IS NOT NULL AND game_code != ''
        GROUP BY game_code
        ORDER BY cnt DESC
@@ -1758,6 +1767,8 @@ function getSentimentTrendAnalysis(platform = null, days = 7) {
   // 基础统计
   const baseConditions = ['is_noise = 0', 'created_at >= ?'];
   const baseParams = [startStr];
+  // ★ 剔除官方账号（日服官方推/繁中小梅）
+  baseConditions.push(OFFICIAL_SQL_TWDC.replace(/^AND\s+/, ''));
   if (platform) {
     baseConditions.push('platform = ?');
     baseParams.push(platform);
@@ -2536,13 +2547,13 @@ function getWeeklyOverview() {
     const end = dateStr + ' 23:59:59';
     
     const twCount = db.queryOne(
-      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='twitter' AND is_noise=0 AND created_at >= '${start}' AND created_at <= '${end}'`
+      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='twitter' AND is_noise=0 ${OFFICIAL_SQL_TWDC} AND created_at >= '${start}' AND created_at <= '${end}'`
     );
     const dcCount = db.queryOne(
-      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='discord' AND is_noise=0 AND created_at >= '${start}' AND created_at <= '${end}'`
+      `SELECT COUNT(*) as cnt FROM sentiment_records WHERE platform='discord' AND is_noise=0 ${OFFICIAL_SQL_TWDC} AND created_at >= '${start}' AND created_at <= '${end}'`
     );
     const sentiments = db.queryAll(
-      `SELECT COALESCE(ai_sentiment, sentiment) as sentiment, COUNT(*) as cnt FROM sentiment_records WHERE is_noise=0 AND created_at >= '${start}' AND created_at <= '${end}' GROUP BY COALESCE(ai_sentiment, sentiment)`
+      `SELECT COALESCE(ai_sentiment, sentiment) as sentiment, COUNT(*) as cnt FROM sentiment_records WHERE is_noise=0 ${OFFICIAL_SQL_TWDC} AND created_at >= '${start}' AND created_at <= '${end}' GROUP BY COALESCE(ai_sentiment, sentiment)`
     );
     const sMap = { positive: 0, neutral: 0, negative: 0 };
     sentiments.forEach(s => { sMap[s.sentiment] = s.cnt; });
@@ -2552,14 +2563,14 @@ function getWeeklyOverview() {
     try {
       // ★ L2551: 字符串拼接替代参数化查询
       const lRow = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE post_date = '${dateStr}'`
+        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE post_date = '${dateStr}' ${OFFICIAL_SQL_LOUNGE}`
       );
       const postCnt = lRow?.cnt || 0;
       
       // 评论数（comment_time 是 "YYYY-MM-DD HH:mm:ss" 格式，取前10位再去掉横线比较）
       const datePrefix = dateStr.replace(/-/g, ''); // "2026-07-29" -> "20260729"
       const cRow = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM lounge_comments WHERE replace(substr(comment_time, 1, 10), '-', '') = '${datePrefix}'`
+        `SELECT COUNT(*) as cnt FROM lounge_comments WHERE replace(substr(comment_time, 1, 10), '-', '') = '${datePrefix}' ${OFFICIAL_SQL_LOUNGE}`
       );
       const commentCnt = cRow?.cnt || 0;
       
@@ -2594,7 +2605,7 @@ function getWeeklyOverview() {
   // 7日负面舆情统计
   const negCount = db.queryOne(
     `SELECT COUNT(*) as cnt FROM sentiment_records
-     WHERE is_noise=0 AND COALESCE(ai_sentiment, sentiment) = 'negative'
+     WHERE is_noise=0 ${OFFICIAL_SQL_TWDC} AND COALESCE(ai_sentiment, sentiment) = 'negative'
      AND created_at >= '${wStart}' AND created_at <= '${yesterdayDate}'`
   );
   const negCnt = negCount?.cnt || 0;
@@ -2662,7 +2673,7 @@ async function getWeeklyHotTopics() {
               COALESCE(ai_sentiment, sentiment) as sentiment,
               created_at, topic_tag, content_quality
        FROM sentiment_records
-       WHERE platform = ? AND is_noise = 0
+       WHERE platform = ? AND is_noise = 0 ${OFFICIAL_SQL_TWDC}
        AND created_at >= '${wStart}' AND created_at <= '${yesterdayDate}'
        ORDER BY created_at DESC`,
       [platform]
@@ -2765,7 +2776,7 @@ async function getWeeklyHotTopics() {
               SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'positive' THEN 1 ELSE 0 END) as pos_cnt,
               SUM(CASE WHEN COALESCE(ai_sentiment, sentiment) = 'neutral' THEN 1 ELSE 0 END) as neu_cnt
        FROM sentiment_records
-       WHERE platform = '${platform}' AND is_noise = 0
+       WHERE platform = '${platform}' AND is_noise = 0 ${OFFICIAL_SQL_TWDC}
        AND topic_tag IS NOT NULL AND topic_tag != 'general'
        AND created_at >= '${wStart}' AND created_at <= '${wEnd}'
        GROUP BY topic_tag
@@ -2777,7 +2788,7 @@ async function getWeeklyHotTopics() {
       const samples = db.queryAll(
         `SELECT content, translated_content, url, author, COALESCE(ai_sentiment, sentiment) as sentiment
          FROM sentiment_records
-         WHERE platform = '${platform}' AND is_noise = 0 AND topic_tag = '${r.topic_tag}'
+         WHERE platform = '${platform}' AND is_noise = 0 ${OFFICIAL_SQL_TWDC} AND topic_tag = '${r.topic_tag}'
          AND created_at >= '${wStart}' AND created_at <= '${wEnd}'
          ORDER BY content_quality DESC LIMIT 5`
       );
@@ -2814,7 +2825,7 @@ async function getWeeklyHotTopics() {
       const posts = db.queryAll(
         `SELECT content_zh, title_zh, content, title, author, url, sentiment, crawled_at, post_time, post_id, comment_count, view_count, post_date
          FROM lounge_posts
-         WHERE post_date >= '${wStart.split(' ')[0]}' AND post_date <= '${yesterdayDate.split(' ')[0]}'
+         WHERE post_date >= '${wStart.split(' ')[0]}' AND post_date <= '${yesterdayDate.split(' ')[0]}' ${OFFICIAL_SQL_LOUNGE}
          ORDER BY (comment_count + view_count) DESC`
       );
       if (!posts || posts.length === 0) return [];
@@ -2845,7 +2856,7 @@ async function getWeeklyHotTopics() {
            FROM lounge_comments c
            LEFT JOIN lounge_posts p ON c.post_id = p.post_id
            WHERE replace(substr(c.comment_time, 1, 10), '-', '') >= '${datePrefixStart}' AND replace(substr(c.comment_time, 1, 10), '-', '') <= '${datePrefixEnd}'
-             AND c.content IS NOT NULL AND c.content != ''
+             AND c.content IS NOT NULL AND c.content != '' ${OFFICIAL_SQL_LOUNGE_C}
            ORDER BY c.likes DESC`
         );
         if (comments && comments.length > 0) {
@@ -2965,14 +2976,14 @@ async function getWeeklyHotTopics() {
                 SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) as pos_cnt,
                 SUM(CASE WHEN sentiment = 'neutral' THEN 1 ELSE 0 END) as neu_cnt
          FROM lounge_posts
-         WHERE ai_category IS NOT NULL AND ai_category != 'other'
+         WHERE ai_category IS NOT NULL AND ai_category != 'other' ${OFFICIAL_SQL_LOUNGE}
          AND post_date >= '${startDate}' AND post_date <= '${endDate}'
          GROUP BY ai_category ORDER BY cnt DESC LIMIT 8`
       );
       return rows.map(r => {
         const samples = db.queryAll(
           `SELECT content_zh, title_zh, content, title, author, url, sentiment
-           FROM lounge_posts WHERE ai_category = '${r.ai_category}'
+           FROM lounge_posts WHERE ai_category = '${r.ai_category}' ${OFFICIAL_SQL_LOUNGE}
            AND post_date >= '${startDate}' AND post_date <= '${endDate}' ORDER BY comment_count DESC LIMIT 5`
         );
         const dominant = r.neg_cnt > r.pos_cnt ? 'negative' : r.pos_cnt > r.neg_cnt ? 'positive' : 'neutral';
@@ -3018,7 +3029,7 @@ async function getDailyOverview() {
               COALESCE(ai_sentiment, sentiment) as sentiment,
               created_at, content_quality
        FROM sentiment_records
-       WHERE platform = '${platform}' AND is_noise = 0 AND created_at >= '${startDate}' AND created_at <= '${endDate}'
+       WHERE platform = '${platform}' AND is_noise = 0 ${OFFICIAL_SQL_TWDC} AND created_at >= '${startDate}' AND created_at <= '${endDate}'
        ORDER BY content_quality DESC
        LIMIT 30`
     );
@@ -3145,7 +3156,7 @@ async function getDailyOverview() {
       const posts = db.queryAll(
         `SELECT title_zh, title, content_zh, content, author, url, sentiment, crawled_at, post_time, post_date, comment_count, view_count
          FROM lounge_posts
-         WHERE post_date = '${today}'
+         WHERE post_date = '${today}' ${OFFICIAL_SQL_LOUNGE}
          ORDER BY (comment_count + view_count) DESC LIMIT 20`
       );
       // 同时查询评论数据
@@ -3157,7 +3168,7 @@ async function getDailyOverview() {
          FROM lounge_comments c
          LEFT JOIN lounge_posts p ON c.post_id = p.post_id
          WHERE replace(substr(c.comment_time, 1, 10), '-', '') = '${datePrefix}'
-           AND c.content IS NOT NULL AND c.content != ''
+           AND c.content IS NOT NULL AND c.content != '' ${OFFICIAL_SQL_LOUNGE_C}
          ORDER BY c.likes DESC LIMIT 20`
       ) || [];
 

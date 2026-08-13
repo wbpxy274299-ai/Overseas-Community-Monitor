@@ -41,9 +41,11 @@ async function getWeeklyData() {
     console.log(`   📅 上周范围: ${dateRange.start.substring(0,10)} 至 ${dateRange.end.substring(0,10)}`);
 
     // 直接用带日期条件的 SQL 查询，不再加载全量数据到内存
+    // ★ 剔除官方账号（日服官方推/繁中小梅），官方发言不计入周报
     const weeklyRecords = db.queryAll(`
       SELECT * FROM sentiment_records 
       WHERE is_noise = 0 
+        AND author NOT IN ('小梅', 'ツリーオブセイヴァー：ネバーランド')
         AND created_at >= ? AND created_at <= ?
       ORDER BY created_at DESC
     `, [dateRange.start, dateRange.end]);
@@ -61,6 +63,7 @@ async function getWeeklyData() {
       loungePosts = db.queryAll(`
         SELECT * FROM lounge_posts
         WHERE crawled_at >= ? AND crawled_at <= ?
+          AND author NOT IN ('GM 티메이', 'GM티메이')
         ORDER BY crawled_at DESC
       `, [dateRange.start, dateRange.end]);
       console.log(`   📦 韩服 lounge_posts: ${loungePosts.length} 条`);
