@@ -2528,7 +2528,7 @@ function getWeeklyOverview() {
   const days = [];
   
   // ★ L2530: 只查最近 6 天（去掉当天，因为数据不完整）
-  for (let i = 1; i <= 6; i--) {
+  for (let i = 1; i <= 6; i++) {
     const d = new Date(now);
     d.setDate(now.getDate() - i);  // 昨天、前天、...、7天前
     const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
