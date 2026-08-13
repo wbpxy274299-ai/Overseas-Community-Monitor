@@ -269,17 +269,22 @@ async function initTopicHistoryTable() {
 function getTodayPeriod() {
   // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
   const now = new Date();
+  const h = now.getHours(), m = now.getMinutes();
   
-  // ★ 改用自然日：今天的 00:00 ~ 明天 00:00
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today.getTime() + 86400000);
+  // 今日 8:30
+  const today830 = new Date(now);
+  today830.setHours(8, 30, 0, 0);
+  
+  // 核心逻辑：窗口永远是"前一日 8:30 ~ 当日 8:30"
+  // 不管当前几点，都往前推 24 小时
+  const end = today830;  // 今日 8:30
+  const start = new Date(end.getTime() - 86400000);  // 前日 8:30
   
   const fmt = (d) => fmtCST8(d);
   return {
-    startDate: fmt(today),
-    endDate: fmt(tomorrow),
-    periodLabel: `${fmt(today).substring(0,10)} 00:00 ~ ${fmt(tomorrow).substring(0,10)} 00:00`
+    startDate: fmt(start),
+    endDate: fmt(end),
+    periodLabel: `${fmt(start).substring(0,10)} 8:30 ~ ${fmt(end).substring(0,10)} 8:30`
   };
 }
 
