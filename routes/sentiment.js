@@ -1193,7 +1193,8 @@ router.post('/api/sentiment/upload', requireRole('operator', 'admin'), async (re
       
       // 头部正则：匹配 "用户名 — 日期 时间" 格式
       // 分隔符用 [^\w\s\u4e00-\u9fff] 匹配任何非字母非空格非汉字字符（em dash / en dash / 普通横杠 / 全角横杠等都能识别）
-      const headerRegex = /^(.+?)\s*[^\w\s\u4e00-\u9fff]\s*(\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}|\u6628\u5929\d{1,2}:\d{2}|\d{2}:\d{2})$/;
+      // ★ 日期兼容斜杠/横线，支持中文「昨天/今天」、英文 Today/Yesterday at、韩文 오전/오후、AM/PM
+      const headerRegex = /^(.+?)\s*[^\w\s\u4e00-\u9fff]\s*(\d{4}[-/]\d{1,2}[-/]\d{1,2}\s+(?:\uc624[\uc804\ud6c4]\s+)?\d{1,2}:\d{2}(?:\s?[AP]M)?|(?:Yesterday at|Today at|\u6628\u5929|\u4eca\u5929)\s*\d{1,2}:\d{2}(?:\s?[AP]M)?|(?:\uc624[\uc804\ud6c4]\s+)?\d{1,2}:\d{2}(?:\s?[AP]M)?)$/i;
       
       console.log(`📝 Discord 解析开始: 总行数=${allLines.length}`);
       
@@ -1236,29 +1237,29 @@ router.post('/api/sentiment/upload', requireRole('operator', 'admin'), async (re
         // 跳过纯图片行
         if (content.replace(/图片/g, '').trim().length < 2) continue;
         
-        // 解析时间："2026/7/23 22:06" 或 "昨天19:32" 或 "00:02"
+        // 解析时间："2026/7/23 22:06" / "2026-08-12 18:30" / "昨天19:32" / "Today at 6:30 PM" / "오후 6:30" / "00:02"
         let postTime;
         try {
-          if (timeStr.includes('昨天')) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const timeParts = timeStr.replace('昨天', '').trim().split(':');
-            yesterday.setHours(parseInt(timeParts[0]), parseInt(timeParts[1] || 0), 0, 0);
-            postTime = yesterday.getFullYear() + '-' + String(yesterday.getMonth()+1).padStart(2,'0') + '-' + String(yesterday.getDate()).padStart(2,'0') + ' ' + String(yesterday.getHours()).padStart(2,'0') + ':' + String(yesterday.getMinutes()).padStart(2,'0') + ':00';
-          } else if (/^\d{2}:\d{2}$/.test(timeStr)) {
-            // 只有时间，用今天
-            const now = new Date();
-            const [h, m] = timeStr.split(':').map(Number);
-            postTime = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':00';
+          // 提取时分，处理 AM/PM 与韩文 오전(上午)/오후(下午)
+          const hm = timeStr.match(/(\d{1,2}):(\d{2})/);
+          let hh = hm ? parseInt(hm[1]) : 0;
+          const mm = hm ? parseInt(hm[2]) : 0;
+          if (/PM/i.test(timeStr) || timeStr.includes('\uc624\ud6c4')) { if (hh < 12) hh += 12; }
+          if (/AM/i.test(timeStr) || timeStr.includes('\uc624\uc804')) { if (hh === 12) hh = 0; }
+          
+          // 确定基准日期：昨天/今天/完整日期/默认今天
+          let baseDate = null;
+          if (timeStr.includes('\u6628\u5929') || /Yesterday/i.test(timeStr)) {
+            baseDate = new Date();
+            baseDate.setDate(baseDate.getDate() - 1);
+          } else if (timeStr.includes('\u4eca\u5929') || /Today/i.test(timeStr)) {
+            baseDate = new Date();
           } else {
-            // 完整日期 "2026/7/23 22:06"
-            const d = new Date(timeStr.replace(/\//g, '-'));
-            if (!isNaN(d.getTime())) {
-              postTime = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':00';
-            } else {
-              postTime = fmtCST8(new Date());
-            }
+            const dm = timeStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+            if (dm) baseDate = new Date(parseInt(dm[1]), parseInt(dm[2]) - 1, parseInt(dm[3]));
           }
+          if (!baseDate || isNaN(baseDate.getTime())) baseDate = new Date();
+          postTime = baseDate.getFullYear() + '-' + String(baseDate.getMonth()+1).padStart(2,'0') + '-' + String(baseDate.getDate()).padStart(2,'0') + ' ' + String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0') + ':00';
         } catch (_) {
           postTime = fmtCST8(new Date());
         }
