@@ -500,7 +500,9 @@ ${gameContext}
 
 重要：実際のディスカッション内容に基づいて生成し、テンプレート化した表現を避ける！`;
 
-  const result = await callAI(prompt, content, { maxTokens: 2000, jsonMode: true });
+  // ★ maxTokens 2000→4000：日服7日58条能出8~10个话题，完整JSON约4200 token，
+  //   2000会把JSON拦腰截断导致解析失败走兜底（繁中/韩服数据少所以没暴露）
+  const result = await callAI(prompt, content, { maxTokens: 4000, jsonMode: true });
   
   if (!result) return fallbackTopicExtraction(records);
   
@@ -509,6 +511,13 @@ ${gameContext}
     if (!parsed) {
       const m = result.match(/\[[\s\S]*\]/);
       if (m) parsed = safeJsonParse(m[0], 'ホットトピック-抽出');
+    }
+    // ★ 截断抢救：AI输出超token上限被砍时，抢救已写完的完整话题对象，丢弃尾部残缺片段
+    if (!Array.isArray(parsed)) {
+      parsed = repairTruncatedTopicArray(result);
+      if (parsed && parsed.length > 0) {
+        console.log(`⚠️ AI输出被截断，抢救出 ${parsed.length} 个完整话题`);
+      }
     }
     if (Array.isArray(parsed)) {
       // 運営内容安全フィルタリング：AIが見落としている可能性のある運営関連トピックを兜底的に削除する
@@ -534,6 +543,27 @@ ${gameContext}
   }
   
   return fallbackTopicExtraction(records);
+}
+
+/**
+ * ★ 截断JSON抢救：AI输出超maxTokens被砍断时，从后往前找最后一个完整闭合的 "}"，
+ *   截到该位置补上 "]" 再解析，抢救已写完的话题对象（宁少勿烂）
+ */
+function repairTruncatedTopicArray(text) {
+  if (!text) return null;
+  const start = text.indexOf('[');
+  if (start === -1) return null;
+  const s = text.slice(start);
+  // 从尾部往前逐个 "}" 位置尝试补 "]" 解析，命中即返回（"}" 数量有限，性能无忧）
+  for (let i = s.length - 1; i > 0; i--) {
+    if (s[i] === '}') {
+      try {
+        const arr = JSON.parse(s.slice(0, i + 1) + ']');
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+      } catch (_) { /* 该位置仍不完整，继续往前找 */ }
+    }
+  }
+  return null;
 }
 
 // ===== 全局 tag 标准化（唯一入口，所有环节共用）=====
