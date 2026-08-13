@@ -2637,6 +2637,9 @@ function getWeeklyOverview() {
 let weeklyTopicsCache = { data: null, at: 0, ttl: 0 };
 const WEEKLY_TOPICS_CACHE_GOOD = 60 * 60 * 1000;
 const WEEKLY_TOPICS_CACHE_BAD = 5 * 60 * 1000;
+// ★ 计算中共享：AI 分析要 40 秒左右，期间的所有请求拼单等同一次计算，
+//   不再各调各的 AI（日志里同一数据被反复分析多次的问题根源）
+let weeklyTopicsInflight = null;
 
 async function getWeeklyHotTopics() {
   // 命中缓存直接返回
@@ -2645,6 +2648,16 @@ async function getWeeklyHotTopics() {
     return weeklyTopicsCache.data;
   }
 
+  // 已有计算在跑：共享同一次结果，不重复调用 AI
+  if (weeklyTopicsInflight) {
+    console.log('⏳ 七日话题 AI 分析进行中，共享同一次计算');
+    return weeklyTopicsInflight;
+  }
+  weeklyTopicsInflight = computeWeeklyHotTopics().finally(() => { weeklyTopicsInflight = null; });
+  return weeklyTopicsInflight;
+}
+
+async function computeWeeklyHotTopics() {
   // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
   const now = new Date();
   const sevenDaysAgo = new Date(now);
@@ -3039,7 +3052,34 @@ async function getWeeklyHotTopics() {
 }
 
 // ===== 每日舆情概述（AI 话题识别 + 总结，与七日热门话题统一） =====
+// ★ 每日概述也加缓存+拼单：时间窗口固定（前日8:30~今日8:30），窗口不变时数据不变，
+//   之前每次打开页面都重新调 2~3 次 AI，纯属浪费
+let dailyOverviewCache = { data: null, at: 0, label: '' };
+const DAILY_OVERVIEW_CACHE_TTL = 30 * 60 * 1000;
+let dailyOverviewInflight = null;
+
 async function getDailyOverview() {
+  const period = getTodayPeriod();
+  // 命中缓存直接返回（时间窗口变了自动失效）
+  if (dailyOverviewCache.data && dailyOverviewCache.label === period.periodLabel &&
+      (Date.now() - dailyOverviewCache.at) < DAILY_OVERVIEW_CACHE_TTL) {
+    console.log('📦 使用每日概述缓存');
+    return dailyOverviewCache.data;
+  }
+  // 已有计算在跑且窗口相同：共享同一次结果
+  if (dailyOverviewInflight && dailyOverviewInflight.label === period.periodLabel) {
+    console.log('⏳ 每日概述 AI 分析进行中，共享同一次计算');
+    return dailyOverviewInflight.promise;
+  }
+  const promise = computeDailyOverview().then(result => {
+    dailyOverviewCache = { data: result, at: Date.now(), label: period.periodLabel };
+    return result;
+  }).finally(() => { dailyOverviewInflight = null; });
+  dailyOverviewInflight = { promise, label: period.periodLabel };
+  return promise;
+}
+
+async function computeDailyOverview() {
   const { startDate, endDate } = getTodayPeriod();
   
   async function buildPlatformOverview(platform) {
