@@ -2618,6 +2618,7 @@ function getWeeklyOverview() {
     negRatio,
     time_range_label: timeRangeLabel, // ★ L2617: 返回时间范围标签
   };
+}
 
 // ===== 七日热门话题（从 sentiment_records 聚合7日数据 + AI概述） =====
 async function getWeeklyHotTopics() {
