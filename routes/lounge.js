@@ -14,6 +14,7 @@ const db = require('../db');
 const { fmtCST8Date } = require('../config');
 const { crawlLounge, getCrawlStatus, getCrawlProgress, LOUNGE_CONFIG, parseKoreanTime } = require('../lounge_crawler');
 const translator = require('../translator');
+const { sanitizeForAI } = require('../ai_analyzer'); // ★ 文本消毒：半个emoji会让DeepSeek拒收整个请求
 
 /**
  * 从韩文时间字符串提取实际发布日期
@@ -62,6 +63,8 @@ async function callDeepSeek(prompt, userContent, options = {}) {
     console.warn('⚠️ DeepSeek API Key 未配置');
     return '';
   }
+
+  const cleanContent = sanitizeForAI(userContent); // ★ 消毒：半个emoji（孤立代理项）会让 DeepSeek 以 400 拒收整个请求
   
   const maxRetries = 2;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -70,7 +73,7 @@ async function callDeepSeek(prompt, userContent, options = {}) {
         model: 'deepseek-chat',
         messages: [
           { role: 'system', content: prompt },
-          { role: 'user', content: userContent },
+          { role: 'user', content: cleanContent },
         ],
         temperature: options.temperature || 0.3,
         max_tokens: options.maxTokens || 1000,
@@ -95,6 +98,13 @@ async function callDeepSeek(prompt, userContent, options = {}) {
         console.warn(`⏳ DeepSeek 网络错误，3秒后重试 (${attempt}/${maxRetries})...`);
         await new Promise(r => setTimeout(r, 3000));
         continue;
+      }
+      // ★ 有响应体但被拒（如 400）：把拒收原因完整打出来，方便定位
+      if (err.response) {
+        const body = typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data);
+        console.error(`❌ DeepSeek 调用 HTTP ${err.response.status}（内容约${(cleanContent || '').length}字）`);
+        console.error(`   拒收原因: ${(body || '').substring(0, 600)}`);
+        return '';
       }
       // 其他错误或已达最大重试次数
       console.error(`❌ DeepSeek 调用失败 (尝试${attempt}次): ${err.message}`);

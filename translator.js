@@ -18,6 +18,8 @@ const MAX_CACHE_SIZE = 5000;
 // DeepSeek API 配置
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+// ★ 文本消毒：半个emoji（孤立代理项）会让 DeepSeek 拒收整个请求（400）
+const { sanitizeForAI } = require('./ai_analyzer');
 
 // 游戏名称保护列表（翻译前替换成代码，翻译后还原）
 // 比喻：给游戏名贴个"勿动"标签，防止 AI 瞎翻译
@@ -89,8 +91,8 @@ async function translateJapaneseToChinese(text) {
   // 截断过长文本（API 有 token 限制）
   const rawText = text.substring(0, 800);
 
-  // 保护游戏名称不被乱翻译
-  const textToTranslate = protectGameNames(rawText);
+  // 保护游戏名称不被乱翻译（★ 消毒在前：半个emoji会让DeepSeek拒收整个请求）
+  const textToTranslate = sanitizeForAI(protectGameNames(rawText));
 
   // 缓存 key：用完整文本的 MD5，避免不同推文因前150字相同而命中同一缓存
   const cacheKey = crypto.createHash('md5').update(textToTranslate).digest('hex');
@@ -238,9 +240,9 @@ async function translateKoreanToChinese(text) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const protectedText = protectKrGameNames(text);
-      const truncated = protectedText.length > 4000
+      const truncated = sanitizeForAI(protectedText.length > 4000
         ? protectedText.substring(0, 4000) + '\n...(截断)'
-        : protectedText;
+        : protectedText); // ★ 消毒：半个emoji会让DeepSeek拒收整个请求
 
       let systemPrompt = [
         '你是一个专业的韩语到中文翻译助手，专门翻译游戏社区内容。',
