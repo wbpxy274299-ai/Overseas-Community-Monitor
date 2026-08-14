@@ -45,6 +45,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(require('cookie-parser')());
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/static', express.static(path.join(__dirname, 'public')));
+// ★ 浏览器默认会自动找 /favicon.ico，指路到静态图标，避免 404 导致页签空白
+app.get('/favicon.ico', (req, res) => res.redirect('/static/favicon-fire-spirit.png'));
 app.use('/api/', globalLimiter);
 
 // 🚫 Pending 用户拦截：只针对页面路由（HTML 请求），API 请求返回 403 JSON
