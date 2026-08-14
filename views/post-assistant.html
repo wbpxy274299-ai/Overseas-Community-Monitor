@@ -32,11 +32,14 @@
         <span style="font-size:11px;color:var(--mut)">需内网环境</span>
       </div>
       <iframe
-        src="https://aistudio.alibaba-inc.com/#/chat/vAKIOhyPlmw"
+        src="https://aistudio.alibaba-inc.com/aiWorktable#/aistudio/webPage?appCode=vAKIOhyPlmw&amp;showType=page&amp;hideLeft=true&amp;Iframe=1"
         style="width:100%;height:560px;border:none;border-radius:12px;background:var(--panel-2)"
         allow="clipboard-read; clipboard-write"
         title="AI Studio 对话"
       ></iframe>
+      <!-- ★ src 换成 AI Studio 官方嵌入专用页（从官方 SDK 源码里挖的地址）：
+           原 #/chat/ 页自带平台引导面板+左侧栏，webPage 页是专为嵌入设计的，
+           Iframe=1 收起平台引导、hideLeft=true 隐藏左侧导航 -->
     </div>
 
     <!-- 下板块：贴文编辑 + 翻译 + 校对 -->
