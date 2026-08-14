@@ -419,12 +419,16 @@ function isOperationsTopic(topic) {
 /**
  * AI 热门话题总结（单平台，基于预分类数据）
  */
-async function aiSummarizeHotTopics(records) {
+async function aiSummarizeHotTopics(records, options = {}) {
+  // ★ 两档输出标准（同一函数，调用方选择）：
+  //   unlimited=true → 七日热门话题：话题数不限、detail 3-5句、8000 token 输出
+  //   默认 → 今日快报发言概况：保持原样（最多6话题、detail 2-3句、4000 token）
+  const { unlimited = false } = options;
   if (!records || records.length === 0) {
     return [];
   }
   
-  console.log(`🤖 AI 分析 ${records.length} 条记录（7日全量）...`);
+  console.log(`🤖 AI 分析 ${records.length} 条记录（${unlimited ? '7日全量' : '每日概述'}）...`);
   
   // ★ 全量数据喂给 AI（不再只取15条），每条截断100字控制 token；超300条保险丝截断
   const inputRecords = records.length > 300 ? records.slice(0, 300) : records;
@@ -500,10 +504,18 @@ ${gameContext}
 
 重要：実際のディスカッション内容に基づいて生成し、テンプレート化した表現を避ける！`;
 
-  // ★ maxTokens 2000→4000：日服7日58条能出8~10个话题，完整JSON约4200 token，
-  //   2000会把JSON拦腰截断导致解析失败走兜底（繁中/韩服数据少所以没暴露）
-  // ★ timeout 180秒：4000 token输出要生成70~100秒，默认60秒会在AI写到一半时掐断连接
-  const result = await callAI(prompt, content, { maxTokens: 4000, jsonMode: true, timeout: 180000 });
+  // ★ 七日热门话题（unlimited）：提示词升级——放开话题数上限、detail加厚到3-5句；
+  //   今日快报发言概况（默认）：模板原样不动
+  let finalPrompt = prompt;
+  if (unlimited) {
+    finalPrompt = prompt
+      .replace('2. **detail フィールド**：2-3文で分析を展開する：', '2. **detail フィールド**：3-5文で分析を展開する：')
+      .replace('   - プレイヤーのコアな感情と要求\n   - 潜在的なリスク（発酵する可能性、課金に関連しているかどうか）', '   - プレイヤーのコアな感情と要求\n   - 影響範囲（どのプレイヤー、どのプレイ）\n   - 潜在的なリスク（発酵する可能性、課金に関連しているかどうか）')
+      .replace('5. **話題は最多6件まで**：議論量が多い順に、最もホットな上位6件のみ出力し、似通った話題は統合、1件しかない細かい話題は general に統合する', '5. **話題数は制限しない**：1件以上の議論があるテーマごとにトピックを生成し、似通った話題のみ統合、1件しかない細かい話題は general に統合する');
+  }
+  // ★ timeout 180秒：长输出生成慢，默认60秒会在AI写到一半时掐断连接；
+  //   万一仍被截断，repairTruncatedTopicArray 会抢救已写完的话题
+  const result = await callAI(finalPrompt, content, { maxTokens: unlimited ? 8000 : 4000, jsonMode: true, timeout: 180000 });
   
   if (!result) return fallbackTopicExtraction(records);
   
@@ -811,6 +823,7 @@ async function aiSummarizeHotTopicsDual(twitterRecords, discordRecords, loungeRe
   ${returnExample.join(',\n  ')}
 }`;
 
+  // dual 版专供今日快报话题概况：保持原样（最多6话题、3000 token 输出上限）
   const result = await callAI(prompt, content, { maxTokens: 3000, jsonMode: true });
   
   if (!result) {

@@ -2715,7 +2715,7 @@ async function computeWeeklyHotTopics() {
     // ★ 调用 AI 进行话题识别 + 总结（与韩服相同）
     let aiTopics;
     try {
-      aiTopics = await aiAnalyzer.aiSummarizeHotTopics(recordsWithSource);
+      aiTopics = await aiAnalyzer.aiSummarizeHotTopics(recordsWithSource, { unlimited: true }); // ★ 七日话题：放开话题数
     } catch (e) {
       log.warn(`七日话题 AI 分析失败(${platform})`, e.message);
       aiTopics = [];
@@ -2908,7 +2908,7 @@ async function computeWeeklyHotTopics() {
       // ★ 使用与 Twitter/Discord 相同的 AI 话题识别
       let aiTopics;
       try {
-        aiTopics = await aiAnalyzer.aiSummarizeHotTopics(records);
+        aiTopics = await aiAnalyzer.aiSummarizeHotTopics(records, { unlimited: true }); // ★ 韩服七日话题：放开话题数
       } catch (e) {
         log.warn('韩国七日话题 AI 分析失败', e.message);
         aiTopics = [];
