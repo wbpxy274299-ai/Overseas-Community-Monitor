@@ -2722,7 +2722,8 @@ async function computeWeeklyHotTopics() {
     }
     
     if (!aiTopics || aiTopics.length === 0) {
-      // AI 失败时兑底：按 topic_tag 分组（旧逻辑）
+      // AI 失败时兜底：按 topic_tag 分组（旧逻辑）
+      console.log(`⚠️ 七日话题 ${platform} AI 未产出结果，降级为标签分组兜底（看上方 DeepSeek 日志确认失败原因）`);
       return buildPlatformTopicsFallback(platform, wStart, yesterdayDate);
     }
     
@@ -2792,7 +2793,7 @@ async function computeWeeklyHotTopics() {
     return topics;
   }
 
-  // 兑底：按 topic_tag 分组（AI 分析失败时使用）
+  // 兜底：按 topic_tag 分组（AI 分析失败时使用）
   function buildPlatformTopicsFallback(platform, wStart, wEnd) {
     const rows = db.queryAll(
       `SELECT topic_tag,
@@ -2915,7 +2916,8 @@ async function computeWeeklyHotTopics() {
       }
 
       if (!aiTopics || aiTopics.length === 0) {
-        // AI 失败时兑底：用 ai_category 分组（旧逻辑）
+        // AI 失败时兜底：用 ai_category 分组（旧逻辑）
+        console.log('⚠️ 七日话题 韩服 AI 未产出结果，降级为分类分组兜底（看上方 DeepSeek 日志确认失败原因）');
         return buildLoungeTopicsFallback(wStart.split(' ')[0], yesterdayDate.split(' ')[0]);
       }
 
@@ -2988,7 +2990,7 @@ async function computeWeeklyHotTopics() {
     }
   }
 
-  // 兑底：按 ai_category 分组（AI 分析失败时使用）
+  // 兜底：按 ai_category 分组（AI 分析失败时使用）
   function buildLoungeTopicsFallback(startDate, endDate) {
     const catLabels = {
       bug: 'Bug反馈', suggestion: '建议反馈', complaint: '玩家投诉',
@@ -3043,8 +3045,17 @@ async function computeWeeklyHotTopics() {
     lounge_topics: loungeTopics,
   };
   // 判断是否为 AI 真结果：兜底话题的 overview 是「N条关于XX的讨论」模板，AI 结果是具体描述
+  // ★ 按服独立判断：之前只要任一服有好结果就整体算"好"，导致日服兜底结果被
+  //   繁中/韩服的成功"连坐"锁进缓存 1 小时翻不了身；现在任一有数据的服降级就整体算失败
   const allTopics = [...twitterTopics, ...discordTopics, ...loungeTopics];
-  const isAIQuality = allTopics.some(t => t.overview && !/条关于/.test(t.overview));
+  const isAIResult = list => list.some(t => t.overview && !/条关于/.test(t.overview));
+  const badPlatforms = [
+    ['日服(Twitter)', twitterTopics], ['繁中服(Discord)', discordTopics], ['韩服(Lounge)', loungeTopics],
+  ].filter(([_, list]) => list.length > 0 && !isAIResult(list)).map(([name]) => name);
+  const isAIQuality = allTopics.length > 0 && badPlatforms.length === 0;
+  if (badPlatforms.length > 0) {
+    console.log(`⚠️ 七日话题 ${badPlatforms.join('、')} 为兜底结果，只缓存5分钟，之后会重新分析`);
+  }
   if (allTopics.length > 0) {
     weeklyTopicsCache = { data: result, at: Date.now(), ttl: isAIQuality ? WEEKLY_TOPICS_CACHE_GOOD : WEEKLY_TOPICS_CACHE_BAD };
   }

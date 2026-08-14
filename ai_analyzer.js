@@ -513,9 +513,10 @@ ${gameContext}
       .replace('   - プレイヤーのコアな感情と要求\n   - 潜在的なリスク（発酵する可能性、課金に関連しているかどうか）', '   - プレイヤーのコアな感情と要求\n   - 影響範囲（どのプレイヤー、どのプレイ）\n   - 潜在的なリスク（発酵する可能性、課金に関連しているかどうか）')
       .replace('5. **話題は最多6件まで**：議論量が多い順に、最もホットな上位6件のみ出力し、似通った話題は統合、1件しかない細かい話題は general に統合する', '5. **話題数は制限しない**：1件以上の議論があるテーマごとにトピックを生成し、似通った話題のみ統合、1件しかない細かい話題は general に統合する');
   }
-  // ★ timeout 180秒：长输出生成慢，默认60秒会在AI写到一半时掐断连接；
+  // ★ timeout 300秒：unlimited 模式最多可输出8000 token，按约40 token/秒估算需要~200秒，
+  //   180秒会把数据最多的日服掐断（繁中/韩服数据少写得快，所以只有日服中招）；
   //   万一仍被截断，repairTruncatedTopicArray 会抢救已写完的话题
-  const result = await callAI(finalPrompt, content, { maxTokens: unlimited ? 8000 : 4000, jsonMode: true, timeout: 180000 });
+  const result = await callAI(finalPrompt, content, { maxTokens: unlimited ? 8000 : 4000, jsonMode: true, timeout: unlimited ? 300000 : 180000 });
   
   if (!result) return fallbackTopicExtraction(records);
   
