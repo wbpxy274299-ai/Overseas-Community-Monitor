@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>舆情历史数据 - M2G 用户运营后台</title>
-  <link rel="icon" href="/favicon-fire-spirit.png">
+  <link rel="icon" href="/static/favicon-fire-spirit.png">
   <script src="/static/js/common.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jschardet@3.1.4/dist/jschardet.min.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
@@ -23,8 +23,8 @@
   </div>
 
   <div class="wrap">
-    <!-- 标签卡 -->
-    <div class="tab-cards" style="grid-template-columns:repeat(2,1fr);margin-bottom:24px">
+    <!-- 标签卡 (严格遵循设计稿 L1530-L1541) -->
+    <div class="tab-cards" style="grid-template-columns:repeat(2,1fr)">
       <div class="tab-card on" onclick="switchHistoryTab('tw-dc')">
         <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53A4.48 4.48 0 0 0 12 8v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></svg></div>
         <div><div class="tn">Twitter + Discord</div><div class="td">日服推文 · 繁中聊天记录</div></div>
@@ -39,16 +39,16 @@
 
     <!-- ===== Tab 1: Twitter + Discord ===== -->
     <div class="adm-pane on" id="tabTwDc">
-    <!-- 数据采集 + 手动上传（黑切角整合面板，完全外露） -->
-    <div class="panel-cut mb20 super-admin-only" style="padding:28px 28px 26px">
+    <!-- 数据采集 + 手动上传（黑切角整合面板） -->
+    <div class="panel-cut mb20 super-admin-only">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px">
         <span class="strong" style="font-size:14px;color:#F2F2F0">📡 数据采集</span>
         <span class="tag ok" style="color:#7CC79A">就绪</span>
         <button class="btn btn-light btn-sm" style="margin-left:auto" id="btnCollect" onclick="startCollecting()">▶ 启动抓取</button>
         <button class="btn btn-ghost-panel btn-sm" onclick="toggleUploadPanel()">展开 / 收起</button>
       </div>
-      <!-- 抓取进度条 -->
-      <div id="collectProgressBar" style="display:none;margin-bottom:16px">
+      <!-- 抓取进度条 (设计稿 L1611) -->
+      <div id="collectProgressBar" style="display:none;margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
           <span id="collectProgressIcon">⏳</span>
           <span id="collectProgressText" style="color:#F2F2F0;font-size:13px">准备中...</span>
@@ -57,7 +57,7 @@
         <div class="progress" style="background:rgba(255,255,255,.12)"><i id="collectProgressFill" style="width:0%;background:#F2F2F0"></i></div>
         <div id="collectProgressDetail" style="font-size:11px;color:var(--cut-mut);margin-top:6px"></div>
       </div>
-      <div id="collectResult" style="display:none;margin-bottom:16px"></div>
+      <div id="collectResult" style="display:none;margin-bottom:18px"></div>
       <!-- 手动上传面板（默认展开） -->
       <div id="uploadPanel">
         <div class="micro" style="margin-bottom:12px;color:var(--cut-mut)">Manual Upload · 手动补录历史数据</div>
@@ -95,16 +95,16 @@
     <div class="card card-pad mb20" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <select id="platformFilter" class="sel"><option value="">全部平台</option><option value="twitter">Twitter</option><option value="discord">Discord</option></select>
       <input type="date" id="startDate" class="sel"><span style="color:var(--mut)">~</span><input type="date" id="endDate" class="sel">
-      <button class="btn btn-ghost btn-sm" onclick="loadData()">🔍 查询</button>
+      <a class="btn btn-ghost btn-sm" href="#" onclick="loadData();return false;">🔍 查询</a>
     </div>
-    <div class="card mb32" style="overflow-x:auto">
+    <div class="card mb32">
       <div id="loadingState" class="loading">加载中...</div>
       <div id="emptyState" class="empty-state" style="display:none;text-align:center;padding:40px">
         <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
         <p style="margin-top:10px;color:var(--mut)">暂无数据</p>
       </div>
       <table id="dataTable" style="width:100%;display:none">
-        <thead><tr><th style="width:100px">平台</th><th style="width:150px">作者</th><th style="width:180px">发布时间</th><th>内容</th><th style="width:100px">链接</th></tr></thead>
+        <thead><tr><th>平台</th><th>作者</th><th>发布时间</th><th>内容</th><th>链接</th></tr></thead>
         <tbody id="tableBody"></tbody>
       </table>
       <div id="pagination" style="display:none">
@@ -125,7 +125,6 @@
         <h2 style="font-size:20px">Naver Lounge Crawler<br>韩国社区抓取控制台</h2>
         <p class="desc">Naver Game Lounge · Tree of Savior<br>自动抓取帖子并翻译为中文</p>
       </div>
-      <!-- 统计仪表盘 -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
         <div class="lstat"><div class="n" id="statTotalPosts">0</div><div class="t">累计帖子</div></div>
         <div class="lstat" style="border-left:3px solid var(--info)"><div class="n" id="statTranslated">0</div><div class="t">已翻译</div></div>
@@ -136,9 +135,7 @@
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-light" id="btnLoungeCrawl" onclick="triggerLoungeCrawl()">▶ 立即抓取 <span class="ar">→</span></button>
         <button class="btn btn-ghost-panel btn-sm" onclick="initLoungeDates();loadLoungePosts()">🔄 刷新</button>
-        <button class="btn btn-ghost-panel btn-sm" onclick="clearLoungeData()" style="color:var(--err);border-color:var(--err)">🗑 清空数据</button>
-        <button class="btn btn-ghost-panel btn-sm" onclick="deleteOldLoungeData()" style="color:var(--warn);border-color:var(--warn)"> 删除5月前数据</button>
-        <span id="loungeCrawlInfo" style="margin-left:auto;font-size:12px;color:var(--cut-mut)">--</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--cut-mut)" id="loungeCrawlInfo">--</span>
       </div>
     </div>
 
