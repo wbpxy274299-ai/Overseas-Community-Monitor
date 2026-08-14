@@ -724,7 +724,21 @@ function renderDailyBriefOverview(data) {
       el.innerHTML = html;
     } else {
       // 无 AI 话题时，显示概述文本
-      el.innerHTML = `<div style="font-size:12px;color:var(--mut);line-height:1.6;padding:4px 0">${platformData.text}</div>`;
+      let html = `<div style="font-size:12px;color:var(--mut);line-height:1.6;padding:4px 0">${platformData.text}</div>`;
+      // ★ Lounge 兜底增强：列出当前排序 Top3 帖子（不含官方）+ 发帖数，
+      //   AI 失败时不再只剩一句话（tw/dc 无 topPosts 字段，不受影响）
+      if (platformData.topPosts && platformData.topPosts.length > 0) {
+        const postTotal = platformData.postCount != null ? platformData.postCount : platformData.topPosts.length;
+        html += `<div style="margin-top:10px;font-size:11px;font-weight:700;color:var(--ink)">📮 今日发帖 ${postTotal} 条 · 热门帖 Top3（不含官方）</div>`;
+        html += platformData.topPosts.map((p, i) => {
+          const inner = `<span style="color:var(--mut);margin-right:4px">${i + 1}.</span>${escapeHtml(p.title)}`;
+          return `<div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-top:6px;background:var(--panel)">
+            <div style="font-size:12px;font-weight:600;color:var(--ink);line-height:1.4">${p.url ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${inner}</a>` : inner}</div>
+            <div style="font-size:10px;color:var(--mut);margin-top:3px">👤 ${escapeHtml(p.author)} · 💬 ${p.commentCount}评论 · 👀 ${p.viewCount}浏览</div>
+          </div>`;
+        }).join('');
+      }
+      el.innerHTML = html;
     }
   }
   

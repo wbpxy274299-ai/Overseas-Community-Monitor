@@ -3349,11 +3349,25 @@ async function computeDailyOverview() {
       else if (pos > neg && pos > neu) moodText = '正面情绪为主';
       else if (neu >= pos && neu >= neg) moodText = '以中性讨论为主';
       
-      const postCount = posts ? posts.length : 0;
+      // ★ 精确发帖数：上方帖子查询 LIMIT 20 封顶，展示发帖数要单独 COUNT，避免超过20条时报少
+      const postCountRow = db.queryOne(
+        `SELECT COUNT(*) AS cnt FROM lounge_posts WHERE post_date = '${today}' ${OFFICIAL_SQL_LOUNGE}`
+      );
+      const postCount = (postCountRow && postCountRow.cnt) ? postCountRow.cnt : (posts ? posts.length : 0);
       const commentCount = comments.length;
       const text = topics.length > 0
         ? `帖子${postCount}条、评论${commentCount}条，${moodText}，发现${topics.length}个话题`
         : `帖子${postCount}条、评论${commentCount}条，${moodText}`;
+      
+      // ★ 兜底 Top3 帖子：复用查询排序（评论+浏览数降序），官方帖已在查询里排除，
+      //   AI 没产出话题时前端直接展示，不再只剩一句干巴巴的概述
+      const topPosts = (posts || []).slice(0, 3).map(p => ({
+        title: cleanLoungeContent(p.title_zh || p.title || '').substring(0, 60) || '(无标题)',
+        url: p.url || '',
+        author: p.author || '匿名',
+        commentCount: p.comment_count || 0,
+        viewCount: p.view_count || 0,
+      }));
       
       const samples = allRecords.slice(0, 3).map(p => ({
         text: cleanLoungeContent(p.content).substring(0, 200),
@@ -3362,7 +3376,7 @@ async function computeDailyOverview() {
         sentiment: p.sentiment || 'neutral',
       }));
       
-      return { hasData: true, text, topics, samples, total, pos, neg, neu };
+      return { hasData: true, text, topics, samples, topPosts, postCount, total, pos, neg, neu };
     } catch (e) {
       return { hasData: false, text: '今日暂无韩国社区发言', topics: [], samples: [] };
     }
