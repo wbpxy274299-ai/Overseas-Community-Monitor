@@ -1178,6 +1178,10 @@ async function collectFromDiscord() {
 
 // ===== 保存舆情记录 =====
 async function saveSentimentRecord(record, enableAI = false) {
+  // ★ 入库消毒：去掉半个emoji（孤立代理项）等坏字符——这类字符会让 DeepSeek
+  //   拒收整个 AI 分析请求（400），在入库第一道门就拦掉
+  if (record.content) record.content = aiAnalyzer.sanitizeForAI(record.content);
+
   // ===== 去重检查：同一平台 + 相同内容视为重复 =====
   if (record.content) {
     const normalizedContent = record.content.replace(/\s+/g, ' ').trim();

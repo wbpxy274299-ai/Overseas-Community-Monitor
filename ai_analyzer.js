@@ -12,12 +12,26 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_MODEL = 'deepseek-chat';
 
 /**
+ * ★ 文本消毒：去掉孤立代理项（半个emoji字符）和控制字符。
+ * 事故实录：推文截断时把 emoji 砍成半个（如 \ud83d），JSON 序列化后 DeepSeek
+ * 严格按规范拒收整个请求（400 unexpected end of hex escape），三个服一起阵亡。
+ */
+function sanitizeForAI(text) {
+  if (!text || typeof text !== 'string') return text;
+  // eslint-disable-next-line no-control-regex
+  return text
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+}
+
+/**
  * 调用 DeepSeek API
  * OpenAI 兼容格式，中日文理解能力强
  * 带重试机制：限流(429)和网络错误自动重试
  */
 async function callDeepSeekAPI(prompt, content, options = {}) {
   const { maxTokens = 500, jsonMode = false, timeout = 60000 } = options;
+  let currentMaxTokens = maxTokens; // ★ 400自救时会降档重试
   
   if (!DEEPSEEK_API_KEY) {
     return null;
@@ -27,7 +41,8 @@ async function callDeepSeekAPI(prompt, content, options = {}) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       // 截断超长内容，避免请求体过大（★ 6000→20000：全量喂给AI后，6000会把大半数据截掉）
-      const truncatedContent = content.length > 20000 ? content.substring(0, 20000) + '\n...(内容已截断)' : content;
+      let truncatedContent = content.length > 20000 ? content.substring(0, 20000) + '\n...(内容已截断)' : content;
+      truncatedContent = sanitizeForAI(truncatedContent); // ★ 最后一道门：半个emoji/控制字符会让DeepSeek拒收整个请求(400)
       
       const requestBody = {
         model: DEEPSEEK_MODEL,
@@ -36,7 +51,7 @@ async function callDeepSeekAPI(prompt, content, options = {}) {
           { role: 'user', content: truncatedContent }
         ],
         temperature: 0.1,
-        max_tokens: maxTokens,
+        max_tokens: currentMaxTokens,
       };
       
       if (jsonMode) {
@@ -61,6 +76,23 @@ async function callDeepSeekAPI(prompt, content, options = {}) {
       
       return null;
     } catch (e) {
+      // ★ 400 等 HTTP 错误：打印完整响应体——之前只打了 axios 默认消息，
+      //   DeepSeek 拒收的真实理由被吞掉了，导致查无可查
+      if (e.response) {
+        const body = typeof e.response.data === 'string' ? e.response.data : JSON.stringify(e.response.data);
+        console.error(`❌ DeepSeek API HTTP ${e.response.status}（prompt约${prompt.length}字+内容${content.length}字，maxTokens=${currentMaxTokens}）`);
+        console.error(`   拒收原因: ${(body || '').substring(0, 600)}`);
+        // ★ 400 自救：换小输出预算重试一次（部分账号/模型对大 max_tokens 直接拒收）；
+        //   仍失败才返回 null 走兜底
+        if (e.response.status === 400) {
+          if (currentMaxTokens > 4000 && attempt < maxRetries) {
+            console.log(`   🔧 maxTokens=${currentMaxTokens} 被拒，改用 4000 重试...`);
+            currentMaxTokens = 4000;
+            continue;
+          }
+          return null;
+        }
+      }
       // 429 限流：等待后重试
       if (e.response?.status === 429 && attempt < maxRetries) {
         const retryAfter = e.response.data?.retry_after || 5;
@@ -374,7 +406,7 @@ function groupRecordsByTag(records, prefix = '', truncate = false) {
     const r = records[i];
     const tag = r.topic_tag || 'general';
     if (!groups[tag]) groups[tag] = [];
-    let text = r.translated_content || r.content || '';
+    let text = sanitizeForAI(r.translated_content || r.content || ''); // ★ 消毒：半个emoji会让DeepSeek拒收整个请求
     if (truncate) text = text.substring(0, 100);
     const url = r.url ? ` (リンク:${r.url})` : '';
     // 把发帖时间也带上，AI 才能知道真实日期
@@ -1126,4 +1158,5 @@ module.exports = {
   clearTopicCache,           // トピックキャッシュのクリア
   standardizeTag,            // tag 標準化（グローバル唯一入口）
   aiScoutNewTopics,          // AI 哨兵：'general' バケットから新しいトピックを検出
+  sanitizeForAI,             // テキスト消毒（孤立サロゲート/制御文字除去、DeepSeek 400防止）
 };
