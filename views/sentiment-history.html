@@ -97,13 +97,13 @@
       <input type="date" id="startDate" class="sel"><span style="color:var(--mut)">~</span><input type="date" id="endDate" class="sel">
       <a class="btn btn-ghost btn-sm" href="#" onclick="loadData();return false;">🔍 查询</a>
     </div>
-    <div class="card mb32">
+    <div class="card mb32" style="background:var(--panel);border-radius:20px 20px 20px 4px">
       <div id="loadingState" class="loading">加载中...</div>
       <div id="emptyState" class="empty-state" style="display:none;text-align:center;padding:40px">
         <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
         <p style="margin-top:10px;color:var(--mut)">暂无数据</p>
       </div>
-      <table id="dataTable" style="width:100%;display:none">
+      <table id="dataTable" class="table" style="width:100%;display:none">
         <thead><tr><th>平台</th><th>作者</th><th>发布时间</th><th>内容</th><th>链接</th></tr></thead>
         <tbody id="tableBody"></tbody>
       </table>

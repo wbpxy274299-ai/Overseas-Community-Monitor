@@ -131,17 +131,27 @@ function renderTable(data) {
   }
   document.getElementById('dataTable').style.display = 'table';
   tbody.innerHTML = data.map(item => {
-    const platformStyle = item.platform === 'twitter'
-      ? 'padding:2px 8px;font-size:10px;color:#3A7FB5;border-color:rgba(74,158,218,.45)'
-      : 'padding:2px 8px;font-size:10px;color:#6A5ACD;border-color:rgba(123,104,238,.45)';
+    // 平台标签：按设计稿 L1578 的精确写法 - 内联样式
+    const platColor = item.platform === 'twitter' ? '#3A7FB5' : '#6A5ACD';
+    const platBorder = item.platform === 'twitter' 
+      ? 'rgba(74,158,218,.45)' 
+      : 'rgba(123,104,238,.45)';
     const platformText = item.platform === 'twitter' ? 'Twitter' : 'Discord';
     const mediaBadge = item.has_media ? '<span class="media-badge">📷 有媒体</span>' : '';
     const urlLink = item.url ? `<a class="oplink" href="${item.url}" target="_blank">查看原帖 →</a>` : '<span style="color:var(--mut)">-</span>';
     const timeDisplay = formatTimestamp(item.created_at);
+    
+    // 作者列：按设计稿 L1578 - 用户名 + br + (@handle)
+    const authorName = item.author || '匿名';
+    const handle = (item.handle || '').replace(/^@/, '');
+    const authorHtml = handle 
+      ? `${escapeHtml(authorName)}<br><span style="font-weight:400;font-size:11px;color:var(--mut)">(@${escapeHtml(handle)})</span>`
+      : escapeHtml(authorName);
+    
     return `
       <tr>
-        <td><span class="chip" style="${platformStyle}">${platformText}</span></td>
-        <td class="strong">${escapeHtml(item.author || '匿名')}</td>
+        <td><span class="chip" style="padding:2px 8px;font-size:10px;color:${platColor};border-color:${platBorder}">${platformText}</span></td>
+        <td class="strong">${authorHtml}</td>
         <td class="mono">${timeDisplay}</td>
         <td style="max-width:520px">${escapeHtml(item.translated_content || item.content || '')}${mediaBadge}</td>
         <td>${urlLink}</td>
@@ -722,16 +732,16 @@ function renderLoungePosts(posts) {
     const st = sentTag(p.sentiment);
     const cat = catLabel(p.ai_category);
     const cmtCount = p._comment_count || p.comment_count || 0;
-    html += `<div class="fb-card" style="border-left-color:var(--${st.cls})" onclick="openLoungePost('${p.post_id}','${escapeHtml(p.game_code)}')">
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-        <span class="tag ${st.cls}">${st.label}</span>
-        ${cat ? `<span class="chip" style="padding:2px 8px;font-size:10px">${escapeHtml(cat)}</span>` : ''}
-      </div>
+    
+    // 设计稿 L1624-L1683: fb-card + chip 标签
+    html += `<div class="fb-card" style="border-left-color:var(--${st.cls})">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag ${st.cls}">${st.label}</span>${cat ? `<span class="chip" style="padding:2px 8px;font-size:10px">${escapeHtml(cat)}</span>` : ''}</div>
       <div class="strong" style="font-size:14px">${escapeHtml(title)}</div>
       <div style="font-size:11px;color:var(--mut);margin-top:6px">
-         ${escapeHtml(p.author || '匿名')} · ${p.post_time ? formatPostTime(p.post_time) : '抓取于 ' + formatCrawlTime(p.crawled_at)} · ${p.view_count||0} · 💬 ${cmtCount}条评论
-        ${p.url ? ` · <a class="oplink" href="${p.url}" target="_blank" onclick="event.stopPropagation()">原帖 ↗</a>` : ''}
-      </div>
+         👤 ${escapeHtml(p.author || '匿名')} · 👁 ${(p.view_count||0)} · 💬 ${cmtCount}条评论`
+        + (p.post_time ? ` · ${formatPostTime(p.post_time)}` : ` · 抓取于 ${formatCrawlTime(p.crawled_at)}`)
+        + (p.url ? ` · <a class="oplink" href="${p.url}" target="_blank" onclick="event.stopPropagation()">原帖 ↗</a>` : '')
+        + `</div>
     </div>`;
   }
   document.getElementById('loungeList').innerHTML = html;
