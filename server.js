@@ -51,6 +51,8 @@ app.use('/api/', globalLimiter);
 
 // 🚫 Pending 用户拦截：只针对页面路由（HTML 请求），API 请求返回 403 JSON
 app.use((req, res, next) => {
+  // ★ 登录/登出路径放行：否则拿着待审批 Cookie 的人连切换角色的登录页都进不去（死循环）
+  if (/^\/(login|dev-login|dev-logout|google-login)/.test(req.path)) return next();
   // 只拦截 HTML 页面请求（不接受 application/json 的请求头）
   if (req.headers.accept && req.headers.accept.includes('text/html')) {
     const cookie = req.cookies && req.cookies['session_token'];
