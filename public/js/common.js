@@ -33,6 +33,68 @@ const Toast = {
   info(msg) { this.show(msg, 'info'); },
 };
 
+// ===== 居中弹窗（无权限提醒等重要提示用，比角落 Toast 更显眼）=====
+const AlertModal = {
+  _styleInjected: false,
+
+  _injectStyle() {
+    if (this._styleInjected) return;
+    this._styleInjected = true;
+    const style = document.createElement('style');
+    style.textContent = `
+      .alert-modal-mask {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 10000; animation: alertModalFadeIn 0.2s;
+      }
+      @keyframes alertModalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+      .alert-modal-card {
+        background: var(--color-surface, #fff); color: var(--color-text, #1a202c);
+        border-radius: 16px; padding: 32px 28px 24px;
+        max-width: 420px; width: 90%; text-align: center;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        animation: alertModalPop 0.25s;
+      }
+      @keyframes alertModalPop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+      .alert-modal-icon { font-size: 44px; line-height: 1; }
+      .alert-modal-title { font-size: 18px; font-weight: 700; margin: 14px 0 8px; }
+      .alert-modal-msg { font-size: 14px; line-height: 1.7; color: var(--color-text-secondary, #718096); margin-bottom: 22px; word-break: break-word; }
+      .alert-modal-btn {
+        display: inline-block; min-width: 120px; padding: 10px 28px;
+        border: none; border-radius: 10px; cursor: pointer;
+        background: linear-gradient(135deg, #ed8936, #dd6b20); color: #fff;
+        font-size: 14px; font-weight: 600;
+      }
+      .alert-modal-btn:hover { opacity: 0.9; }
+    `;
+    document.head.appendChild(style);
+  },
+
+  /** 弹居中对话框：标题 + 正文 + 知道了按钮，点遮罩或按钮关闭 */
+  show(icon, title, message) {
+    this._injectStyle();
+    const mask = document.createElement('div');
+    mask.className = 'alert-modal-mask';
+    mask.innerHTML = `
+      <div class="alert-modal-card">
+        <div class="alert-modal-icon">${icon}</div>
+        <div class="alert-modal-title">${title}</div>
+        <div class="alert-modal-msg">${message}</div>
+        <button class="alert-modal-btn" type="button">知道了</button>
+      </div>`;
+    const close = () => mask.remove();
+    mask.querySelector('.alert-modal-btn').onclick = close;
+    mask.addEventListener('click', e => { if (e.target === mask) close(); });
+    document.body.appendChild(mask);
+  },
+
+  /** 无权限专用弹窗 */
+  noPermission(message) {
+    this.show('🔒', '无权限访问', message);
+  },
+};
+
 // ===== API 封装（自动带 Cookie 凭证）=====
 const Api = {
   async get(url) {
@@ -133,11 +195,11 @@ function renderNav() {
       if (hasRoleAccess && hasPerm) {
         navHtml += `<a href="${p.path}" class="side-item${isActive ? ' on' : ''}">${p.icon}<span class="st">${p.label}</span></a>`;
       } else if (hasRoleAccess && !hasPerm) {
-        navHtml += `<span class="side-item sidebar-disabled" title="管理员已关闭此功能的权限" onclick="Toast.warning('管理员已关闭你的贴文助手权限，请联系管理员开通')">${p.icon}<span class="st">${p.label}</span></span>`;
+        navHtml += `<span class="side-item sidebar-disabled" title="管理员已关闭此功能的权限" onclick="AlertModal.noPermission('管理员已关闭你的贴文助手权限，请联系管理员开通')">${p.icon}<span class="st">${p.label}</span></span>`;
       } else {
         // ★ 角色不足：置灰 + 点击弹无权限提醒（告知所需角色，不静默无反应）
         const needLabel = (ROLE_LABEL_MAP[p.minRole] || p.minRole).replace(/^[^\u4e00-\u9fa5a-zA-Z]+/, '');
-        navHtml += `<span class="side-item sidebar-disabled" title="权限不足，需${needLabel}及以上" onclick="Toast.warning('你没有权限访问「${p.label}」，需要 ${needLabel} 及以上角色，请联系管理员开通')">${p.icon}<span class="st">${p.label}</span></span>`;
+        navHtml += `<span class="side-item sidebar-disabled" title="权限不足，需${needLabel}及以上" onclick="AlertModal.noPermission('你没有权限访问「${p.label}」，需要 ${needLabel} 及以上角色，请联系管理员开通')">${p.icon}<span class="st">${p.label}</span></span>`;
       }
     }
   });
@@ -723,7 +785,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     const noperm = new URLSearchParams(window.location.search).get('noperm');
     if (noperm) {
-      Toast.warning(`你没有权限访问「${decodeURIComponent(noperm)}」，请联系管理员开通`);
+      AlertModal.noPermission(`你没有权限访问「${decodeURIComponent(noperm)}」，请联系管理员开通`);
       history.replaceState(null, '', window.location.pathname);
     }
   } catch (_) {}
