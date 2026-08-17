@@ -955,16 +955,16 @@ router.post('/api/weekly-report/generate', requireRole('admin'), async (req, res
     const existingReport = db.queryOne('SELECT id FROM weekly_reports WHERE title = ?', [title]);
     if (existingReport) {
       db.getDb().run(`
-        UPDATE weekly_reports SET content=?, risk_level=?, twitter_count=?, discord_count=?, summary=?, updated_at=?
+        UPDATE weekly_reports SET content=?, risk_level=?, twitter_count=?, discord_count=?, lounge_count=?, summary=?, updated_at=?
         WHERE id=?
-      `, [result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.summary ? result.summary.substring(0, 200) : '', fmtCST8(new Date()), existingReport.id]);
+      `, [result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.stats.platforms.lounge_kr.total, result.summary ? result.summary.substring(0, 200) : '', fmtCST8(new Date()), existingReport.id]);
       console.log('✅ 周报已更新（同标题已存在）');
     } else {
       // ★ INSERT 不使用手动 created_at，用数据库 DEFAULT (datetime('now','+8 hours'))
       db.getDb().run(`
-        INSERT INTO weekly_reports (title, content, risk_level, twitter_count, discord_count, summary)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `, [title, result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.summary ? result.summary.substring(0, 200) : '']);
+        INSERT INTO weekly_reports (title, content, risk_level, twitter_count, discord_count, lounge_count, summary)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [title, result.report, riskLevel, result.stats.platforms.twitter.total, result.stats.platforms.discord_tc.total, result.stats.platforms.lounge_kr.total, result.summary ? result.summary.substring(0, 200) : '']);
       console.log('✅ 周报生成成功！');
     }
     db.saveDb();

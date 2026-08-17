@@ -115,6 +115,7 @@ async function initDb() {
       risk_level    TEXT DEFAULT 'low',
       twitter_count INTEGER DEFAULT 0,
       discord_count INTEGER DEFAULT 0,
+      lounge_count  INTEGER DEFAULT 0,
       summary       TEXT,
       created_at    TEXT NOT NULL DEFAULT (datetime('now','+8 hours'))
     )

@@ -52,13 +52,14 @@ function renderReportList(reports) {
   const titleDate = latest.title ? latest.title.match(/\d{4}-\d{2}-\d{2}/)?.[0] : '';
   document.getElementById('currentReportTitle').innerHTML = `Current Report<br>当前周报${titleDate ? ' · ' + titleDate : ''}`;
   
-  // 元数据
-  document.getElementById('currentReportMeta').innerHTML = `生成于 ${formatDate(latest.created_at)}<br>数据来源：Twitter（Yahoo实时搜索）+ Discord（繁中服）`;
+  // 元数据（报告实际覆盖三个平台，数据来源写全）
+  document.getElementById('currentReportMeta').innerHTML = `生成于 ${formatDate(latest.created_at)}<br>数据来源：Twitter（Yahoo实时搜索）+ Discord（繁中服）+ Naver Lounge（韩服）`;
   
-  // 统计卡片
+  // 统计卡片（★ 总量含韩服 Naver，与报告正文“合计”一致）
   const tw = latest.twitter_count || 0;
   const dc = latest.discord_count || 0;
-  const total = tw + dc;
+  const lg = latest.lounge_count || 0;
+  const total = tw + dc + lg;
   document.getElementById('currentReportStats').innerHTML = `
     <div class="lstat"><div class="n">${total}</div><div class="t">本周共收集 · 条</div></div>
     <div class="lstat" style="border-left:3px solid #4A9EDA"><div class="n">${tw}</div><div class="t">Twitter</div></div>
@@ -111,7 +112,7 @@ function renderReportList(reports) {
           <span class="tag ${rc}">${rl}</span>
         </div>
         <div class="rm">📅 ${formatDate(report.created_at)} 生成</div>
-        <div class="rm">📊 ${report.twitter_count || 0} Twitter · ${report.discord_count || 0} Discord</div>
+        <div class="rm">📊 ${report.twitter_count || 0} Twitter · ${report.discord_count || 0} Discord${report.lounge_count ? ' · ' + report.lounge_count + ' Naver' : ''}</div>
         <div class="rv">💡 核心观点：${escapeHtml(pt)}</div>
         <div style="margin-top:12px"><a class="btn-op" onclick="event.stopPropagation(); viewReport(${report.id})">查看</a><a class="btn-op" onclick="event.stopPropagation(); downloadReport(${report.id})">下载</a></div>
       </div>`;
@@ -189,84 +190,29 @@ async function viewReport(id) {
 }
 
 /**
- * 解析 Markdown 报告为结构化数据
- */
-function parseReportMarkdown(md) {
-  const lines = String(md).split('\n');
-  const sections = [];
-  let currentSection = null;
-  let currentSubsection = null;
-  let currentContent = [];
-
-  const flushSubsection = () => {
-    if (currentSubsection && currentContent.length > 0) {
-      currentSubsection.content = currentContent.join('\n').trim();
-      currentSection.subsections.push(currentSubsection);
-    }
-    currentSubsection = null;
-    currentContent = [];
-  };
-
-  const flushSection = () => {
-    flushSubsection();
-    if (currentSection) sections.push(currentSection);
-    currentSection = null;
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // 二级标题：## 一、本周总览 或 ## 二、社区发言概况
-    if (/^## (.+)/.test(line)) {
-      flushSection();
-      const title = line.replace(/^## /, '').trim();
-      currentSection = { title, subsections: [] };
-      continue;
-    }
-
-    // 三级标题：### 1. 正面情绪 或 ### 2. 中性情绪
-    if (/^### (.+)/.test(line)) {
-      flushSubsection();
-      const title = line.replace(/^### /, '').trim();
-      currentSubsection = { title, content: '' };
-      continue;
-    }
-
-    // 内容行
-    if (currentSubsection) {
-      currentContent.push(line);
-    } else if (currentSection) {
-      // 没有子章节，直接作为 section 的内容
-      currentContent.push(line);
-    }
-  }
-
-  flushSubsection();
-  flushSection();
-
-  return sections;
-}
-
-/**
  * 渲染结构化报告到阅读器
+ * ★ 直接复用 renderMarkdown 渲染完整 Markdown（支持表格/列表/引用/链接/四级标题），
+ *   不再自行解析章节——旧版解析器会丢弃 ## 章节里 ### 之前的正文，且表格全部裸露原文
  */
 function renderStructuredReport(report) {
   const { title, content, twitter_count, discord_count, risk_level, created_at } = report;
-  const sections = parseReportMarkdown(content);
+  const lg = report.lounge_count || 0;
+  const total = (twitter_count || 0) + (discord_count || 0) + lg;
 
-  // 更新元信息
+  // 更新元信息（★ 总量含韩服，与报告正文“合计”一致）
   const metaEl = document.getElementById('rptReportMeta');
   if (metaEl) {
-    const total = (twitter_count || 0) + (discord_count || 0);
-    metaEl.innerHTML = `报告周期：${title || '未知'} · 共 ${total} 条发言（Twitter ${twitter_count || 0} · Discord ${discord_count || 0}）<br>生成于 ${formatDate(created_at)}`;
+    metaEl.innerHTML = `报告周期：${escapeHtml(title || '未知')} · 共 ${total} 条发言（Twitter ${twitter_count || 0} · Discord ${discord_count || 0}${lg > 0 ? ' · Naver ' + lg : ''}）<br>生成于 ${formatDate(created_at)}`;
   }
 
-  // 渲染 Tab 导航
+  // 章节导航：从正文提取 ## 二级标题
+  const secTitles = [];
+  String(content || '').replace(/^## (.+)$/gm, (m, t) => { secTitles.push(t.trim()); return m; });
   const navEl = document.getElementById('rptReportNav');
   if (navEl) {
     let navHtml = '<a onclick="rptGo(\'r-s-overview\')">总览</a>';
-    sections.forEach((sec, idx) => {
-      navHtml += `<a onclick="rptGo('r-s-${idx}')">${escapeHtml(sec.title)}</a>`;
+    secTitles.forEach((t, idx) => {
+      navHtml += `<a onclick="rptGo('r-s-${idx}')">${escapeHtml(t)}</a>`;
     });
     navEl.innerHTML = navHtml;
   }
@@ -278,47 +224,25 @@ function renderStructuredReport(report) {
   let html = '';
 
   // 总览区：统计卡片
-  const total = (twitter_count || 0) + (discord_count || 0);
   const riskClass = risk_level === 'high' ? '#E88B81' : risk_level === 'medium' ? 'var(--warn)' : '#7CC79A';
   const riskLabel = risk_level === 'high' ? '高' : risk_level === 'medium' ? '中' : '低';
-
+  const colCount = lg > 0 ? 5 : 4;
   html += '<div class="rpt-sec" id="r-s-overview">总览</div>';
-  html += '<div class="rpt-stat" style="grid-template-columns:repeat(4,1fr)">';
+  html += `<div class="rpt-stat" style="grid-template-columns:repeat(${colCount},1fr)">`;
   html += `<div class="c"><div class="n">${total}</div><div class="t">总发言数</div></div>`;
   html += `<div class="c"><div class="n" style="color:#4A9EDA">${twitter_count || 0}</div><div class="t">Twitter</div></div>`;
   html += `<div class="c"><div class="n" style="color:#6A5ACD">${discord_count || 0}</div><div class="t">Discord</div></div>`;
+  if (lg > 0) {
+    html += `<div class="c"><div class="n" style="color:#E8A33D">${lg}</div><div class="t">Naver</div></div>`;
+  }
   html += `<div class="c"><div class="n" style="color:${riskClass}">${riskLabel}</div><div class="t">风险等级</div></div>`;
   html += '</div>';
 
-  // 各分区
-  sections.forEach((sec, idx) => {
-    html += `<div class="rpt-sec" id="r-s-${idx}">${escapeHtml(sec.title)}</div>`;
-
-    if (sec.subsections.length > 0) {
-      // 有子章节
-      sec.subsections.forEach(sub => {
-        html += `<div class="rpt-subtitle">${escapeHtml(sub.title)}</div>`;
-        html += `<div class="rpt-sumbox">${renderInlineMarkdown(sub.content)}</div>`;
-      });
-    } else {
-      // 没有子章节，直接显示内容
-      // 尝试从 section 的 title 后面的内容提取
-      html += `<div class="rpt-sumbox">${renderInlineMarkdown(sec.title)}</div>`;
-    }
-  });
+  // 正文：完整 Markdown 渲染，给每个 h2 章节标题挂锚点 id 供导航定位
+  let secIdx = -1;
+  html += renderMarkdown(content).replace(/<h2>/g, () => { secIdx++; return `<h2 id="r-s-${secIdx}">`; });
 
   bodyEl.innerHTML = html;
-}
-
-/**
- * 简单的行内 Markdown 渲染
- */
-function renderInlineMarkdown(text) {
-  return String(text)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/\n/g, '<br>');
 }
 
 // 阅读器控制
@@ -371,29 +295,36 @@ function renderMarkdown(text) {
   const lines = escaped.split('\n');
   let html = '';
   let inTable = false, inBlockquote = false, inList = false;
+  let tableHeaderDone = false; // ★ 首行渲染为表头 th，分隔行跳过，其余为 td
 
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (/^-{3,}$/.test(trimmed) || /^---$/.test(trimmed)) {
-      if (inTable) { html += '</table>'; inTable = false; }
+      if (inTable) { html += '</table>'; inTable = false; tableHeaderDone = false; }
       if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
       if (inList) { html += '</ul>'; inList = false; }
       html += '<hr>'; continue;
     }
+    if (/^#### .+/.test(trimmed)) {
+      if (inTable) { html += '</table>'; inTable = false; tableHeaderDone = false; }
+      if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<h4>' + applyInline(trimmed.slice(5)) + '</h4>'; continue;
+    }
     if (/^### .+/.test(trimmed)) {
-      if (inTable) { html += '</table>'; inTable = false; }
+      if (inTable) { html += '</table>'; inTable = false; tableHeaderDone = false; }
       if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
       if (inList) { html += '</ul>'; inList = false; }
       html += '<h3>' + applyInline(trimmed.slice(4)) + '</h3>'; continue;
     }
     if (/^## .+/.test(trimmed)) {
-      if (inTable) { html += '</table>'; inTable = false; }
+      if (inTable) { html += '</table>'; inTable = false; tableHeaderDone = false; }
       if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
       if (inList) { html += '</ul>'; inList = false; }
       html += '<h2>' + applyInline(trimmed.slice(3)) + '</h2>'; continue;
     }
     if (/^# .+/.test(trimmed)) {
-      if (inTable) { html += '</table>'; inTable = false; }
+      if (inTable) { html += '</table>'; inTable = false; tableHeaderDone = false; }
       if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
       if (inList) { html += '</ul>'; inList = false; }
       html += '<h1>' + applyInline(trimmed.slice(2)) + '</h1>'; continue;
@@ -402,13 +333,14 @@ function renderMarkdown(text) {
       if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
       if (inList) { html += '</ul>'; inList = false; }
       const cells = trimmed.slice(1, -1).split('|').map(c => c.trim());
-      if (cells.every(c => /^[-:]+$/.test(c))) continue;
-      if (!inTable) { html += '<table>'; inTable = true; }
-      const isFirstRow = !inTable || html.endsWith('<table>');
-      const tag = isFirstRow ? 'th' : 'td';
+      // 分隔行（|:---:|）：在开表之前就跳过，避免误当数据行
+      if (cells.length > 0 && cells.every(c => /^[-:]+$/.test(c))) continue;
+      if (!inTable) { html += '<table>'; inTable = true; tableHeaderDone = false; }
+      const tag = tableHeaderDone ? 'td' : 'th';
+      tableHeaderDone = true;
       html += '<tr>' + cells.map(c => `<${tag}>${applyInline(c)}</${tag}>`).join('') + '</tr>';
       continue;
-    } else if (inTable) { html += '</table>'; inTable = false; }
+    } else if (inTable) { html += '</table>'; inTable = false; tableHeaderDone = false; }
     if (/^&gt;\s?/.test(trimmed)) {
       if (inList) { html += '</ul>'; inList = false; }
       if (!inBlockquote) { html += '<blockquote>'; inBlockquote = true; }
@@ -432,7 +364,12 @@ function renderMarkdown(text) {
 }
 
 function applyInline(text) {
-  return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>');
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // ★ 超链接：只允许 http(s) 协议，防 javascript: 伪协议（文本已提前 escapeHtml）
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, label, url) =>
+      /^https?:\/\//i.test(url) ? `<a href="${url}" target="_blank" rel="noopener">${label}</a>` : label);
 }
 
 // 点击阅读器外部关闭

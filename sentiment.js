@@ -200,6 +200,7 @@ async function initWeeklyReportsTable() {
       risk_level      TEXT DEFAULT 'low',      -- 风险等级: low/medium/high
       twitter_count   INTEGER DEFAULT 0,       -- Twitter 数据条数
       discord_count   INTEGER DEFAULT 0,       -- Discord 数据条数
+      lounge_count    INTEGER DEFAULT 0,       -- 韩服 Naver Lounge 数据条数
       summary         TEXT,                    -- 摘要（一句话总结）
       created_at      TEXT NOT NULL DEFAULT (datetime('now','+8 hours'))
     )
@@ -208,6 +209,9 @@ async function initWeeklyReportsTable() {
   try {
     db.getDb().run(sql);
     db.saveDb();
+    
+    // ★ 迁移：旧表没有 lounge_count 列就补上（周报含韩服数据，重复执行报错则忽略）
+    try { db.getDb().run('ALTER TABLE weekly_reports ADD COLUMN lounge_count INTEGER DEFAULT 0'); db.saveDb(); } catch (_) {}
     
     // 添加索引
     db.getDb().run('CREATE INDEX IF NOT EXISTS idx_reports_created ON weekly_reports(created_at DESC)');

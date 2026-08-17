@@ -312,14 +312,10 @@ function getDominantSentiment(s) {
   return '😐 正负持平';
 }
 
-// 生成可视化情绪比例条（Markdown 文本版）
-function sentimentBar(pos, neu, neg) {
-  const total = pos + neu + neg;
-  if (total === 0) return '';
-  const pW = Math.round((pos / total) * 20);
-  const nW = Math.round((neg / total) * 20);
-  const neuW = 20 - pW - nW;
-  return `\`\`\`\n😊${'█'.repeat(pW)}${'▒'.repeat(Math.max(0, neuW))}${'▓'.repeat(nW)}😟\n\`\`\``;
+// 情绪占比条（表格内联版）：按 10 格比例显示色块，0 条就是 0 格，不再硬凑 1 格
+function emoBar(count, total) {
+  if (!total || total <= 0) return '';
+  return '🟩'.repeat(Math.round((count / total) * 10));
 }
 
 function assessRiskLevel(stats) {
@@ -479,20 +475,13 @@ async function generateReport(weeklyData) {
   // 话题详情渲染辅助函数
   const renderTopicDetails = (topics) => {
     if (topics.length === 0) return '';
-    return topics.map((topic, idx) => `
-#### 话题 #${idx + 1}: ${topic.label}
+    return topics.map((topic, idx) => `#### 话题 ${idx + 1}：${topic.label}
 
-**📊 讨论人数**: ${topic.count} 人
+**📊 讨论人数**：${topic.count} 人 ｜ **📈 情绪分布**：👍 ${topic.positives} · 😐 ${topic.neutrals} · 👎 ${topic.negatives} ｜ **🎯 情绪风向**：${topic.emotion_desc}
 
-**📈 情绪分布**: 👍 正面 ${topic.positives} | 😐 中性 ${topic.neutrals} | 👎 负面 ${topic.negatives}
+${topic.summary ? `**📝 讨论概述**：${topic.summary}\n\n` : ''}**💬 代表性发言**：
 
-**🎯 情绪风向**: ${topic.emotion_desc}
-
-${topic.summary ? `**📝 讨论概述**: ${topic.summary}\n` : ''}
-**💬 代表性发言**:
-
-${formatTopicSamples(topic)}
-`).join('\n\n---\n\n');
+${formatTopicSamples(topic)}`).join('\n\n');
   };
 
   const report = `# 🎮 M2G 舆情监测周报
@@ -527,9 +516,9 @@ ${aiAnalysis}
 
 | 情绪 | 数量 | 占比 | 可视化 |
 |------|:---:|:---:|------|
-| 😊 正面 | ${stats.twitter.positive} | ${twRatio.positive}% | ${'🟩'.repeat(Math.max(1, Math.round(stats.twitter.positive / Math.max(stats.twitter.total, 1) * 10)))} |
-| 😐 中性 | ${stats.twitter.neutral} | ${twRatio.neutral}% | ${'🟨'.repeat(Math.max(1, Math.round(stats.twitter.neutral / Math.max(stats.twitter.total, 1) * 10)))} |
-| 😟 负面 | ${stats.twitter.negative} | ${twRatio.negative}% | ${'🟥'.repeat(Math.max(1, Math.round(stats.twitter.negative / Math.max(stats.twitter.total, 1) * 10)))} |
+| 😊 正面 | ${stats.twitter.positive} | ${twRatio.positive}% | ${emoBar(stats.twitter.positive, stats.twitter.total)} |
+| 😐 中性 | ${stats.twitter.neutral} | ${twRatio.neutral}% | ${emoBar(stats.twitter.neutral, stats.twitter.total)} |
+| 😟 负面 | ${stats.twitter.negative} | ${twRatio.negative}% | ${emoBar(stats.twitter.negative, stats.twitter.total)} |
 
 **正负对比**：正面 **${stats.twitter.positive}** vs 负面 **${stats.twitter.negative}** → **${getDominantSentiment(stats.twitter)}**
 
@@ -545,9 +534,9 @@ ${renderTopicDetails(twitterTopics)}
 
 | 情绪 | 数量 | 占比 | 可视化 |
 |------|:---:|:---:|------|
-| 😊 正面 | ${stats.discord_tc.positive} | ${tcRatio.positive}% | ${'🟩'.repeat(Math.max(1, Math.round(stats.discord_tc.positive / Math.max(stats.discord_tc.total, 1) * 10)))} |
-| 😐 中性 | ${stats.discord_tc.neutral} | ${tcRatio.neutral}% | ${'🟨'.repeat(Math.max(1, Math.round(stats.discord_tc.neutral / Math.max(stats.discord_tc.total, 1) * 10)))} |
-| 😟 负面 | ${stats.discord_tc.negative} | ${tcRatio.negative}% | ${'🟥'.repeat(Math.max(1, Math.round(stats.discord_tc.negative / Math.max(stats.discord_tc.total, 1) * 10)))} |
+| 😊 正面 | ${stats.discord_tc.positive} | ${tcRatio.positive}% | ${emoBar(stats.discord_tc.positive, stats.discord_tc.total)} |
+| 😐 中性 | ${stats.discord_tc.neutral} | ${tcRatio.neutral}% | ${emoBar(stats.discord_tc.neutral, stats.discord_tc.total)} |
+| 😟 负面 | ${stats.discord_tc.negative} | ${tcRatio.negative}% | ${emoBar(stats.discord_tc.negative, stats.discord_tc.total)} |
 
 **正负对比**：正面 **${stats.discord_tc.positive}** vs 负面 **${stats.discord_tc.negative}** → **${getDominantSentiment(stats.discord_tc)}**
 
@@ -563,9 +552,9 @@ ${renderTopicDetails(tcTopics)}
 
 | 情绪 | 数量 | 占比 | 可视化 |
 |------|:---:|:---:|------|
-| 😊 正面 | ${stats.lounge_kr.positive} | ${lgRatio.positive}% | ${'🟩'.repeat(Math.max(1, Math.round(stats.lounge_kr.positive / Math.max(stats.lounge_kr.total, 1) * 10)))} |
-| 😐 中性 | ${stats.lounge_kr.neutral} | ${lgRatio.neutral}% | ${'🟨'.repeat(Math.max(1, Math.round(stats.lounge_kr.neutral / Math.max(stats.lounge_kr.total, 1) * 10)))} |
-| 😟 负面 | ${stats.lounge_kr.negative} | ${lgRatio.negative}% | ${'🟥'.repeat(Math.max(1, Math.round(stats.lounge_kr.negative / Math.max(stats.lounge_kr.total, 1) * 10)))} |
+| 😊 正面 | ${stats.lounge_kr.positive} | ${lgRatio.positive}% | ${emoBar(stats.lounge_kr.positive, stats.lounge_kr.total)} |
+| 😐 中性 | ${stats.lounge_kr.neutral} | ${lgRatio.neutral}% | ${emoBar(stats.lounge_kr.neutral, stats.lounge_kr.total)} |
+| 😟 负面 | ${stats.lounge_kr.negative} | ${lgRatio.negative}% | ${emoBar(stats.lounge_kr.negative, stats.lounge_kr.total)} |
 
 **正负对比**：正面 **${stats.lounge_kr.positive}** vs 负面 **${stats.lounge_kr.negative}** → **${getDominantSentiment(stats.lounge_kr)}**
 
