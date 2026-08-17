@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { getDiscordToken, fmtCST8 } = require('./config');
+const { getDiscordToken, fmtCST8, fmtCST8Date } = require('./config');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const db = require('./db');
 const log = require('./logger');
@@ -1588,23 +1588,27 @@ function getStatistics(period = 'week') {
   );
   
   // ===== 韩国社区数据 =====
+  // ★ 口径统一：全部用 post_date（发帖日期）+ 除官方，与日报/历史页一致；
+  //   旧代码用 crawled_at（抓取时间）：晚上发的帖次日才抓就漏算，凌晨抓的旧帖又多算
   let loungeCount = 0;
   let loungeSentiment = { positive: 0, neutral: 0, negative: 0 };
   let loungeTopics = []; // ★ L1574: 韩服话题列表
   try {
+    const loungeDateStart = startDate.substring(0, 10);
+    const loungeDateEnd = endDate.substring(0, 10);
     const loungeRow = db.queryOne(
-      `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' ${OFFICIAL_SQL_LOUNGE}`
+      `SELECT COUNT(*) as cnt FROM lounge_posts WHERE post_date >= '${loungeDateStart}' AND post_date <= '${loungeDateEnd}' ${OFFICIAL_SQL_LOUNGE}`
     );
     loungeCount = loungeRow?.cnt || 0;
     const loungeSentRows = db.queryAll(
-      `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' ${OFFICIAL_SQL_LOUNGE} GROUP BY sentiment`
+      `SELECT sentiment, COUNT(*) as cnt FROM lounge_posts WHERE post_date >= '${loungeDateStart}' AND post_date <= '${loungeDateEnd}' ${OFFICIAL_SQL_LOUNGE} GROUP BY sentiment`
     );
     loungeSentRows.forEach(r => { if (loungeSentiment[r.sentiment] !== undefined) loungeSentiment[r.sentiment] = r.cnt; });
     
     // ★ L1578: 查询 Naver Lounge 话题标签（按 game_code 分组）
     const loungeTopicRows = db.queryAll(
       `SELECT game_code, COUNT(*) as cnt FROM lounge_posts 
-       WHERE crawled_at >= '${startDate}' AND crawled_at <= '${endDate}' ${OFFICIAL_SQL_LOUNGE}
+       WHERE post_date >= '${loungeDateStart}' AND post_date <= '${loungeDateEnd}' ${OFFICIAL_SQL_LOUNGE}
        AND game_code IS NOT NULL AND game_code != ''
        GROUP BY game_code
        ORDER BY cnt DESC
@@ -2316,12 +2320,12 @@ async function saveDailySnapshot(dateStr = null) {
     
     console.log(`    有效记录数: ${recordCount}`);
 
-    // 韩国社区帖子统计
+    // 韩国社区帖子统计（★ 口径统一：用 post_date 发帖日期，与日报一致）
     let loungeCount = 0;
     try {
       const loungeRow = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE crawled_at >= ? AND crawled_at < ?`,
-        [windowStart, windowEnd]
+        `SELECT COUNT(*) as cnt FROM lounge_posts WHERE post_date = ?`,
+        [dateKey]
       );
       loungeCount = loungeRow?.cnt || 0;
       console.log(`    韩国帖子数: ${loungeCount}`);
@@ -3226,9 +3230,8 @@ async function computeDailyOverview() {
   }
   
   async function buildLoungeOverview() {
-    // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    // ★ 日期统一用 fmtCST8Date（不再手拼，与全项目日期格式标准一致）
+    const today = fmtCST8Date(new Date());
     try {
       // ★ L3149: 字符串拼接替代参数化查询
       const posts = db.queryAll(

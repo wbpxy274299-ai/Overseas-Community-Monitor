@@ -159,11 +159,11 @@ function initLoungeTables() {
     try { rawDb.run(sql); } catch (_) { /* 列已存在，跳过 */ }
   }
 
-  // ★ 数据回填：把已有数据的 post_date 从 post_time 提取出来
+  // ★ 数据回填：把已有数据的 post_date 从 post_time 提取出来（NULL 和空串都补，幂等）
   // post_time 格式为 "YYYY-MM-DD HH:mm:ss"，用 substr 取前10位
   try {
     const backfillResult = rawDb.run(
-      `UPDATE lounge_posts SET post_date = substr(post_time, 1, 10) WHERE post_date IS NULL AND post_time IS NOT NULL AND post_time != ''`
+      `UPDATE lounge_posts SET post_date = substr(post_time, 1, 10) WHERE (post_date IS NULL OR post_date = '') AND post_time IS NOT NULL AND post_time != ''`
     );
     if (backfillResult.changes > 0) {
       console.log(`✅ 回填 post_date: ${backfillResult.changes} 条`);
@@ -496,17 +496,18 @@ async function translateAndAnalyze(limit = 100) {
  * 生成当日舆情日报
  */
 async function generateDailyReport(gameCode) {
-  // 服务器已设 TZ=Asia/Shanghai，直接用本地时间
-  const now = new Date();
+  // ★ 口径统一：按 post_date（发帖日期）统计 + 除官方 GM 帖，与日报概述/历史页一致；
+  //   旧代码用 DATE(crawled_at)（抓取时间）且不除官方，晚上发的帖次日才抓就漏算
   const today = fmtCST8Date(new Date());
+  const OFFICIAL = "AND author NOT IN ('GM 티메이', 'GM티메이')";
 
   const posts = db.queryAll(
-    `SELECT * FROM lounge_posts WHERE game_code = ? AND DATE(crawled_at) = ?`,
+    `SELECT * FROM lounge_posts WHERE game_code = ? AND post_date = ? ${OFFICIAL}`,
     [gameCode, today]
   );
 
   const comments = db.queryAll(
-    `SELECT * FROM lounge_comments WHERE game_code = ? AND DATE(crawled_at) = ?`,
+    `SELECT * FROM lounge_comments WHERE game_code = ? AND DATE(crawled_at) = ? ${OFFICIAL}`,
     [gameCode, today]
   );
 

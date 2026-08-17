@@ -189,10 +189,13 @@ router.get('/api/sentiment/lounge-posts', (req, res) => {
 
     let whereClauses = [];
     let params = [];
-    if (startDate) { whereClauses.push('DATE(post_time) >= ?'); params.push(startDate); }
-    if (endDate) { whereClauses.push('DATE(post_time) <= ?'); params.push(endDate); }
+    // ★ 口径统一：与日报一致，按 post_date（发帖日期）筛选 + 除官方 GM 帖；
+    //   旧代码用 DATE(post_time) 且不除官方，导致历史页数量与日报对不上
+    if (startDate) { whereClauses.push('post_date >= ?'); params.push(startDate); }
+    if (endDate) { whereClauses.push('post_date <= ?'); params.push(endDate); }
     if (sentiment) { whereClauses.push('sentiment = ?'); params.push(sentiment); }
     if (category) { whereClauses.push('ai_category = ?'); params.push(category); }
+    whereClauses.push("author NOT IN ('GM 티메이', 'GM티메이')");
 
     const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
