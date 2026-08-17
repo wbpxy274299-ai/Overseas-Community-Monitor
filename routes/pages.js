@@ -18,13 +18,23 @@ const router = express.Router();
 const { ensureLoggedIn } = require('../middleware/auth');
 const db = require('../db');
 
+// ===== 页面级角色拦截：手输 URL 也拦得住，不足时重定向到舆情页并带无权限提醒 =====
+const PAGE_ROLE_LEVEL = { pending: 0, viewer: 1, operator: 2, admin: 3, super_admin: 4 };
+function requirePageRole(minRole, pageLabel) {
+  return (req, res, next) => {
+    const role = req.user && req.user.role;
+    if ((PAGE_ROLE_LEVEL[role] || 0) >= (PAGE_ROLE_LEVEL[minRole] || 0)) return next();
+    return res.redirect(`/sentiment?noperm=${encodeURIComponent(pageLabel)}`);
+  };
+}
+
 // ===== 登录页（不检查认证，否则死循环）=====
 router.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'google-login.html'));
 });
 
 // ===== DC 发布主页（operator + admin + super_admin）=====
-router.get('/', ensureLoggedIn, (req, res) => {
+router.get('/', ensureLoggedIn, requirePageRole('operator', 'DC发布'), (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'index.html'));
 });
 
@@ -34,7 +44,7 @@ router.get('/sentiment', ensureLoggedIn, (req, res) => {
 });
 
 // ===== 舆情历史数据（operator + admin + super_admin）=====
-router.get('/sentiment-history', ensureLoggedIn, (req, res) => {
+router.get('/sentiment-history', ensureLoggedIn, requirePageRole('operator', '历史数据'), (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'sentiment-history.html'));
 });
 
@@ -44,20 +54,17 @@ router.get('/weekly-report', (req, res) => {
 });
 
 // ===== 周报管理面板（operator 只读 + admin + super_admin）=====
-router.get('/reports', ensureLoggedIn, (req, res) => {
+router.get('/reports', ensureLoggedIn, requirePageRole('operator', '周报管理'), (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'reports.html'));
 });
 
 // ===== 权限管理面板（admin + super_admin）=====
-router.get('/admin', ensureLoggedIn, (req, res) => {
+router.get('/admin', ensureLoggedIn, requirePageRole('admin', '权限管理'), (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'admin.html'));
 });
 
 // ===== 玩家洞察（仅 super_admin）=====
-router.get('/insights', ensureLoggedIn, (req, res) => {
-  if (req.user.role !== 'super_admin') {
-    return res.redirect('/sentiment');
-  }
+router.get('/insights', ensureLoggedIn, requirePageRole('super_admin', '玩家洞察'), (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'views', 'insights.html'));
 });
 
@@ -75,7 +82,7 @@ router.get('/post-assistant', ensureLoggedIn, (req, res) => {
   // 检查 postAssistant 权限
   const perms = db.getUserPermissions(req.user.username);
   if (!perms.postAssistant) {
-    return res.redirect('/sentiment');
+    return res.redirect('/sentiment?noperm=' + encodeURIComponent('贴文助手'));
   }
   res.sendFile(path.join(__dirname, '..', 'views', 'post-assistant.html'));
 });

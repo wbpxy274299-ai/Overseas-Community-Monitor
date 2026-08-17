@@ -135,7 +135,9 @@ function renderNav() {
       } else if (hasRoleAccess && !hasPerm) {
         navHtml += `<span class="side-item sidebar-disabled" title="管理员已关闭此功能的权限" onclick="Toast.warning('管理员已关闭你的贴文助手权限，请联系管理员开通')">${p.icon}<span class="st">${p.label}</span></span>`;
       } else {
-        navHtml += `<span class="side-item sidebar-disabled" title="权限不足">${p.icon}<span class="st">${p.label}</span></span>`;
+        // ★ 角色不足：置灰 + 点击弹无权限提醒（告知所需角色，不静默无反应）
+        const needLabel = (ROLE_LABEL_MAP[p.minRole] || p.minRole).replace(/^[^\u4e00-\u9fa5a-zA-Z]+/, '');
+        navHtml += `<span class="side-item sidebar-disabled" title="权限不足，需${needLabel}及以上" onclick="Toast.warning('你没有权限访问「${p.label}」，需要 ${needLabel} 及以上角色，请联系管理员开通')">${p.icon}<span class="st">${p.label}</span></span>`;
       }
     }
   });
@@ -713,6 +715,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
+    }
+  } catch (_) {}
+  
+  // ★ 无权限重定向提醒：后端拦截越权访问后会跳到 /sentiment?noperm=页面名，
+  //   这里弹提醒并清掉 URL 参数（刷新不会重复弹）
+  try {
+    const noperm = new URLSearchParams(window.location.search).get('noperm');
+    if (noperm) {
+      Toast.warning(`你没有权限访问「${decodeURIComponent(noperm)}」，请联系管理员开通`);
+      history.replaceState(null, '', window.location.pathname);
     }
   } catch (_) {}
   
