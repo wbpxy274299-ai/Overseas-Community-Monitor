@@ -62,8 +62,16 @@ app.use((req, res, next) => {
         const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-me-in-production';
         const decoded = jwt.verify(cookie, JWT_SECRET);
         
+        // ★ 去数据库查最新角色（防止 JWT 缓存旧角色，和 requireAuth 保持一致）
+        let currentRole = decoded.role;
+        try {
+          const db = require('./db');
+          const dbRole = db.getUserRole(decoded.username);
+          if (dbRole) currentRole = dbRole;
+        } catch (_) {}
+        
         // 🔴 如果是 pending 用户，直接返回 403 错误（不渲染任何页面）
-        if (decoded.role === 'pending') {
+        if (currentRole === 'pending') {
           return res.status(403).send(`
             <!DOCTYPE html>
             <html lang="zh">
