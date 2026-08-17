@@ -121,7 +121,7 @@ const TAG_LABELS = {
   server: '服务器/网络', general: '其他讨论'
 };
 
-function extractTopicsByTag(records, topN = 5, dateRange = null) {
+function extractTopicsByTag(records, topN = 5, dateRange = null, platform = null) {
   const tagCounts = {};
   for (const record of records) {
     const tag = record.topic_tag || 'general';
@@ -175,19 +175,21 @@ function extractTopicsByTag(records, topN = 5, dateRange = null) {
       else emotionDesc = '😐 情绪分化 - 正负面观点并存';
       
       // 从 topic_history 获取 AI 生成的摘要
+      // ★ 必须带 platform 条件：不带时日服/繁中同 tag 会查到同一条 summary，
+      //   导致两个平台章节展示一模一样的话题概述（用户发现的红框问题）
       // 优先查上周日期范围，查不到就放宽到最近可用记录
       let summary = '';
-      if (dateRange) {
+      if (dateRange && platform) {
         try {
           let rows = db.queryAll(
-            `SELECT summary FROM topic_history WHERE topic_tag = ? AND created_at >= ? AND created_at <= ? AND summary IS NOT NULL AND summary != '' ORDER BY id DESC LIMIT 1`,
-            [tag, dateRange.start, dateRange.end]
+            `SELECT summary FROM topic_history WHERE topic_tag = ? AND platform = ? AND created_at >= ? AND created_at <= ? AND summary IS NOT NULL AND summary != '' ORDER BY id DESC LIMIT 1`,
+            [tag, platform, dateRange.start, dateRange.end]
           );
           if (rows.length === 0) {
-            // 上周没有 → 查最近 30 天内该话题的最新摘要
+            // 上周没有 → 查该平台最近可用的摘要（同样限平台）
             rows = db.queryAll(
-              `SELECT summary FROM topic_history WHERE topic_tag = ? AND summary IS NOT NULL AND summary != '' ORDER BY id DESC LIMIT 1`,
-              [tag]
+              `SELECT summary FROM topic_history WHERE topic_tag = ? AND platform = ? AND summary IS NOT NULL AND summary != '' ORDER BY id DESC LIMIT 1`,
+              [tag, platform]
             );
           }
           if (rows.length > 0) summary = rows[0].summary;
@@ -466,9 +468,9 @@ function generateRiskDetail(stats, topicMap) {
 async function generateReport(weeklyData) {
   const { dateRange, stats, totalRecords } = weeklyData;
 
-  // 传 dateRange 给 extractTopicsByTag，让它能查 topic_history 获取话题概述
-  const twitterTopics = extractTopicsByTag(stats.twitter.records, 5, dateRange);
-  const tcTopics = extractTopicsByTag(stats.discord_tc.records, 5, dateRange);
+  // 传 dateRange + platform 给 extractTopicsByTag：查话题概述时各拿各平台的摘要，不再串台
+  const twitterTopics = extractTopicsByTag(stats.twitter.records, 5, dateRange, 'twitter');
+  const tcTopics = extractTopicsByTag(stats.discord_tc.records, 5, dateRange, 'discord');
   const loungeTopics = extractLoungeTopics(stats.lounge_kr.records, 5, dateRange);
 
   const twRatio = calcRatio(stats.twitter.positive, stats.twitter.neutral, stats.twitter.negative);
