@@ -2550,11 +2550,11 @@ function getWeeklyOverview() {
   const now = new Date();
   const days = [];
   
-  // ★ 口径同步：含当天（i=0），最末一根柱就是今天，与日报今日数字对得上；
-  //   旧代码故意去掉当天，用户在日报看到今日有发言、趋势图却没今天，报"不同步"
-  for (let i = 7; i >= 0; i--) {
+  // ★ 只显示完整天（7天前~昨天）：当天数字还在涨，和定格的历史天比不公平；
+  //   今日数据由日报单独展示（口径一致：post_date 只数帖子）
+  for (let i = 7; i >= 1; i--) {
     const d = new Date(now);
-    d.setDate(now.getDate() - i);  // 7天前、6天前、...、今天
+    d.setDate(now.getDate() - i);  // 7天前、6天前、...、昨天
     // ★ 日期统一用 fmtCST8Date（不再手拼，与全项目日期格式标准一致）
     const dateStr = fmtCST8Date(d);
     const start = dateStr + ' 00:00:00';
@@ -2585,7 +2585,7 @@ function getWeeklyOverview() {
     days.push({
       date: dateStr,
       label: `${d.getMonth()+1}/${d.getDate()}`,
-      isToday: i === 0, // ★ 前端标"(今)"用，不再靠猜最后一根柱
+      isToday: false, // ★ 趋势图不含当天，保留字段仅为前端兼容
       twitter: twCount.cnt || 0,
       discord: dcCount.cnt || 0,
       lounge: loungeCnt,
@@ -2598,15 +2598,17 @@ function getWeeklyOverview() {
   const totalDiscord = days.reduce((s, d) => s + d.discord, 0);
   const totalLounge = days.reduce((s, d) => s + (d.lounge || 0), 0);
   const totalAll = totalTwitter + totalDiscord + totalLounge;
-  const today = days[days.length - 1];  // 最末一天 = 今天（含当日实时数据）
+  const today = days[days.length - 1];  // 最末一天 = 昨天（趋势图不含当天）
   const yesterday = days.length >= 2 ? days[days.length - 2] : null;
   const trendChange = yesterday ? today.total - yesterday.total : 0;
   
-  // ★ 7日时间范围（从 7 天前到今天）
+  // ★ 7日时间范围（从 7 天前到昨天，不含当天）
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(now.getDate() - 7);
   const wStart = fmtCST8Date(sevenDaysAgo) + ' 00:00:00';
-  const endDateStr = fmtCST8Date(now);
+  const yd = new Date(now);
+  yd.setDate(now.getDate() - 1);
+  const endDateStr = fmtCST8Date(yd); // 昨天
   
   // 7日负面舆情统计
   const negCount = db.queryOne(
@@ -2617,8 +2619,8 @@ function getWeeklyOverview() {
   const negCnt = negCount?.cnt || 0;
   const negRatio = totalAll > 0 ? Math.round(negCnt / totalAll * 100) : 0;
   
-  // 时间范围标签（含今日实时）
-  const timeRangeLabel = `${fmtCST8Date(sevenDaysAgo)} ~ ${endDateStr}（含今日实时）`;
+  // 时间范围标签（7天前~昨天，均为完整天）
+  const timeRangeLabel = `${fmtCST8Date(sevenDaysAgo)} ~ ${endDateStr}`;
   
   return {
     days,
