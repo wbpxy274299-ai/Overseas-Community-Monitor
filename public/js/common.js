@@ -34,6 +34,7 @@ const Toast = {
 };
 
 // ===== 居中弹窗（无权限提醒等重要提示用，比角落 Toast 更显眼）=====
+// 样式严格遵循 M2G 设计规范：零渐变/零 emoji/颜色令牌/白卡签名圆角 20-20-20-4/btn-solid 带箭头
 const AlertModal = {
   _styleInjected: false,
 
@@ -44,44 +45,63 @@ const AlertModal = {
     style.textContent = `
       .alert-modal-mask {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+        background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); /* 遮罩固定深色，同 components.css .modal-overlay */
         display: flex; align-items: center; justify-content: center;
-        z-index: 10000; animation: alertModalFadeIn 0.2s;
+        z-index: 10000; animation: alertModalFadeIn 0.2s ease;
       }
       @keyframes alertModalFadeIn { from { opacity: 0; } to { opacity: 1; } }
       .alert-modal-card {
-        background: var(--color-surface, #fff); color: var(--color-text, #1a202c);
-        border-radius: 16px; padding: 32px 28px 24px;
-        max-width: 420px; width: 90%; text-align: center;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        animation: alertModalPop 0.25s;
+        background: var(--panel, #FFFFFF);
+        color: var(--ink, #0B0B0C);
+        border: 1px solid var(--line, #D8DADD);
+        border-radius: 20px 20px 20px 4px; /* 白卡签名圆角（左下小圆角） */
+        padding: 32px 28px 26px;
+        max-width: 420px; width: 90%;
+        text-align: center;
+        box-shadow: var(--shadow, 0 30px 60px rgba(11,11,12,.08));
+        animation: alertModalUp 0.25s ease; /* 上移14px+淡入，禁弹跳 */
       }
-      @keyframes alertModalPop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-      .alert-modal-icon { font-size: 44px; line-height: 1; }
-      .alert-modal-title { font-size: 18px; font-weight: 700; margin: 14px 0 8px; }
-      .alert-modal-msg { font-size: 14px; line-height: 1.7; color: var(--color-text-secondary, #718096); margin-bottom: 22px; word-break: break-word; }
+      @keyframes alertModalUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+      .alert-modal-micro {
+        font-size: 11px; letter-spacing: .38em; text-transform: uppercase;
+        font-weight: 500; color: var(--mut, #84868B); margin-bottom: 14px;
+      }
+      .alert-modal-icon {
+        width: 44px; height: 44px; margin: 0 auto;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--warn, #C9973B); /* 警示类提醒用语义黄 */
+      }
+      .alert-modal-icon svg { width: 40px; height: 40px; }
+      .alert-modal-title { font-size: 17px; font-weight: 700; margin: 12px 0 8px; }
+      .alert-modal-msg {
+        font-size: 13px; line-height: 1.6; color: var(--mut, #84868B);
+        margin-bottom: 22px; word-break: break-word;
+      }
+      /* btn-solid 规范：--ink 底 / --bg 字 / 圆角10px / 必带箭头，悬停箭头右移4px */
       .alert-modal-btn {
-        display: inline-block; min-width: 120px; padding: 10px 28px;
-        border: none; border-radius: 10px; cursor: pointer;
-        background: linear-gradient(135deg, #ed8936, #dd6b20); color: #fff;
-        font-size: 14px; font-weight: 600;
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 12px 22px; border: none; border-radius: 10px; cursor: pointer;
+        background: var(--ink, #0B0B0C); color: var(--bg, #ECEDEF);
+        font-size: 13px; font-weight: 600; font-family: inherit;
       }
-      .alert-modal-btn:hover { opacity: 0.9; }
+      .alert-modal-btn .ar { transition: transform 0.2s ease; }
+      .alert-modal-btn:hover .ar { transform: translateX(4px); }
     `;
     document.head.appendChild(style);
   },
 
-  /** 弹居中对话框：标题 + 正文 + 知道了按钮，点遮罩或按钮关闭 */
-  show(icon, title, message) {
+  /** 弹居中对话框：线性图标 + micro 英文标签 + 标题 + 正文 + 知道了按钮 */
+  show(iconSvg, microLabel, title, message) {
     this._injectStyle();
     const mask = document.createElement('div');
     mask.className = 'alert-modal-mask';
     mask.innerHTML = `
       <div class="alert-modal-card">
-        <div class="alert-modal-icon">${icon}</div>
+        <div class="alert-modal-micro">${microLabel}</div>
+        <div class="alert-modal-icon">${iconSvg}</div>
         <div class="alert-modal-title">${title}</div>
         <div class="alert-modal-msg">${message}</div>
-        <button class="alert-modal-btn" type="button">知道了</button>
+        <button class="alert-modal-btn" type="button">知道了 <span class="ar">→</span></button>
       </div>`;
     const close = () => mask.remove();
     mask.querySelector('.alert-modal-btn').onclick = close;
@@ -89,9 +109,10 @@ const AlertModal = {
     document.body.appendChild(mask);
   },
 
-  /** 无权限专用弹窗 */
+  /** 无权限专用弹窗（锁形线性图标，1.6px 描边 currentColor） */
   noPermission(message) {
-    this.show('🔒', '无权限访问', message);
+    const lockSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.4"/></svg>`;
+    this.show(lockSvg, 'Access Denied', '无权限访问', message);
   },
 };
 
