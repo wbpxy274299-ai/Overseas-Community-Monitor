@@ -15,31 +15,8 @@ const translator = require('../translator');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 // 仅对本路由器的路由生效，不拦截其他模块（terminology/lounge 等）的路由
-
-// ★ 内部工具接口：浏览器抓取后更新数据库（放在认证前面，无需登录）
-router.post('/api/sentiment/lounge-update', (req, res) => {
-  try {
-    const { postId, content, comments } = req.body;
-    if (!postId) return res.status(400).json({ error: '缺少 postId' });
-    if (content) {
-      db.getDb().run('UPDATE lounge_posts SET content = ? WHERE post_id = ?', [content, postId]);
-    }
-    if (Array.isArray(comments)) {
-      db.getDb().run('DELETE FROM lounge_comments WHERE post_id = ?', [postId]);
-      for (const c of comments) {
-        db.getDb().run(
-          `INSERT INTO lounge_comments (post_id, game_code, author, content, comment_time, likes, crawled_at)
-           VALUES (?, ?, ?, ?, ?, ?, datetime('now','+8 hours'))`,
-          [postId, '', c.author || '', c.text || '', c.time || '', parseInt(c.likes) || 0]
-        );
-      }
-    }
-    db.saveDb();
-    res.json({ success: true, message: `更新完成，评论 ${comments?.length || 0} 条` });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
+// ★ 原有的 /api/sentiment/lounge-update 无认证写库接口已删除：
+//   任何人可不登录篡改帖子正文、删光重写评论，且全项目无任何调用方（安全排查 2026-08 删除）
 
 router.use('/api/sentiment', requireAuth);
 router.use('/api/weekly-report', requireAuth);

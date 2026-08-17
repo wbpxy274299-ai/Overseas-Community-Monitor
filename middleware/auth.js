@@ -150,6 +150,15 @@ function requireAuth(req, res, next) {
       user.role = currentRole;
     }
   } catch (_) {}
+  // ★ pending 拦截内置在 requireAuth：页面层有全局 403 挡 HTML 请求，
+  //   但直接调 API 会绕过审批（requireNotPending 写了从没挂过，安全排查 2026-08 补上）
+  if (user.role === 'pending') {
+    return res.status(403).json({
+      error: '账号待审批',
+      message: '需要前往阿里钉@阿饱 开通相关权限方可进入',
+      code: 'PENDING_APPROVAL',
+    });
+  }
   req.user = user;
   next();
 }
@@ -209,6 +218,18 @@ function ensureLoggedIn(req, res, next) {
       user.role = currentRole;
     }
   } catch (_) {}
+  // ★ pending 拦截（与 requireAuth 同款）：lounge 等 API 用 ensureLoggedIn 保护，
+  //   不拦的话待审批用户仍能调 API 读数据
+  if (user.role === 'pending') {
+    if (req.path.startsWith('/api/')) {
+      return res.status(403).json({
+        error: '账号待审批',
+        message: '需要前往阿里钉@阿饱 开通相关权限方可进入',
+        code: 'PENDING_APPROVAL',
+      });
+    }
+    return res.redirect('/login');
+  }
   req.user = user;
   next();
 }

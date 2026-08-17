@@ -6,7 +6,7 @@ const router = express.Router();
 const axios = require('axios');
 const terminology = require('../terminology');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireRole } = require('../middleware/auth');
 
 // 搜索术语 + 文本提取（校对）
 router.get('/api/terminology/search', (req, res) => {
@@ -108,7 +108,8 @@ router.get('/api/terminology/translation-remaining', requireAuth, (req, res) => 
 });
 
 // Gemini AI 代理（支持图片+文字，贴文助手专用）
-router.post('/api/terminology/gemini', async (req, res) => {
+// ★ 必须登录才能调：否则任何人不登录就能白嫖服务器的 Gemini API 额度（安全排查 2026-08 加锁）
+router.post('/api/terminology/gemini', requireAuth, async (req, res) => {
   const { question, images } = req.body;
   if (!question) return res.status(400).json({ error: '请提供问题内容' });
 
@@ -141,7 +142,8 @@ router.post('/api/terminology/gemini', async (req, res) => {
 });
 
 // 术语表更新（合并 Excel 解析后的数据）
-router.post('/api/terminology/merge', (req, res) => {
+// ★ 仅管理员可改：能批量改写 5 万条术语并清翻译缓存，不登录可调等于词典任人篡改（安全排查 2026-08 加锁）
+router.post('/api/terminology/merge', requireAuth, requireRole('admin', 'super_admin'), (req, res) => {
   const { updates } = req.body;
   if (!updates || !Array.isArray(updates) || !updates.length) {
     return res.status(400).json({ error: '请提供术语数据' });
