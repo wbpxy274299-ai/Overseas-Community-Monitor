@@ -334,13 +334,13 @@ function assessRiskLevel(stats) {
 function formatTopicsTable(topics) {
   if (topics.length === 0) return '暂无数据';
   let lines = [
-    '| 排名 | 话题 | 讨论人数 | 内容概述 | 情绪分布 | 情绪风向 |',
+    '| 排名 | 话题 | 发言数 | 内容概述 | 情绪分布 | 情绪风向 |',
     '|:---:|------|:---:|------|:---:|--------|'
   ];
   topics.forEach((t, i) => {
     const sentDist = `👍${t.positives} 😐${t.neutrals} 👎${t.negatives}`;
     const desc = t.summary || '—';
-    lines.push(`| ${i + 1} | **${t.label}** | ${t.count} 人 | ${desc} | ${sentDist} | ${t.emotion_desc} |`);
+    lines.push(`| ${i + 1} | **${t.label}** | ${t.count} 条 | ${desc} | ${sentDist} | ${t.emotion_desc} |`);
   });
   return lines.join('\n');
 }
@@ -358,28 +358,48 @@ function formatTopicSamples(topic) {
   return md.trim();
 }
 
-// ===== 运营建议 =====
+// ===== 运营建议（数据驱动：只说本周真实存在的问题，不出套话）=====
 
-function generateSuggestions(stats, riskLevel) {
+function generateSuggestions(stats, riskLevel, topicMap) {
   const s = [];
-  if (stats.twitter.total > 0 && stats.twitter.negative > stats.twitter.positive) {
-    s.push('- **Twitter 负面情绪偏高**：建议排查近期争议点，主动在官方账号回应');
+  const platforms = [
+    { key: 'twitter', label: 'Twitter（日服）', stats: stats.twitter, topics: topicMap.twitter },
+    { key: 'discord', label: 'Discord（繁中服）', stats: stats.discord_tc, topics: topicMap.discord_tc },
+    { key: 'lounge', label: 'Naver Lounge（韩服）', stats: stats.lounge_kr, topics: topicMap.lounge_kr }
+  ];
+
+  // 1. 负面集中的平台：点名最烫手的负面话题，不空喊“去安抚”
+  for (const p of platforms) {
+    if (p.stats.total === 0) continue;
+    const negRatio = p.stats.negative / p.stats.total;
+    if (negRatio >= 0.3 && p.stats.negative > p.stats.positive) {
+      const hotNeg = (p.topics || []).filter(t => t.negatives > 0).sort((a, b) => b.negatives - a.negatives)[0];
+      s.push(`- **${p.label} 负面占比 ${Math.round(negRatio * 100)}%**${hotNeg ? `，集中在「${hotNeg.label}」（${hotNeg.negatives} 条负面）` : ''}：建议优先排查该话题的争议根源并准备官方回应`);
+    }
   }
-  if (stats.discord_tc.total > 0 && stats.discord_tc.negative > stats.discord_tc.positive) {
-    s.push('- **繁中服 Discord 负面情绪较多**：建议在社区开展安抚活动或发布官方公告');
+
+  // 2. 全平台最热的负面话题（跨平台汇总，只点名榜首）
+  const allNegTopics = platforms.flatMap(p => (p.topics || []).map(t => ({ ...t, plat: p.label })))
+    .filter(t => t.negatives > 0).sort((a, b) => b.negatives - a.negatives);
+  if (allNegTopics.length > 0 && s.length === 0) {
+    const top = allNegTopics[0];
+    s.push(`- **本周负面最集中的话题：「${top.label}」**（${top.plat}，${top.negatives} 条负面）：建议运营同学重点跟进该话题下的玩家诉求`);
   }
-  if (stats.twitter.total > stats.discord_tc.total * 2) {
-    s.push('- **Twitter 讨论量远高于 Discord**：建议加大 Twitter 运营投入');
-  } else if (stats.discord_tc.total > stats.twitter.total * 2) {
-    s.push('- **Discord 讨论量远高于 Twitter**：建议加强 Discord 社区运营');
+
+  // 3. 讨论量明显失衡的平台（基于本周真实数据）
+  const active = platforms.filter(p => p.stats.total > 0);
+  if (active.length >= 2) {
+    const max = active.reduce((a, b) => a.stats.total >= b.stats.total ? a : b);
+    const others = active.reduce((sum, p) => sum + (p === max ? 0 : p.stats.total), 0);
+    if (others > 0 && max.stats.total >= others * 2) {
+      s.push(`- **${max.label} 讨论量是其他平台总和的 ${Math.floor(max.stats.total / others)} 倍以上**：本周玩家声音主要在这里，建议运营资源向该平台倾斜`);
+    }
   }
-  if (stats.lounge_kr.total > 0 && stats.lounge_kr.negative > stats.lounge_kr.positive) {
-    s.push('- **韩服 Naver 负面情绪较多**：建议排查韩服社区争议，关注翻译质量和本地化运营');
+
+  // 4. 兵底：本周确实平安才说健康，不再每周必出“持续监控”套话
+  if (s.length === 0) {
+    s.push('- **本周无突出负面信号**：各平台情绪平稳，可保持当前运营节奏，把精力放在新内容/活动的预热上');
   }
-  if (riskLevel === '🟢 低') {
-    s.push('- **整体舆情健康**：可考虑推出新活动进一步提升玩家满意度');
-  }
-  s.push('- **持续监控**：建议每日查看舆情面板，及时发现并处理问题');
   return s.join('\n');
 }
 
@@ -403,19 +423,42 @@ function generateSummary(stats, totalRecords, riskLevel) {
 | **合计** | **${totalRecords}** | **${totalPos}** | **${totalNeu}** | **${totalNeg}** |`;
 }
 
-// ===== 社区发言概况（用大白话总结每个平台在聊什么）=====
+// ===== 社区发言概况（只报数据事实：多少条、情绪主调、前三话题；内容解读交给 AI 分析和各章看点，不再重复）=====
 function generatePlatformSummary(records, platformLabel, topTopics) {
   if (records.length === 0) return `**${platformLabel}**：本周无玩家发言。`;
-  
   const topTags = topTopics.slice(0, 3).map(t => t.label).join('、');
-  const summaries = topTopics.filter(t => t.summary).slice(0, 2).map(t => t.summary);
-  
-  let text = `**${platformLabel}**（${records.length} 条发言）：`;
-  text += `玩家主要讨论 ${topTags}。`;
-  if (summaries.length > 0) {
-    text += '\n' + summaries.map(s => `- ${s}`).join('\n');
-  }
-  return text;
+  return `**${platformLabel}**（${records.length} 条发言）：话题集中在 ${topTags}，具体讨论内容见对应平台章节。`;
+}
+
+// ===== 本章看点（平台章开头一行：领导扫读用，点名最值得关注的 1~2 个话题）=====
+function generatePlatformHighlight(platformStats, topics) {
+  if (platformStats.total === 0 || topics.length === 0) return '';
+  const parts = [];
+  const hotNeg = topics.filter(t => t.negatives > 0).sort((a, b) => b.negatives - a.negatives)[0];
+  const hotTalk = [...topics].sort((a, b) => b.count - a.count)[0];
+  if (hotNeg) parts.push(`负面最集中在「${hotNeg.label}」（${hotNeg.negatives} 条）`);
+  if (hotTalk && hotTalk !== hotNeg) parts.push(`讨论最多的是「${hotTalk.label}」（${hotTalk.count} 条）`);
+  if (parts.length === 0) return '';
+  return `> 📌 **本章看点**：${parts.join('；')}\n`;
+}
+
+// ===== 风险详情（第五章用：不复读等级，而是点名具体风险在哪）=====
+function generateRiskDetail(stats, topicMap) {
+  const platforms = [
+    { label: 'Twitter（日服）', stats: stats.twitter, topics: topicMap.twitter },
+    { label: 'Discord（繁中服）', stats: stats.discord_tc, topics: topicMap.discord_tc },
+    { label: 'Naver Lounge（韩服）', stats: stats.lounge_kr, topics: topicMap.lounge_kr }
+  ];
+  const risky = platforms
+    .filter(p => p.stats.total > 0)
+    .map(p => ({ ...p, negRatio: p.stats.negative / p.stats.total }))
+    .filter(p => p.negRatio >= 0.3)
+    .sort((a, b) => b.negRatio - a.negRatio);
+  if (risky.length === 0) return '本周各平台负面占比均在正常范围内，未发现集中爆发的争议点。';
+  return risky.map(p => {
+    const hotNeg = (p.topics || []).filter(t => t.negatives > 0).sort((a, b) => b.negatives - a.negatives)[0];
+    return `- **${p.label}**：负面占比 ${Math.round(p.negRatio * 100)}%${hotNeg ? `，主要集中在「${hotNeg.label}」（${hotNeg.negatives} 条负面发言）` : ''}`;
+  }).join('\n');
 }
 
 // ===== 主报告生成 =====
@@ -467,17 +510,20 @@ async function generateReport(weeklyData) {
     aiAnalysis = '本周舆情整体平稳，建议持续关注玩家反馈。';
   }
 
-  // 各平台社区发言概况
+  // 各平台社区发言概况 + 本章看点
   const twSummary = generatePlatformSummary(stats.twitter.records, '🐦 Twitter（日服）', twitterTopics);
   const dcSummary = generatePlatformSummary(stats.discord_tc.records, '💬 Discord（繁中服）', tcTopics);
   const lgSummary = generatePlatformSummary(stats.lounge_kr.records, '🇰🇷 Naver Lounge（韩服）', loungeTopics);
+  const twHighlight = generatePlatformHighlight(stats.twitter, twitterTopics);
+  const dcHighlight = generatePlatformHighlight(stats.discord_tc, tcTopics);
+  const lgHighlight = generatePlatformHighlight(stats.lounge_kr, loungeTopics);
 
   // 话题详情渲染辅助函数
   const renderTopicDetails = (topics) => {
     if (topics.length === 0) return '';
     return topics.map((topic, idx) => `#### 话题 ${idx + 1}：${topic.label}
 
-**📊 讨论人数**：${topic.count} 人 ｜ **📈 情绪分布**：👍 ${topic.positives} · 😐 ${topic.neutrals} · 👎 ${topic.negatives} ｜ **🎯 情绪风向**：${topic.emotion_desc}
+**📊 发言数**：${topic.count} 条 ｜ **📈 情绪分布**：👍 ${topic.positives} · 😐 ${topic.neutrals} · 👎 ${topic.negatives} ｜ **🎯 情绪风向**：${topic.emotion_desc}
 
 ${topic.summary ? `**📝 讨论概述**：${topic.summary}\n\n` : ''}**💬 代表性发言**：
 
@@ -514,6 +560,7 @@ ${aiAnalysis}
 
 ## 🐦 二、Twitter 日服数据（${stats.twitter.total} 条）
 
+${twHighlight}
 | 情绪 | 数量 | 占比 | 可视化 |
 |------|:---:|:---:|------|
 | 😊 正面 | ${stats.twitter.positive} | ${twRatio.positive}% | ${emoBar(stats.twitter.positive, stats.twitter.total)} |
@@ -532,6 +579,7 @@ ${renderTopicDetails(twitterTopics)}
 
 ## 💬 三、Discord 繁中服数据（${stats.discord_tc.total} 条）
 
+${dcHighlight}
 | 情绪 | 数量 | 占比 | 可视化 |
 |------|:---:|:---:|------|
 | 😊 正面 | ${stats.discord_tc.positive} | ${tcRatio.positive}% | ${emoBar(stats.discord_tc.positive, stats.discord_tc.total)} |
@@ -550,6 +598,7 @@ ${renderTopicDetails(tcTopics)}
 
 ## 🇰🇷 四、Naver Lounge 韩服数据（${stats.lounge_kr.total} 条）
 
+${lgHighlight}
 | 情绪 | 数量 | 占比 | 可视化 |
 |------|:---:|:---:|------|
 | 😊 正面 | ${stats.lounge_kr.positive} | ${lgRatio.positive}% | ${emoBar(stats.lounge_kr.positive, stats.lounge_kr.total)} |
@@ -570,15 +619,17 @@ ${renderTopicDetails(loungeTopics)}
 
 **当前风险等级：${riskLevel}**
 
-${riskLevel.includes('高') ? '⚠️ 负面情绪占比过高，建议立即排查近期争议点，准备官方回应方案。重点关注 Twitter 和 Discord 上的负面集中话题。' :
-  riskLevel.includes('中') ? '⚡ 部分平台负面情绪偏高，建议密切关注相关话题走向，提前准备应急预案。' :
-  '✅ 整体情绪稳定健康，未发现明显风险信号。建议保持当前运营节奏。'}
+${generateRiskDetail(stats, { twitter: twitterTopics, discord_tc: tcTopics, lounge_kr: loungeTopics })}
+
+${riskLevel.includes('高') ? '⚠️ 负面情绪占比过高，建议立即排查上述争议点，准备官方回应方案。' :
+  riskLevel.includes('中') ? '⚡ 上述平台负面情绪偏高，建议密切关注话题走向，提前准备应急预案。' :
+  '✅ 整体情绪稳定健康，保持当前运营节奏即可。'}
 
 ---
 
 ## 📝 六、运营建议
 
-${generateSuggestions(stats, riskLevel)}
+${generateSuggestions(stats, riskLevel, { twitter: twitterTopics, discord_tc: tcTopics, lounge_kr: loungeTopics })}
 
 ---
 
@@ -640,5 +691,6 @@ async function generateWeeklyReport() {
 module.exports = {
   generateWeeklyReport,
   getLastWeekRange,
-  getWeeklyData
+  getWeeklyData,
+  generateReport // ★ 供验证脚本直调组装层（构造数据验证文案结构）
 };
