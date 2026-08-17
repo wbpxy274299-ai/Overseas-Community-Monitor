@@ -2550,11 +2550,13 @@ function getWeeklyOverview() {
   const now = new Date();
   const days = [];
   
-  // ★ L2530: 查最近 7 天（去掉当天，从 7 天前开始，保证从左到右时间顺序）
-  for (let i = 7; i >= 1; i--) {
+  // ★ 口径同步：含当天（i=0），最末一根柱就是今天，与日报今日数字对得上；
+  //   旧代码故意去掉当天，用户在日报看到今日有发言、趋势图却没今天，报"不同步"
+  for (let i = 7; i >= 0; i--) {
     const d = new Date(now);
-    d.setDate(now.getDate() - i);  // 7天前、6天前、...、昨天
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    d.setDate(now.getDate() - i);  // 7天前、6天前、...、今天
+    // ★ 日期统一用 fmtCST8Date（不再手拼，与全项目日期格式标准一致）
+    const dateStr = fmtCST8Date(d);
     const start = dateStr + ' 00:00:00';
     const end = dateStr + ' 23:59:59';
     
@@ -2570,28 +2572,20 @@ function getWeeklyOverview() {
     const sMap = { positive: 0, neutral: 0, negative: 0 };
     sentiments.forEach(s => { sMap[s.sentiment] = s.cnt; });
 
-    // 韩国社区（帖子 + 评论，使用实际发布日期）
+    // 韩国社区：只数帖子（post_date 发帖日口径），与日报“今日发帖数”完全同款 SQL；
+    // ★ 旧代码把评论也加进来，日报只数帖子，两边数字永远对不上（“不同步”的另一根源）
     let loungeCnt = 0;
     try {
-      // ★ L2551: 字符串拼接替代参数化查询
       const lRow = db.queryOne(
         `SELECT COUNT(*) as cnt FROM lounge_posts WHERE post_date = '${dateStr}' ${OFFICIAL_SQL_LOUNGE}`
       );
-      const postCnt = lRow?.cnt || 0;
-      
-      // 评论数（comment_time 是 "YYYY-MM-DD HH:mm:ss" 格式，取前10位再去掉横线比较）
-      const datePrefix = dateStr.replace(/-/g, ''); // "2026-07-29" -> "20260729"
-      const cRow = db.queryOne(
-        `SELECT COUNT(*) as cnt FROM lounge_comments WHERE replace(substr(comment_time, 1, 10), '-', '') = '${datePrefix}' ${OFFICIAL_SQL_LOUNGE}`
-      );
-      const commentCnt = cRow?.cnt || 0;
-      
-      loungeCnt = postCnt + commentCnt;
+      loungeCnt = lRow?.cnt || 0;
     } catch (_) {}
     
     days.push({
       date: dateStr,
       label: `${d.getMonth()+1}/${d.getDate()}`,
+      isToday: i === 0, // ★ 前端标"(今)"用，不再靠猜最后一根柱
       twitter: twCount.cnt || 0,
       discord: dcCount.cnt || 0,
       lounge: loungeCnt,
@@ -2604,29 +2598,27 @@ function getWeeklyOverview() {
   const totalDiscord = days.reduce((s, d) => s + d.discord, 0);
   const totalLounge = days.reduce((s, d) => s + (d.lounge || 0), 0);
   const totalAll = totalTwitter + totalDiscord + totalLounge;
-  const today = days[days.length - 1];  // ★ L2584: 现在是最末一天（昨天）
+  const today = days[days.length - 1];  // 最末一天 = 今天（含当日实时数据）
   const yesterday = days.length >= 2 ? days[days.length - 2] : null;
   const trendChange = yesterday ? today.total - yesterday.total : 0;
   
-  // ★ L2588: 7日时间范围（从 7 天前到昨天，去掉当天）
+  // ★ 7日时间范围（从 7 天前到今天）
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(now.getDate() - 7);
-  const wStart = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')} 00:00:00`;
-  const yesterdayDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()-1).padStart(2,'0')} 23:59:59`;
+  const wStart = fmtCST8Date(sevenDaysAgo) + ' 00:00:00';
+  const endDateStr = fmtCST8Date(now);
   
   // 7日负面舆情统计
   const negCount = db.queryOne(
     `SELECT COUNT(*) as cnt FROM sentiment_records
      WHERE is_noise=0 ${OFFICIAL_SQL_TWDC} AND COALESCE(ai_sentiment, sentiment) = 'negative'
-     AND created_at >= '${wStart}' AND created_at <= '${yesterdayDate}'`
+     AND created_at >= '${wStart}' AND created_at <= '${endDateStr} 23:59:59'`
   );
   const negCnt = negCount?.cnt || 0;
   const negRatio = totalAll > 0 ? Math.round(negCnt / totalAll * 100) : 0;
   
-  // ★ L2604: 时间范围标签（昨天~今天的前一天，00:00~23:59）
-  const startDate = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(sevenDaysAgo.getDate()).padStart(2,'0')}`;
-  const endDate = days.length > 0 ? days[days.length - 1].date : '';
-  const timeRangeLabel = `${startDate} ~ ${endDate} 00:00~23:59`;
+  // 时间范围标签（含今日实时）
+  const timeRangeLabel = `${fmtCST8Date(sevenDaysAgo)} ~ ${endDateStr}（含今日实时）`;
   
   return {
     days,
@@ -2639,7 +2631,7 @@ function getWeeklyOverview() {
     today,
     negCount: negCnt,
     negRatio,
-    time_range_label: timeRangeLabel, // ★ L2617: 返回时间范围标签
+    time_range_label: timeRangeLabel, // ★ 返回时间范围标签
   };
 }
 
@@ -3360,8 +3352,15 @@ async function computeDailyOverview() {
       const postCountRow = db.queryOne(
         `SELECT COUNT(*) AS cnt FROM lounge_posts WHERE post_date = '${today}' ${OFFICIAL_SQL_LOUNGE}`
       );
+      // ★ 精确评论数：上方评论查询 LIMIT 20 封顶（只供展示），展示评论数要单独 COUNT，
+      //   否则超过 20 条时日报报少，与趋势图逐日数对不上
+      const commentCountRow = db.queryOne(
+        `SELECT COUNT(*) AS cnt FROM lounge_comments c
+         WHERE replace(substr(c.comment_time, 1, 10), '-', '') = '${datePrefix}'
+           AND c.content IS NOT NULL AND c.content != '' ${OFFICIAL_SQL_LOUNGE_C}`
+      );
       const postCount = (postCountRow && postCountRow.cnt) ? postCountRow.cnt : (posts ? posts.length : 0);
-      const commentCount = comments.length;
+      const commentCount = (commentCountRow && commentCountRow.cnt) ? commentCountRow.cnt : comments.length;
       const text = topics.length > 0
         ? `帖子${postCount}条、评论${commentCount}条，${moodText}，发现${topics.length}个话题`
         : `帖子${postCount}条、评论${commentCount}条，${moodText}`;

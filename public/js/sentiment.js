@@ -218,7 +218,7 @@ function renderWeeklyBarChart(days) {
     const twH = Math.max(Math.round((d.twitter / maxTotal) * 140), d.twitter > 0 ? 4 : 0);
     const dcH = Math.max(Math.round((d.discord / maxTotal) * 140), d.discord > 0 ? 4 : 0);
     const krH = Math.max(Math.round(((d.lounge||0) / maxTotal) * 140), (d.lounge||0) > 0 ? 4 : 0);
-    const isToday = d === days[days.length - 1];
+    const isToday = d.isToday === true; // ★ 用后端标记，不再猜最后一根柱
     html += `<div class="g">
       <div class="col"><span class="v">${d.twitter}</span><div class="b1" style="height:${twH}px" title="Twitter: ${d.twitter}"></div></div>
       <div class="col"><span class="v">${d.discord}</span><div class="b2" style="height:${dcH}px" title="Discord: ${d.discord}"></div></div>
@@ -238,7 +238,7 @@ function renderWeeklySentimentTrack(days) {
   for (const d of days) {
     const s = d.sentiment || { positive: 0, neutral: 0, negative: 0 };
     const total = (s.positive || 0) + (s.neutral || 0) + (s.negative || 0);
-    const isToday = d === days[days.length - 1];
+    const isToday = d.isToday === true; // ★ 用后端标记，不再猜最后一根柱
     if (total > 0) {
       const posW = Math.round((s.positive / total) * 100);
       const negW = Math.round((s.negative / total) * 100);
