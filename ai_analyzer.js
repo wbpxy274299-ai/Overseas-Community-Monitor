@@ -303,6 +303,48 @@ ${JSON.stringify(sampleFeedbacks, null, 2)}`;
 }
 
 /**
+ * 周报社区发言概况：AI 读完某平台本周全量发言后写归纳分析
+ * 输出 3-5 句：玩家在聊什么、情绪主调、需要运营关注的点
+ * @param {Array} records - 该平台本周记录
+ * @param {string} platformKey - twitter | discord | lounge
+ * @returns {Promise<string|null>} 分析文本，失败返回 null（由调用方兜底）
+ */
+async function aiGeneratePlatformOverview(records, platformKey) {
+  if (!records || records.length === 0) return null;
+
+  const platformLabel = platformKey === 'twitter' ? 'Twitter（日服）'
+    : platformKey === 'lounge' ? 'Naver Lounge（韩服）' : 'Discord（繁中服）';
+
+  // ★ 全量喂给 AI：每条截断 100 字控 token，超 300 条保险丝截断（和 aiSummarizeHotTopics 一致）
+  const inputRecords = records.length > 300 ? records.slice(0, 300) : records;
+  // lounge 记录用中译文字段，twitter/discord 用译文或原文
+  const pickText = platformKey === 'lounge'
+    ? (r => r.content_zh || r.title_zh || r.content || r.title || '')
+    : (r => r.translated_content || r.content || '');
+  const grouped = {};
+  for (const r of inputRecords) {
+    const tag = r.topic_tag || 'general';
+    if (!grouped[tag]) grouped[tag] = [];
+    grouped[tag].push(sanitizeForAI(pickText(r)).substring(0, 100));
+  }
+  const content = Object.entries(grouped)
+    .map(([tag, msgs]) => `【${tag}】(${msgs.length} 条)\n${msgs.map((m, i) => `[${i + 1}] ${m}`).join('\n')}`)
+    .join('\n');
+
+  const prompt = `你是《森の国度》(TOS Neverland) 游戏的资深社区运营分析师。以下是${platformLabel}玩家本周的真实发言，已按话题标签分组。
+
+请用中文写一段该平台社区发言的归纳分析，3-5 句话：
+1. 玩家本周主要在聊什么（点出具体话题，不要泛泛而谈）
+2. 社区情绪主调（正面/中性/负面占主导，为什么）
+3. 需要运营关注或跟进的事项（没有就说整体平稳）
+
+要求：只输出正文，不要标题、序号、表情符号；不要编造数据里没有的内容。`;
+
+  const result = await callAI(prompt, content, { maxTokens: 600, timeout: 90000 });
+  return result ? result.trim() : null;
+}
+
+/**
  * AI 分类玩家反馈类型
  * 
  * @param {string} text - 玩家发言
@@ -1150,6 +1192,7 @@ module.exports = {
   aiAnalyzeSentiment,
   aiExtractTopics,
   aiGenerateSummary,
+  aiGeneratePlatformOverview, // 周报社区发言概况 AI 归纳（单平台）
   aiClassifyFeedback,
   aiSummarizeHotTopics,
   aiSummarizeHotTopicsDual,  // 多プラットフォーム一次性分析

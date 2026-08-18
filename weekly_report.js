@@ -425,11 +425,25 @@ function generateSummary(stats, totalRecords, riskLevel) {
 | **合计** | **${totalRecords}** | **${totalPos}** | **${totalNeu}** | **${totalNeg}** |`;
 }
 
-// ===== 社区发言概况（只报数据事实：多少条、情绪主调、前三话题；内容解读交给 AI 分析和各章看点，不再重复）=====
+// ===== 社区发言概况·抬头行（只报数据事实：多少条、前三话题；内容归纳由 buildPlatformSummary 里的 AI 写）=====
 function generatePlatformSummary(records, platformLabel, topTopics) {
   if (records.length === 0) return `**${platformLabel}**：本周无玩家发言。`;
   const topTags = topTopics.slice(0, 3).map(t => t.label).join('、');
   return `**${platformLabel}**（${records.length} 条发言）：话题集中在 ${topTags}，具体讨论内容见对应平台章节。`;
+}
+
+// ===== 社区发言概况·完整段落（抬头数据行 + AI 归纳分析；AI 失败自动退回纯模板句，不卡报告生成）=====
+async function buildPlatformSummary(records, platformLabel, topTopics, platformKey) {
+  const header = generatePlatformSummary(records, platformLabel, topTopics);
+  if (records.length === 0) return header;
+  let aiText = '';
+  try {
+    aiText = await aiAnalyzer.aiGeneratePlatformOverview(records, platformKey);
+    if (aiText) console.log(`   🤖 ${platformLabel} AI 归纳完成`);
+  } catch (e) {
+    console.warn(`   ⚠️ ${platformLabel} AI 归纳失败，用模板句兜底:`, e.message);
+  }
+  return aiText ? `${header}\n\n**AI 归纳**：${aiText}` : header;
 }
 
 // ===== 本章看点（平台章开头一行：领导扫读用，点名最值得关注的 1~2 个话题）=====
@@ -512,10 +526,12 @@ async function generateReport(weeklyData) {
     aiAnalysis = '本周舆情整体平稳，建议持续关注玩家反馈。';
   }
 
-  // 各平台社区发言概况 + 本章看点
-  const twSummary = generatePlatformSummary(stats.twitter.records, '🐦 Twitter（日服）', twitterTopics);
-  const dcSummary = generatePlatformSummary(stats.discord_tc.records, '💬 Discord（繁中服）', tcTopics);
-  const lgSummary = generatePlatformSummary(stats.lounge_kr.records, '🇰🇷 Naver Lounge（韩服）', loungeTopics);
+  // 各平台社区发言概况（AI 归纳内容，三平台并行调）+ 本章看点
+  const [twSummary, dcSummary, lgSummary] = await Promise.all([
+    buildPlatformSummary(stats.twitter.records, '🐦 Twitter（日服）', twitterTopics, 'twitter'),
+    buildPlatformSummary(stats.discord_tc.records, '💬 Discord（繁中服）', tcTopics, 'discord'),
+    buildPlatformSummary(stats.lounge_kr.records, '🇰🇷 Naver Lounge（韩服）', loungeTopics, 'lounge')
+  ]);
   const twHighlight = generatePlatformHighlight(stats.twitter, twitterTopics);
   const dcHighlight = generatePlatformHighlight(stats.discord_tc, tcTopics);
   const lgHighlight = generatePlatformHighlight(stats.lounge_kr, loungeTopics);
