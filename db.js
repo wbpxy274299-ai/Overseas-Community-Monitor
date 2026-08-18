@@ -117,9 +117,13 @@ async function initDb() {
       discord_count INTEGER DEFAULT 0,
       lounge_count  INTEGER DEFAULT 0,
       summary       TEXT,
-      created_at    TEXT NOT NULL DEFAULT (datetime('now','+8 hours'))
+      created_at    TEXT NOT NULL DEFAULT (datetime('now','+8 hours')),
+      updated_at    TEXT
     )
   `);
+
+  // 兼容：旧表可能没有 updated_at 列（同周周报覆盖更新要用，缺了会报 no such column）
+  try { db.run('ALTER TABLE weekly_reports ADD COLUMN updated_at TEXT'); } catch (_) {}
 
   // 每日快照表（用于周报快速查询 + 每日與情存档）
   db.run(`
