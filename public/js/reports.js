@@ -135,7 +135,9 @@ async function generateReport() {
       Toast.success('✅ 报告生成成功');
       loadReports();
     } else {
-      Toast.error('❌ 生成失败: ' + (data.error || '未知错误'));
+      // ★ 服务端报错完整展示（HTTP 500 时 data.error 是具体原因，不能只说"失败"）
+      Toast.error('❌ 生成失败: ' + (data.error || response.status + ' ' + response.statusText));
+      console.error('生成周报失败详情:', data);
     }
   } catch (error) {
     console.error('生成报告失败:', error);
