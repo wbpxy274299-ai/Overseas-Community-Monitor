@@ -1,64 +1,11 @@
 /**
  * 舆情历史数据 — 页面专用样式（严格遵循设计稿 V45 标准）
+ * 注：.table 系列表格样式已升级为全站统一，定义在 m2g-theme.css，此处不重复 —— 2026-08 表格统一
  */
 
 /* ===== 数据表格容器 (严格遵循设计稿 L1574-L1593) ===== */
 .card.mb32 {
   overflow-x: auto;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-/* 表头 - 设计稿 L1576: 无 width, 灰色小字 */
-.table thead tr th {
-  font-size: 10px;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  color: var(--mut, #84868B);
-  font-weight: 600;
-  text-align: left;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--line, #D8DADD);
-  background: transparent;
-}
-
-/* 表格行 - 设计稿 L1578-L1590 */
-.table tbody tr {
-  transition: 0.15s;
-  cursor: pointer;
-}
-/* 悬停色双保险：带 data-theme 限定提高优先级，压过 components.css 的通用 tr:hover 规则 */
-.table tbody tr:hover td,
-[data-theme="light"] .table tbody tr:hover td,
-[data-theme="dark"] .table tbody tr:hover td {
-  background: var(--hover, #F6F7F8);
-}
-
-.table tbody tr td {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--hair, #E7E8EA);
-  color: var(--mut, #84868B);
-  vertical-align: middle;
-}
-.table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-/* 作者列 */
-.table td.strong {
-  color: var(--ink, #0B0B0C);
-  font-weight: 700;
-}
-
-/* 时间列 - 等宽字体 */
-.table td.mono {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  font-size: 12px;
 }
 .tab-cards {
   display: grid;

@@ -76,7 +76,7 @@ function renderSearchResults(results, query, countEl, container) {
   }
   countEl.textContent = `搜索 "${query}" — 找到 ${results.length} 条`;
 
-  let html = '<table class="data-table"><thead><tr>';
+  let html = '<table class="table"><thead><tr>';
   LANG_COL_HEADERS.forEach(c => html += `<th>${c.label}</th>`);
   html += '</tr></thead><tbody>';
 
@@ -119,7 +119,7 @@ function renderCheckResult(matches, text, container) {
     return;
   }
   let html = `<p class="found-count">发现 <strong>${matches.length}</strong> 个游戏术语</p>`;
-  html += '<table class="data-table"><thead><tr><th>#</th>';
+  html += '<table class="table"><thead><tr><th>#</th>';
   LANG_COL_HEADERS.forEach(c => html += `<th>${c.label}</th>`);
   html += '</tr></thead><tbody>';
 
@@ -197,7 +197,7 @@ async function handleBatchFile(file) {
 }
 
 function renderBatchResults(results, container) {
-  let html = '<table class="data-table"><thead><tr><th>#</th><th>文案</th><th>术语数</th><th>命中术语</th></tr></thead><tbody>';
+  let html = '<table class="table"><thead><tr><th>#</th><th>文案</th><th>术语数</th><th>命中术语</th></tr></thead><tbody>';
   results.forEach(r => {
     const hitClass = r.hits > 0 ? 'batch-hit' : 'batch-no-hit';
     const terms = r.terms.map(t => `${t.zh}(${t.matched})`).join('、');

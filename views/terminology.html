@@ -7,6 +7,14 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/m2g-theme.css">
+  <style>
+    /* 术语页专用表格细节（表格框架走 m2g-theme.css 全局 .table） */
+    #searchResults mark,#checkResult mark{background:rgba(232,163,61,.28);color:inherit;padding:0 2px;border-radius:3px}
+    .found-count{font-size:12px;color:var(--mut);margin-bottom:12px}
+    .found-count strong{color:var(--ink);font-size:14px}
+    .batch-hit td{background:rgba(76,158,110,.06)}
+    .batch-text-cell{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  </style>
 </head>
 <body>
   <div class="wrap page-head" style="padding:36px 0 20px">

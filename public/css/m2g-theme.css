@@ -65,6 +65,24 @@ input[type="checkbox"]{accent-color:var(--ink);width:14px;height:14px;cursor:poi
 .card-pad{padding:28px}
 .card-title{font-size:15px;font-weight:700;margin-bottom:4px}
 .card-sub{font-size:12px;color:var(--mut)}
+/* 标准数据表格（全站统一，设计规范 §8.2：灰字大写表头 + 发丝分隔线 + 悬停浮灰） */
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table thead tr th{font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--mut);font-weight:600;text-align:left;padding:16px 20px;border-bottom:1px solid var(--line);background:transparent}
+.table tbody tr{transition:.15s}
+.table tbody tr td{padding:16px 20px;border-bottom:1px solid var(--hair);color:var(--mut);vertical-align:middle}
+.table tbody tr:last-child td{border-bottom:none}
+/* 悬停色双保险：带 data-theme 限定提高优先级，压过 components.css 的通用 tr:hover 规则 */
+.table tbody tr:hover td,
+[data-theme="light"] .table tbody tr:hover td,
+[data-theme="dark"] .table tbody tr:hover td{background:var(--hover,#F6F7F8)}
+.table td.strong{color:var(--ink);font-weight:700}
+.table td.mono{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12px}
+/* 表格内容列截断（设计稿：max-width 180px + 省略号） */
+td.content-preview{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 表格紧凑变体（数据库浏览表专用：明细多内容长，收窄内边距） */
+.table.table-compact thead tr th{padding:10px 12px}
+.table.table-compact tbody tr td{padding:8px 12px;font-size:12px}
+.db-cell-null{color:var(--mut);font-style:italic;opacity:.55}
 /* 切角黑面板 */
 .panel-cut{background:var(--cut);color:var(--cut-ink);border-radius:32px;clip-path:polygon(0 0,calc(100% - 72px) 0,100% 72px,100% 100%,0 100%);padding:56px;transition:background .35s}
 :root[data-theme="dark"] .panel-cut{border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 50px rgba(0,0,0,.5)}
@@ -109,8 +127,8 @@ td.mono{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12px}
 .oplink:hover{opacity:.55}
 /* 角色徽章 */
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap}
-.badge-admin{background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#1e40af}
-.badge-user{background:linear-gradient(135deg,#f3f4f6,#e5e7eb);color:#374151}
+.badge-admin{background:rgba(74,158,218,.15);color:#2b6cb0}
+.badge-user{background:rgba(163,167,174,.18);color:#4a5568}
 .badge-success{background:rgba(76,158,110,.12);color:#276749}
 .badge-danger{background:rgba(224,82,82,.12);color:#c53030}
 .badge-warning{background:rgba(232,163,61,.12);color:#92400e}

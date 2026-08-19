@@ -492,13 +492,13 @@ async function loadTasks() {
     const actualTimeShort = t.actual_time ? t.actual_time.substring(0, 16) : '—';
     tr.innerHTML = `
       <td><input type="checkbox" class="task-check" data-id="${t.id}"></td>
-      <td>${t.id}</td>
+      <td class="strong">${t.id}</td>
       <td>${t.channel_name}</td>
-      <td class="content-preview">${contentShort}</td>
-      <td>${rtypeLabel}</td>
-      <td><span class="status-tag status-${t.status}">${t.status_label}</span></td>
-      <td>${sendTimeShort}</td>
-      <td>${actualTimeShort}</td>
+      <td class="content-preview" title="${(t.content || '').replace(/"/g, '&quot;')}">${contentShort}</td>
+      <td class="mono">${rtypeLabel}</td>
+      <td><span class="tag ${statusTagClass(t.status)}">${t.status_label}</span></td>
+      <td class="mono">${sendTimeShort}</td>
+      <td class="mono">${actualTimeShort}</td>
       <td>${t.sender || '—'}</td>
       <td class="operator-cell">${t.operator || '—'}</td>
       <td class="action-cell">${getActionBtns(t)}</td>`;
@@ -554,19 +554,27 @@ async function batchAction(action) {
   });
 }
 
+// 状态→设计稿 .tag 圆点标签映射（ok绿/err红/info蓝/idle灰，定义在 m2g-theme.css）
+function statusTagClass(status) {
+  if (status === 'sent') return 'ok';
+  if (['failed', 'timeout'].includes(status)) return 'err';
+  if (['received', 'scheduled'].includes(status)) return 'info';
+  return 'idle'; // cancelled / recalled
+}
+
 function getActionBtns(t) {
   let btns = '';
   if (['received', 'scheduled'].includes(t.status)) {
-    btns += `<button class="btn btn-small btn-danger" data-task="${t.id}" data-action="cancel">取消发送</button>`;
+    btns += `<button class="btn-op danger" data-task="${t.id}" data-action="cancel">取消发送</button>`;
   }
   if (t.status === 'sent' && t.message_id) {
-    btns += `<button class="btn btn-small btn-primary" data-preview="${t.id}">DC效果</button>`;
-    btns += `<button class="btn btn-small btn-warning" data-task="${t.id}" data-action="recall">撤回消息</button>`;
+    btns += `<button class="btn-op" data-preview="${t.id}">DC效果</button>`;
+    btns += `<button class="btn-op danger" data-task="${t.id}" data-action="recall">撤回消息</button>`;
   }
   if (['failed', 'timeout'].includes(t.status)) {
-    btns += `<button class="btn btn-small btn-success" data-task="${t.id}" data-action="retry">重试</button>`;
+    btns += `<button class="btn-op" data-task="${t.id}" data-action="retry">重试</button>`;
   }
-  return btns || '—';
+  return btns || '<span class="micro">—</span>';
 }
 
 // ===== 任务详情弹窗 =====

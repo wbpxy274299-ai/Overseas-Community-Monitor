@@ -96,7 +96,7 @@ function renderUserTable(users) {
         <td>${roleBadge}</td>
         <td><small style="color:var(--mut);">${roleInfo.desc}</small></td>
         <td>${permsHtml}</td>
-        <td>${formatDate(user.created_at)}</td>
+        <td class="mono">${formatDate(user.created_at)}</td>
         <td>${roleSelector}<br>${deleteBtn}</td>
       </tr>`;
   }
