@@ -170,6 +170,50 @@ function safeJsonParse(text, context = '') {
     }
   } catch (_) {}
   
+  // 第4次：截断抢救——AI输出超maxTokens被砍断，自动闭合未完成的JSON
+  // 比喻：AI写到一半被掐断嘴，这个函数帮它把没说完的话画上句号
+  try {
+    let truncated = text.trim();
+    // 找到第一个 { 或 [ 作为起点
+    const objStart = truncated.indexOf('{');
+    const arrStart = truncated.indexOf('[');
+    let start = -1;
+    if (objStart >= 0 && (arrStart < 0 || objStart < arrStart)) start = objStart;
+    else if (arrStart >= 0) start = arrStart;
+    if (start >= 0) {
+      truncated = truncated.slice(start);
+      // 去掉尾部不完整的字符串值（引号未闭合的残余）
+      const lastQuote = truncated.lastIndexOf('"');
+      const lastColon = truncated.lastIndexOf(':');
+      if (lastQuote < lastColon) {
+        // 最后一个冒号后面没有闭合引号→截断到该冒号前
+        truncated = truncated.slice(0, lastColon).trimEnd();
+        // 确保末尾干净（去掉悬空的逗号）
+        truncated = truncated.replace(/,\s*$/, '');
+      }
+      // 统计未闭合的括号，补齐
+      let braces = 0, brackets = 0, inString = false, escape = false;
+      for (const ch of truncated) {
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '{') braces++;
+        else if (ch === '}') braces--;
+        else if (ch === '[') brackets++;
+        else if (ch === ']') brackets--;
+      }
+      // 补齐未闭合的括号（先 bracket 后 brace）
+      let suffix = '';
+      for (let i = 0; i < brackets; i++) suffix += ']';
+      for (let i = 0; i < braces; i++) suffix += '}';
+      if (suffix) {
+        const repaired = truncated + suffix;
+        return JSON.parse(repaired);
+      }
+    }
+  } catch (_) {}
+  
   console.warn(`⚠️ JSON 解析彻底失败 [${context}]，前100字: ${text.substring(0, 100)}`);
   return null;
 }

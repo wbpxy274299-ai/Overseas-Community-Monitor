@@ -995,6 +995,7 @@ async function collectFromDiscord() {
   
   const BATCH_SIZE = 30; // 每批30条，发现重复就停
   const messageMap = new Map();
+  let totalEmptyContent = 0; // ★ 诊断计数：消息存在但内容为空（MESSAGE_CONTENT Intent问题）
   
   console.log(`\n   正在采集 TC（繁中服）Discord 数据...`);
   
@@ -1114,6 +1115,8 @@ async function collectFromDiscord() {
       
       for (const msg of allNewMessages) {
         const content = msg.content || '';
+        // ★ 诊断：统计“有消息但内容为空”的数量（排除 bot）
+        if (!content.trim() && !msg.author?.bot) totalEmptyContent++;
         if (!content.trim() || msg.author?.bot) continue;
         
         validCount++;
@@ -1169,12 +1172,22 @@ async function collectFromDiscord() {
   
   collectionStatus.discord.lastRun = fmtCST8(new Date());
   collectionStatus.discord.lastCount = collected.length;
+  collectionStatus.discord._emptyContentCount = totalEmptyContent; // 诊断计数器
   if (collected.length === 0) {
-    collectionStatus.discord.lastError = '采集结果为0条，可能存在问题';
-    recordError('Discord采集', '本次采集结果为0条，请检查Token和网络');
+    // ★ 诊断信息：区分“没有新消息”和“采集异常”
+    const hasContentIntentIssue = collectionStatus.discord._emptyContentCount > 0;
+    if (hasContentIntentIssue) {
+      collectionStatus.discord.lastError = `采集0条：获取到${collectionStatus.discord._emptyContentCount}条消息但内容为空（MESSAGE_CONTENT Intent未开启）`;
+      recordError('Discord采集', `采集0条：${collectionStatus.discord._emptyContentCount}条消息内容为空——Bot未开启MESSAGE_CONTENT Intent，请在Discord开发者后台开启`);
+    } else {
+      collectionStatus.discord.lastError = '采集0条：无新消息（可能已追平或频道无新发言）';
+      console.log('ℹ️ Discord采集0条：当前无新消息（已追平或频道无新发言，非异常）');
+    }
   } else {
     collectionStatus.discord.lastError = null;
   }
+  // 重置诊断计数器
+  collectionStatus.discord._emptyContentCount = 0;
   
   console.log(`\n✅ 从 Discord（繁中服）共采集到 ${collected.length} 条玩家发言（已去重）`);
   return collected;

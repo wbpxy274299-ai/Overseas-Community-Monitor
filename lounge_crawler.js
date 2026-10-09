@@ -65,7 +65,16 @@ async function apiGet(url, retries = 3) {
       const isNetwork = err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT';
       const status = err.response?.status;
 
-      // 4xx 错误不重试（参数错误等）
+      // ★ 429 限流：特殊处理，指数退避重试（Naver 常见限流）
+      if (status === 429 && attempt < retries) {
+        const retryAfter = parseInt(err.response?.headers?.['retry-after']) || 0;
+        const wait = Math.max(retryAfter * 1000, attempt * 5000); // 至少 5s/10s/15s 递增
+        console.log(`   ⏳ Naver 限流 429 (第${attempt}次)，${wait/1000}s 后重试...`);
+        await sleep(wait);
+        continue;
+      }
+
+      // 其他 4xx 错误不重试（参数错误等），但 429 最后一次也抛出
       if (status && status >= 400 && status < 500) {
         throw err;
       }
@@ -92,7 +101,7 @@ const LOUNGE_CONFIG = {
     },
   ],
   maxComments: 30,  // 每帖最多抓30条评论
-  delayBetween: 1000,
+  delayBetween: 2000,  // Naver 限流较严，2秒间隔减少429
 };
 
 // ===== 爬虫状态（防止并发）=====
@@ -238,7 +247,7 @@ function parseNaverDate(dateStr) {
 async function crawlPostList(game, options = {}) {
   const allPosts = [];
   const seenIds = new Set();
-  const limit = 30; // 每批30条
+  const limit = 20; // Naver API 上限为20，超过会返回400或触发429
   let offset = 0;
   const minDate = options.minDate || '2026-05-01'; // 默认不抓5月之前的数据
 

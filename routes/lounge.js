@@ -639,11 +639,17 @@ async function fullCrawlPipeline(options = {}) {
   // 第二步：入库
   const saved = saveCrawlResult(crawlResult);
 
-  // ★ 检查入库结果
+  // ★ 检查入库结果：区分“无新帖（正常）”和“抓取失败（异常）”
   if (!saved || saved.newPosts === 0) {
-    console.error('❌ 入库失败：0 条帖子成功入库');
+    if (crawlResult.posts.length > 0) {
+      // 爬虫抓到了帖子，但全是旧帖（增量排重后无新帖）→ 正常情况，不报错
+      console.log('ℹ️ 本次无新帖（已有帖子均已排重），跳过翻译和日报');
+      return { success: true, message: '无新帖', crawl: { posts: crawlResult.posts.length, comments: crawlResult.totalComments, time: crawlResult.crawlTime }, saved: { newPosts: 0, newComments: 0 } };
+    }
+    // 爬虫连帖子都没抓到（API故障/网络问题）→ 真正的错误
+    console.error('❌ 抓取失败：未获取到任何帖子');
     if (saved?.error) console.error('   原因:', saved.error);
-    return { success: false, error: '入库失败: ' + (saved?.error || '0条帖子入库'), crawl: { posts: crawlResult.posts.length } };
+    return { success: false, error: '抓取失败: ' + (saved?.error || '未获取到帖子'), crawl: { posts: 0 } };
   }
   console.log(`✅ 入库成功：${saved.newPosts} 条帖子，${saved.newComments} 条评论`);
 
