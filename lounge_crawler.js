@@ -436,14 +436,14 @@ async function crawlPostDetail(post, shouldFetchComments = true) {
         const commentUrl = `${COMMENT_API_BASE}/type/FEED/id/${post.id}/comments?limit=${LOUNGE_CONFIG.maxComments}&offset=0&orderType=ASC&originalLoungeId=${post.gameCode || 'Tree_Of_Savior_Neverland'}`;
         const commentRes = await apiGet(commentUrl);
         const commentData = commentRes.data?.content;
-        const comments = commentData?.comments || [];
+        const comments = commentData?.comments?.data || [];
         for (const c of comments) {
           if (detail.comments.length >= LOUNGE_CONFIG.maxComments) break;
           detail.comments.push({
-            author: c.user?.nickname || '',
-            text: (c.contents || '').substring(0, 1000),
-            time: parseNaverDate(c.createdDate || ''),
-            likes: String(c.likeCount || 0),
+            author: c.user?.userNickname || '',
+            text: (c.comment?.content || '').substring(0, 1000),
+            time: parseNaverDate(c.comment?.createdDate || ''),
+            likes: String(c.buffNerf?.buffCount || 0),
           });
         }
       } catch (commentErr) {
@@ -572,14 +572,14 @@ async function crawlLounge(options = {}) {
               try {
                 const commentUrl = `${COMMENT_API_BASE}/type/FEED/id/${post.id}/comments?limit=${LOUNGE_CONFIG.maxComments}&offset=0&orderType=ASC&originalLoungeId=${game.code}`;
                 const commentRes = await apiGet(commentUrl);
-                const comments = commentRes.data?.content?.comments || [];
+                const comments = commentRes.data?.content?.comments?.data || [];
                 for (const c of comments) {
                   if (detail.comments.length >= LOUNGE_CONFIG.maxComments) break;
                   detail.comments.push({
-                    author: c.user?.nickname || '',
-                    text: (c.contents || '').substring(0, 1000),
-                    time: parseNaverDate(c.createdDate || ''),
-                    likes: String(c.likeCount || 0),
+                    author: c.user?.userNickname || '',
+                    text: (c.comment?.content || '').substring(0, 1000),
+                    time: parseNaverDate(c.comment?.createdDate || ''),
+                    likes: String(c.buffNerf?.buffCount || 0),
                   });
                 }
               } catch (_) {}

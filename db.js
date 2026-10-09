@@ -24,6 +24,11 @@ async function initDb() {
     db = new SQL.Database();
   }
 
+  // ★ 开启 WAL 模式：读写可以并行（仓库多开一扇门，进货时也能出货）
+  try {
+    db.run('PRAGMA journal_mode=WAL');
+  } catch (_) {}
+
   // 建表
   db.run(`
     CREATE TABLE IF NOT EXISTS tasks (
@@ -105,6 +110,12 @@ async function initDb() {
     saveDb();
     console.log('✅ 默认管理员账号已创建: 阿饱 (密码: abao123)');
   }
+
+  // ★ 索引瘦身：删掉冗余索引（复合索引已覆盖单列索引，多一个索引就多一份写入负担）
+  try { db.run('DROP INDEX IF EXISTS idx_sentiment_platform'); } catch (_) {} // 被 idx_sentiment_platform_created 覆盖
+  try { db.run('DROP INDEX IF EXISTS idx_sentiment_created'); } catch (_) {} // 被 idx_sentiment_region_created 覆盖
+  // ★ 补关键索引：Discord 去重查询用 (platform, source_id)
+  db.run('CREATE INDEX IF NOT EXISTS idx_sentiment_platform_sourceid ON sentiment_records(platform, source_id)');
 
   // 舆情周报表
   db.run(`

@@ -144,6 +144,7 @@ function initLoungeTables() {
   `);
   rawDb.run('CREATE INDEX IF NOT EXISTS idx_lounge_posts_game ON lounge_posts(game_code, crawled_at DESC)');
   rawDb.run('CREATE INDEX IF NOT EXISTS idx_lounge_posts_sentiment ON lounge_posts(sentiment)');
+  rawDb.run('CREATE INDEX IF NOT EXISTS idx_lounge_posts_post_date ON lounge_posts(post_date DESC)'); // ★ 日报按日期查询用
 
   // ★ 表结构迁移：给旧表补加缺失列（CREATE TABLE IF NOT EXISTS 不会改已有表）
   const migrateColumns = [

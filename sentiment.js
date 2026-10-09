@@ -1058,22 +1058,25 @@ async function collectFromDiscord() {
         
         totalFetched += batch.length;
         
-        // 检查这批中有多少已存在于数据库
-        let dupCount = 0;
-        for (const msg of batch) {
-          if (msg.author?.bot || !(msg.content || '').trim()) continue;
-          const exists = db.queryOne('SELECT id FROM sentiment_records WHERE platform = ? AND source_id = ?', ['discord', msg.id]);
-          if (exists) dupCount++;
+        // ★ 批量排重：一次查询检查整批是否已存在（不再逐条查30次）
+        const validMsgs = batch.filter(m => !m.author?.bot && (m.content || '').trim());
+        const msgIds = validMsgs.map(m => m.id);
+        let existingIds = new Set();
+        if (msgIds.length > 0) {
+          const placeholders = msgIds.map(() => '?').join(',');
+          const existing = db.queryAll(
+            `SELECT source_id FROM sentiment_records WHERE platform = 'discord' AND source_id IN (${placeholders})`,
+            msgIds
+          );
+          existingIds = new Set(existing.map(r => r.source_id));
         }
+        const dupCount = existingIds.size;
         
-        console.log(`        📦 第${batchNum}批: ${batch.length} 条（新增 ${batch.length - dupCount}，重复 ${dupCount}）`);
+        console.log(`        📦 第${batchNum}批: ${batch.length} 条（新增 ${validMsgs.length - dupCount}，重复 ${dupCount}）`);
         
         if (dupCount > 0) {
           // 发现重复 → 停止，这批的新消息仍然收进来
-          const newInBatch = batch.filter(m => {
-            if (m.author?.bot || !(m.content || '').trim()) return false;
-            return !db.queryOne('SELECT id FROM sentiment_records WHERE platform = ? AND source_id = ?', ['discord', m.id]);
-          });
+          const newInBatch = validMsgs.filter(m => !existingIds.has(m.id));
           allNewMessages.push(...newInBatch);
           console.log(`        🛑 发现${dupCount}条重复，停止往更早时间抓取`);
           break;
