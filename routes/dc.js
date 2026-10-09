@@ -72,8 +72,8 @@ router.post('/api/upload', dcAuth, upload.array('files', 20), (req, res) => {
 // 新建任务
 router.post('/api/tasks', dcAuth, validateInput({
   channel_name: { required: true, type: 'string', maxLength: 100 },
-  content: { required: false, type: 'string', maxLength: 5000 },
-  image_urls: { required: false, type: 'string', maxLength: 2000 },
+  content: { required: false, type: 'string' },
+  image_urls: { required: false, type: 'string' },
   sender: { required: false, type: 'string', maxLength: 50 },
   operator: { required: true, type: 'string', maxLength: 50 },
   request_type: { required: false, type: 'string', maxLength: 20 },

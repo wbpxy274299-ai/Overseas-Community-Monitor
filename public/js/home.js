@@ -279,34 +279,7 @@ function onChannelChange() {
   $('sender').value = (server && state.sendersData[server]) || '';
 }
 
-// ===== 图片压缩（浏览器端 Canvas 压缩） =====
-function compressImage(file, maxWidth = 1920, quality = 0.8) {
-  return new Promise((resolve) => {
-    // 小于 500KB 或不是图片，不压缩
-    if (file.size < 500 * 1024 || !file.type.startsWith('image/')) {
-      resolve(file);
-      return;
-    }
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.createElement('canvas');
-      let w = img.width, h = img.height;
-      if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
-      canvas.toBlob((blob) => {
-        const compressed = new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
-        resolve(compressed);
-      }, 'image/jpeg', quality);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
-    img.src = url;
-  });
-}
+// ===== 图片不压缩，原图直传 =====
 
 // ===== 图片上传预览 =====
 function previewImages() {
@@ -378,7 +351,7 @@ function updateCharCount() {
   const len = $('content').value.length;
   const el = $('charCount');
   el.textContent = `${len} 字`;
-  el.classList.toggle('char-warn', len > 1800);
+  // 字数不限，去掉警告样式
 }
 
 // ===== 提交发送 =====
@@ -407,12 +380,11 @@ async function submitSend(e) {
     }
   }
 
-  // 压缩并上传图片
+  // 原图直传，不压缩
   if (state.imageFileList.length > 0) {
     const formData = new FormData();
     for (const f of state.imageFileList) {
-      const compressed = await compressImage(f);
-      formData.append('files', compressed);
+      formData.append('files', f);
     }
     try {
       const resp = await fetch('/api/upload', { method: 'POST', body: formData, credentials: 'same-origin' });

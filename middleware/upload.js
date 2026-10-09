@@ -17,8 +17,8 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
-    files: 20 // 最多 20 个文件
+    fileSize: Infinity, // 不限图片大小
+    files: Infinity // 不限数量
   }
 });
 
