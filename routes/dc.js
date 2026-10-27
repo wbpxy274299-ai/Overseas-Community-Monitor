@@ -59,7 +59,7 @@ router.get('/api/token-status', requireAuth, requireRole('admin'), (req, res) =>
 
 // ===== 图片上传 =====
 
-router.post('/api/upload', dcAuth, upload.array('files', 20), (req, res) => {
+router.post('/api/upload', dcAuth, upload.array('files', 10), (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: '没有上传文件' });
   }
