@@ -60,14 +60,10 @@ router.get('/api/token-status', requireAuth, requireRole('admin'), (req, res) =>
 // ===== 图片上传 =====
 
 router.post('/api/upload', dcAuth, (req, res, next) => {
-  upload.array('files', 10)(req, res, (err) => {
+  upload.array('files')(req, res, (err) => {
     if (err) {
-      // multer 拒绝文件（超大小/超数量）→ 返回 JSON 而不是 HTML 错误页
-      const msg = err.code === 'LIMIT_FILE_SIZE' ? '单张图片不能超过 8MB'
-        : err.code === 'LIMIT_FILE_COUNT' ? '最多上传 10 张图片'
-        : err.code === 'LIMIT_UNEXPECTED_FILE' ? '只接受图片文件'
-        : '上传失败：' + err.message;
-      return res.status(400).json({ error: msg });
+      // multer 出错 → 返回 JSON 而不是 HTML 错误页
+      return res.status(400).json({ error: '上传失败：' + err.message });
     }
     next();
   });

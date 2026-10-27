@@ -14,12 +14,6 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
-  storage,
-  limits: {
-    fileSize: 8 * 1024 * 1024, // 8MB — Discord 平台文件大小上限
-    files: 10 // 10 张 — Discord 单次消息附件上限
-  }
-});
+const upload = multer({ storage });
 
 module.exports = { upload };
