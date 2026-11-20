@@ -986,8 +986,8 @@ async function collectFromYahooApi(searchQuery, isFullCollect = false) {
 async function collectFromDiscord() {
   console.log('💬 开始从 Discord 采集数据...');
   
-  // 繁中服 Discord 频道（使用 JP Bot Token 读取，因 TC Bot 未开启 MESSAGE_CONTENT Intent）
-  const DISCORD_SERVER = 'JP';
+  // 繁中服 Discord 频道（用 TC Bot Token 读取，与频道所属服务器一致）
+  const DISCORD_SERVER = 'TC';
   const tcChannels = [
     { id: '1236867556355346484', name: '💬日常閒聊' },
     { id: '1320748853732970556', name: '👂八卦吃瓜' },
